@@ -81,7 +81,7 @@ Proof standards:
 - Exercise the CLI, not internal functions. A unit test passing does not prove the CLI behavior it covers.
 - A Rune view claim needs the PNGs on disk and opened. It also needs the product test's numbers from the same run, not from an earlier one.
 - A parity claim needs both sides on disk: `<i>.pele.svg` and `<i>.ours.svg` from the same run, plus the `report.json` row. "Identical" means byte-equal SVG and equal width and height.
-- A "type X is ported" claim needs `pele parity --type X` with `different 0` and `not ported 0`. Name any `pele errors` rows, since Pele rejected those sources itself. It also needs the type's wider differential test passing, such as `cargo test -p pele-core --test pie_parity` for pie.
+- A "type X is ported" claim needs `pele parity --type X` with `different 0` and `not ported 0`. Name any `pele errors` rows, since Pele rejected those sources itself. It also needs the type's wider differential test passing: `cargo test -p pele-core --test pie_parity` for pie, `--test flowchart_parity` for flowchart.
 - A numeric claim needs `mise exec -- cargo test -p pele-core --test oracle` passing. Those tests diff against the oracle on more than 200,000 doubles.
 - When an SVG must be looked at, open both files side by side. A byte diff (`diff <i>.pele.svg <i>.ours.svg`) names the first divergent attribute. Report it in the feature's words.
 

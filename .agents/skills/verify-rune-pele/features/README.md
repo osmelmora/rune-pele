@@ -8,7 +8,7 @@ This directory is the maintained source for verifying what users of rune-pele ca
 - `.agents/skills/verify-rune-pele/scripts/doctor.sh` prints `doctor: ok`.
 - `target/debug/pele` is built from the working tree under test (`mise exec -- cargo build -p pele-cli`).
 - `target/debug/examples/pie` is built from the same tree (`mise exec -- cargo build -p rune-pele --example pie`).
-- The fixtures `tests/fixtures/pie-pets.mmd` (a ported type) and `tests/fixtures/flow.mmd` (a type that is not ported) are unchanged.
+- The fixtures `tests/fixtures/pie-pets.mmd` and `tests/fixtures/flow.mmd` (ported types: a pie and a flowchart) and `tests/fixtures/sequence.mmd` (a type that is not ported) are unchanged.
 - Each run picks a fresh `<run-id>` and writes only under `out/verify/<run-id>/`.
 
 ## Driving conventions
@@ -38,6 +38,6 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [Render a Mermaid file](./render.md) covers both engines, file output, the not-ported path and bad input.
-- [Corpus parity report](./parity.md) covers the scoreboard, per-type runs, the files it writes, its exit gate and the wider differential test of a ported type.
+- [Corpus parity report](./parity.md) covers the scoreboard, per-type runs, the files it writes, its exit gate and the wider differential test of each ported type.
 - [JavaScript numerics](./numerics.md) covers `Math.round`, Pele's `num()`, `String(x)`, `toFixed`, and how close `sin`, `cos` and `pow` are, against the oracle.
 - [Native Rune view](./rune-view.md) covers pie drawn as Rune elements: the example's `--snap`, its palette switch, the headless product test, and Pele's SVG through resvg side by side.
