@@ -39,8 +39,8 @@ pub(super) struct LinkInfo {
     pub(super) id: Option<JsText>,
 }
 
-/// Pele's `destructEndLink`.
-fn end_link(raw: &[u16]) -> Link {
+/// Pele's `destructEndLink`: the arrowheads, stroke and length a whole link gives.
+fn end_link(raw: &[u16]) -> (ArrowKind, Stroke, usize) {
     let text = raw.trim_js();
     let mut line = &text[..text.len() - 1];
     let starts = |c: u8| text.first() == Some(&unit(c));
@@ -74,7 +74,7 @@ fn end_link(raw: &[u16]) -> Link {
         stroke = Stroke::Dotted;
         length = dots;
     }
-    Link::Valid { arrow, stroke, length }
+    (arrow, stroke, length)
 }
 
 /// Pele's `destructStartLink`: the arrowhead and stroke the opening part of a link gives.
@@ -101,12 +101,9 @@ fn start_link(raw: &[u16]) -> (ArrowKind, Stroke) {
 
 /// Pele's `destructLink`, for a link token and the start token of a link with text.
 pub(super) fn destruct_link(end: &[u16], start: Option<&[u16]>) -> Link {
-    let info = end_link(end);
+    let (end_arrow, end_stroke, length) = end_link(end);
     let Some(start) = start.filter(|start| !start.is_empty()) else {
-        return info;
-    };
-    let Link::Valid { arrow: end_arrow, stroke: end_stroke, length } = info else {
-        unreachable!("an end link is valid");
+        return Link::Valid { arrow: end_arrow, stroke: end_stroke, length };
     };
     let (start_arrow, start_stroke) = start_link(start);
     if start_stroke != end_stroke {
