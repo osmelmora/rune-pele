@@ -7,7 +7,7 @@ This directory is the maintained source for verifying what users of rune-pele ca
 - `mise install` and `mise run setup` have run in this checkout.
 - `.agents/skills/verify-rune-pele/scripts/doctor.sh` prints `doctor: ok`.
 - `target/debug/pele` is built from the working tree under test (`mise exec -- cargo build -p pele-cli`).
-- The fixture `tests/fixtures/pie-pets.mmd` is unchanged.
+- The fixtures `tests/fixtures/pie-pets.mmd` (a ported type) and `tests/fixtures/flow.mmd` (a type that is not ported) are unchanged.
 - Each run picks a fresh `<run-id>` and writes only under `out/verify/<run-id>/`.
 
 ## Driving conventions
@@ -37,5 +37,5 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [Render a Mermaid file](./render.md) covers both engines, file output, the not-ported path and bad input.
-- [Corpus parity report](./parity.md) covers the scoreboard, per-type runs, the files it writes and its exit gate.
-- [JavaScript numerics](./numerics.md) covers `Math.round`, Pele's `num()`, `String(x)` and `toFixed` against the oracle.
+- [Corpus parity report](./parity.md) covers the scoreboard, per-type runs, the files it writes, its exit gate and the wider differential test of a ported type.
+- [JavaScript numerics](./numerics.md) covers `Math.round`, Pele's `num()`, `String(x)`, `toFixed`, and how close `sin`, `cos` and `pow` are, against the oracle.

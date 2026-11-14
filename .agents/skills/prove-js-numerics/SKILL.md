@@ -29,7 +29,7 @@ Together these cover every input of `write_num`. `n = round(value * 100.0)` is i
 - Rust code under proof is `crates/pele-core/src/js.rs`, functions `round`, `write_num` and `split_hundredths`, and the `Hundredths` struct.
 - The Pele code transcribed is `vendor/pele/src/svg/builder.ts`, function `num` (lines 33–47 at Pele `3a2f075ee0c3d914f0fad3545fc0f193693975ac`, tag 1.13.0). Its transcription is `pele_split` in the proofs module.
 - The spec transcribed is ECMAScript `Math.round` (ECMA-262, the `Math.round` clause), as `spec_round` in the proofs module.
-- Last confirmed in sync at rune-pele commit `bfd1299ab4f1e238325bdf0dd6b3a0b14f99ac11`.
+- Last confirmed in sync at rune-pele commit `1e016df22c6baa8c31b73793a189d5c348d3e89d`. Since `bfd1299` the file only gained `sin`, `cos`, `pow`, `max` and `min`; the covered functions are unchanged.
 
 Move the sync commit forward only after you have read the covered code at the new commit, confirmed that the transcriptions still match it, and seen `mise run prove` pass.
 
@@ -73,6 +73,8 @@ When a change to `js.rs` or the Pele pin is deliberate:
 ## Not covered
 
 - **`to_string` and `to_fixed`.** `to_string` wraps the `ryu-js` crate and `to_fixed` reads Rust's exact decimal expansion. The question there is "same digits for every double", which is too large for Kani's string reasoning. Differential tests check both against the oracle on more than 200,000 doubles per run (`crates/pele-core/tests/oracle.rs`). That is sampling, not proof.
+- **`sin`, `cos` and `pow`.** These wrap the `libm` crate. The pinned Node on arm64 fuses multiply-adds inside V8's fdlibm and calls the platform's `pow`, so they are within one ulp of Node, not bit-equal. The oracle tests measure the gap on more than 300,000 inputs per function. See `numerics-trig` in `.agents/skills/verify-rune-pele/features/numerics.md`.
+- **`max` and `min`.** Unit tests in `js.rs` hold them to ECMAScript's NaN and signed-zero rules.
 - **`value * 100.0`.** Rust and V8 both multiply binary64 with round-to-nearest-even. That is assumed identical, not proven.
 - **Integer printing.** `write!(out, "{whole}")` and `".{f:02}"` are trusted to print decimal digits. The oracle tests exercise them.
 - **Other callers.** The proofs cover the helpers, not each diagram's use of them. A diagram that formats a number some other way is outside this skill. Its parity shows up in `pele parity` instead.

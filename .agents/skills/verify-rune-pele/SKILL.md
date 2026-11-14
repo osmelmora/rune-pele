@@ -51,7 +51,7 @@ Exit codes are part of the contract:
 | 1 | `parity` found a ported source whose SVG differs from Pele's. |
 | 3 | `render --engine rune` hit a diagram type that is not ported. |
 | 64 | Usage error. |
-| 65 | Pele rejected the source. |
+| 65 | The engine rejected the source: Pele, or this port with Pele's message. |
 | 66 | Unreadable input file. |
 
 Run it as `mise exec -- target/debug/pele …` after building, or `mise exec -- cargo run -q -p pele-cli -- …`.
@@ -72,7 +72,7 @@ Proof standards:
 
 - Exercise the CLI, not internal functions. A unit test passing does not prove the CLI behavior it covers.
 - A parity claim needs both sides on disk: `<i>.pele.svg` and `<i>.ours.svg` from the same run, plus the `report.json` row. "Identical" means byte-equal SVG and equal width and height.
-- A "type X is ported" claim needs `pele parity --type X` with `different 0` and `not ported 0`. Name any `pele errors` rows, since Pele rejected those sources itself.
+- A "type X is ported" claim needs `pele parity --type X` with `different 0` and `not ported 0`. Name any `pele errors` rows, since Pele rejected those sources itself. It also needs the type's wider differential test passing, such as `cargo test -p pele-core --test pie_parity` for pie.
 - A numeric claim needs `mise exec -- cargo test -p pele-core --test oracle` passing. Those tests diff against the oracle on more than 200,000 doubles.
 - When an SVG must be looked at, open both files side by side. A byte diff (`diff <i>.pele.svg <i>.ours.svg`) names the first divergent attribute. Report it in the feature's words.
 
@@ -90,4 +90,5 @@ Runs leave no processes behind. Each oracle call is a short-lived `node` child o
 - `scripts/doctor.sh`. A read-only readiness check, run as `.agents/skills/verify-rune-pele/scripts/doctor.sh`.
 - `scripts/capture.sh <run-id> <feature-id> <command> [args...]`. Runs a command under `mise exec` and keeps its proof.
 - `mise run check`. Runs fmt, clippy with `-D warnings`, and every test including the oracle diffs.
+- `scripts/harvest-pie.mjs`. Rewrites `tests/fixtures/pie/harvest.json` from the pie sources in `vendor/pele/tests`, run as `mise exec -- node scripts/harvest-pie.mjs`.
 - `mise run prove`. Runs the Kani proofs. The `prove-js-numerics` skill owns how to read them.
