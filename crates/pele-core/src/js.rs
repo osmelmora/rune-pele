@@ -16,6 +16,28 @@ pub fn round(x: f64) -> f64 {
     if rounded == 0.0 && x < 0.0 { -0.0 } else { rounded }
 }
 
+/// `Math.sin`, from fdlibm.
+///
+/// The pinned Node on arm64 answers one ulp away on about 1 input in 80, because its build fuses
+/// multiply-adds inside V8's copy of fdlibm. `num` hides that unless the true value sits within
+/// an ulp of a rounding tie. `tests/oracle.rs` measures the gap.
+pub fn sin(x: f64) -> f64 {
+    libm::sin(x)
+}
+
+/// `Math.cos`, with the same one-ulp gap as [`sin`].
+pub fn cos(x: f64) -> f64 {
+    libm::cos(x)
+}
+
+/// `Math.pow`, which is also the `**` operator.
+///
+/// V8 calls the platform's `pow`, so no port matches every engine. Use it only where one ulp
+/// cannot change the output, such as a threshold comparison.
+pub fn pow(base: f64, exponent: f64) -> f64 {
+    libm::pow(base, exponent)
+}
+
 /// `String(x)` for a number: shortest round-trip digits with JavaScript's exponent rules.
 pub fn to_string(x: f64) -> String {
     ryu_js::Buffer::new().format(x).to_owned()
