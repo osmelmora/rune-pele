@@ -48,29 +48,78 @@ impl Capturer {
     /// `root` laid out in a `size`-point viewport and drawn at `scale` device pixels per point,
     /// blending in sRGB as Rune apps do by default.
     pub fn capture(&self, root: El, size: (f32, f32), scale: f32) -> Pixels {
-        let mut rt = Runtime::new(root, view, size, Env::new(false, scale));
-        rt.set_srgb_blend(true);
-        let mut moving = rt.frame(0.0);
+        fn view(root: &El, _: &mut Cx<El>) -> El {
+            root.clone()
+        }
+        self.window(root, view, size, Env::new(false, scale)).capture()
+    }
+
+    /// An app's `view` of `state` in a headless window, which keeps its state, memos and element
+    /// identity from one capture to the next as a real window does.
+    pub fn window<S: 'static>(
+        &self,
+        state: S,
+        view: fn(&S, &mut Cx<S>) -> El,
+        size: (f32, f32),
+        env: Env,
+    ) -> Window<'_, S> {
+        let mut runtime = Runtime::new(state, view, size, env);
+        runtime.set_srgb_blend(true);
+        let (width, height) = ((size.0 * env.scale).round() as u32, (size.1 * env.scale).round() as u32);
+        let format = OFFSCREEN_FORMAT.remove_srgb_suffix();
+        // One renderer for the window's life: it holds the glyphs the runtime's atlas has
+        // already sent it, as a window's renderer does.
+        let mut renderer = Renderer::new(&self.gpu.device, format);
+        renderer.set_srgb_blend(true);
+        renderer.attach_text(&mut runtime.text.atlas);
+        let target = Offscreen::with_format(&self.gpu.device, width, height, format);
+        runtime.frame(0.0);
+        Window { capturer: self, runtime, renderer, target, size: (width, height) }
+    }
+}
+
+/// A headless window: see [`Capturer::window`].
+pub struct Window<'a, S: 'static> {
+    capturer: &'a Capturer,
+    runtime: Runtime<S>,
+    renderer: Renderer,
+    target: Offscreen,
+    /// In device pixels.
+    size: (u32, u32),
+}
+
+impl<S: 'static> Window<'_, S> {
+    /// Changes the state as a handler would, for the next capture to show.
+    pub fn update(&mut self, change: impl FnOnce(&mut S)) {
+        self.runtime.update(|state, _| change(state));
+    }
+
+    pub fn state(&self) -> &S {
+        &self.runtime.state
+    }
+
+    pub fn runtime(&self) -> &Runtime<S> {
+        &self.runtime
+    }
+
+    /// The window once what moves has come to rest.
+    pub fn capture(&mut self) -> Pixels {
+        let gpu = &self.capturer.gpu;
+        let rt = &mut self.runtime;
+        let mut moving = rt.frame(1.0);
         for _ in 0..SETTLE_FRAMES {
             if !moving {
                 break;
             }
             moving = rt.frame(1.0);
         }
-        let (width, height) = ((size.0 * scale).round() as u32, (size.1 * scale).round() as u32);
-        let format = OFFSCREEN_FORMAT.remove_srgb_suffix();
-        let mut renderer = Renderer::new(&self.gpu.device, format);
-        renderer.set_srgb_blend(true);
-        let target = Offscreen::with_format(&self.gpu.device, width, height, format);
-        renderer.prepare(&self.gpu.device, &self.gpu.queue, &mut rt.text.atlas, &rt.instances, (width, height));
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        let (width, height) = self.size;
+        let (renderer, target) = (&mut self.renderer, &self.target);
+        renderer.prepare(&gpu.device, &gpu.queue, &mut rt.text.atlas, &rt.instances, (width, height));
+        let mut encoder = gpu.device.create_command_encoder(&Default::default());
         renderer.draw(&mut encoder, &target.view, rt.clear_color());
         target.copy(&mut encoder);
-        renderer.submit(&self.gpu.queue, encoder);
-        Pixels { width, height, rgba: target.read(&self.gpu.device) }
+        renderer.submit(&gpu.queue, encoder);
+        Pixels { width, height, rgba: target.read(&gpu.device) }
     }
-}
-
-fn view(root: &El, _: &mut Cx<El>) -> El {
-    root.clone()
 }
