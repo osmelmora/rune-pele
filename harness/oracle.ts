@@ -103,6 +103,81 @@ const ops: Record<string, (args: string[]) => string> = {
   },
 };
 
+// flowchart front end
+import { PeleError } from '../vendor/pele/src/index.ts';
+import type { FlowDb } from '../vendor/pele/src/diagrams/flowchart/db.ts';
+import { buildFlowGraph } from '../vendor/pele/src/diagrams/flowchart/graph.ts';
+import { safeUrl } from '../vendor/pele/src/util/url.ts';
+
+// Each record's fields in the order its TypeScript interface declares them. A field that is
+// undefined is left out, and a field the list does not name fails the request.
+const FLOW_FIELDS = {
+  node: ['id', 'text', 'labelType', 'type', 'styles', 'classes', 'dir', 'props', 'link', 'linkTarget', 'icon', 'form', 'pos', 'img', 'constraint', 'assetWidth', 'assetHeight'],
+  edge: ['start', 'end', 'type', 'text', 'labelType', 'stroke', 'length', 'style', 'classes', 'id', 'isUserDefinedId', 'interpolate', 'animate', 'animation'],
+  classDef: ['id', 'styles', 'textStyles'],
+  subgraph: ['id', 'nodes', 'title', 'classes', 'dir', 'labelType', 'metadata'],
+  graphNode: ['id', 'label', 'labelType', 'shape', 'isGroup', 'parentId', 'cssStyles', 'cssCompiledStyles', 'cssClasses', 'dir', 'link', 'linkTarget', 'tooltip', 'icon', 'pos', 'img', 'assetWidth', 'assetHeight', 'constraint', 'colorIndex', 'metadata'],
+  graphEdge: ['id', 'isUserDefinedId', 'start', 'end', 'type', 'label', 'labelType', 'thickness', 'pattern', 'minlen', 'arrowTypeStart', 'arrowTypeEnd', 'cssCompiledStyles', 'style', 'classes', 'animate', 'animation', 'curve'],
+};
+
+function flowRecord(record: object, kind: keyof typeof FLOW_FIELDS): Record<string, unknown> {
+  const names = FLOW_FIELDS[kind];
+  for (const key of Object.keys(record)) {
+    if (!names.includes(key)) throw new Error(`oracle: ${kind} has the unlisted field ${key}`);
+  }
+  const out: Record<string, unknown> = {};
+  for (const name of names) {
+    const value = (record as Record<string, unknown>)[name];
+    if (value !== undefined) out[name] = value;
+  }
+  return out;
+}
+
+// Pele's flowchart model and flow graph for a source and parse options, or Pele's error with its
+// position. A source of another type answers only that type.
+function flowFront(text: string, options: { config?: Record<string, unknown> }): string {
+  let db: FlowDb & { mermaidType: string };
+  try {
+    const model = parse(text, options);
+    if (model.type !== 'flowchart') return JSON.stringify({ type: model.type });
+    db = model as unknown as FlowDb & { mermaidType: string };
+  } catch (error) {
+    if (!(error instanceof PeleError)) return JSON.stringify({ error: String(error) });
+    if (error.type !== null && error.type !== 'flowchart') return JSON.stringify({ type: error.type });
+    const { code, type, mermaidType, line, column, snippet } = error;
+    return JSON.stringify({ error: String(error), code, type, mermaidType, line, column, snippet });
+  }
+  const pre = preprocess(text).config;
+  const config = options.config ? { ...options.config, ...pre } : pre;
+  const flow = (config.flowchart ?? {}) as Record<string, unknown>;
+  const graph = buildFlowGraph(db, typeof flow.curve === 'string' ? flow.curve : undefined);
+  const model = {
+    type: db.type,
+    mermaidType: db.mermaidType,
+    direction: db.direction,
+    nodes: [...db.nodes.values()].map((node) => flowRecord(node, 'node')),
+    edges: db.edges.map((edge) => flowRecord(edge, 'edge')),
+    subgraphs: db.subgraphs.map((subgraph) => flowRecord(subgraph, 'subgraph')),
+    classes: [...db.classes.values()].map((classDef) => flowRecord(classDef, 'classDef')),
+    tooltips: [...db.tooltips],
+    defaultEdgeStyle: db.defaultEdgeStyle,
+    defaultInterpolate: db.defaultInterpolate,
+    title: db.title,
+    accTitle: db.accTitle,
+    accDescr: db.accDescr,
+  };
+  return JSON.stringify({
+    model,
+    graph: {
+      nodes: graph.nodes.map((node) => flowRecord(node, 'graphNode')),
+      edges: graph.edges.map((edge) => flowRecord(edge, 'graphEdge')),
+    },
+  });
+}
+
+ops.flow_front = ([source, options]) => flowFront(JSON.parse(source) as string, options ? JSON.parse(options) : {});
+ops.safe_url = ([url]) => JSON.stringify(safeUrl(JSON.parse(url) as string));
+
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
