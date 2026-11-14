@@ -5,6 +5,10 @@ mod diagrams;
 mod fit;
 mod input;
 pub mod js;
+// Renderers inside this crate are the callers. It is public so that `tests/layout_replay.rs` can
+// hold it to Pele, and hidden because it is no part of the API.
+#[doc(hidden)]
+pub mod layout;
 mod measure;
 pub mod scene;
 pub mod svg;
