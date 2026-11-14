@@ -1,10 +1,17 @@
-//! Lowers SVG path programs to what Rune's public `Shape` draws: endpoint arcs become cubic
-//! Béziers, and a fill plus a stroke become ordered shape ops.
+//! Lowers a Scene to what Rune's public `Shape` and text elements draw: endpoint arcs become
+//! cubic Béziers, a fill plus a stroke become ordered shape ops, and text lands on its baseline.
+//!
+//! A [`Drawing`] is made once per layout, with every outline built and every run shaped and
+//! placed. Painting it only looks its paints up, so a palette change shapes nothing.
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
+use pele_core::Scene;
+use pele_core::scene::{AnchorKind, Draw, Geometry, Paint, PaintVisit, PathCommand, ResolvedPaints, Rgba};
 use rune::shape::{LineCap, Path};
-use rune::{Color, Shape};
+use rune::{Color, El, Shape, Span, TextStyle, canvas, el, rich};
+
+use crate::text::{Anchor, Baselines, style};
 
 /// A point in the drawing's user units, y down.
 pub type Point = [f64; 2];
@@ -169,6 +176,19 @@ impl Outline {
         self.edges.iter().filter(|edge| matches!(edge, Edge::Move(_))).count()
     }
 
+    /// The least box holding every point and control point, which holds the curve too.
+    fn bounds(&self) -> Option<[Point; 2]> {
+        let points = self.edges.iter().flat_map(|edge| match *edge {
+            Edge::Move(a) | Edge::Line(a) => vec![a],
+            Edge::Cubic(c) => vec![c.c1, c.c2, c.to],
+            Edge::Close => vec![],
+        });
+        points.fold(None, |bounds, [x, y]| {
+            let [low, high] = bounds.unwrap_or([[x, y]; 2]);
+            Some([[low[0].min(x), low[1].min(y)], [high[0].max(x), high[1].max(y)]])
+        })
+    }
+
     fn path(&self) -> Path {
         let f = |[x, y]: Point| [x as f32, y as f32];
         self.edges.iter().fold(Path::new(), |path, edge| match *edge {
@@ -215,6 +235,241 @@ pub fn ring_wedge(start: f64, end: f64, outer: f64, inner: f64) -> Vec<Segment> 
         Segment::Line(polar(end, inner)),
         Segment::Arc(back),
         Segment::Close,
+    ]
+}
+
+/// A Scene as Rune elements to be, with its paints still to resolve.
+pub struct Drawing {
+    size: [f32; 2],
+    items: Vec<Item>,
+}
+
+enum Item {
+    Shape(ShapeItem),
+    Text(TextItem),
+}
+
+/// A shape in a box of its own, its outline relative to the box.
+struct ShapeItem {
+    key: String,
+    at: [f32; 2],
+    size: [f32; 2],
+    outline: Outline,
+    area: Area,
+    fill: Paint,
+    stroke: Option<(Paint, f32)>,
+}
+
+/// How a fill covers what its outline encloses.
+enum Area {
+    /// One contour, which `Shape::fill_path` fills.
+    Simple,
+    /// Two concentric circles winding opposite ways, a full donut: the band between them is a
+    /// stroke of the circle halfway between, `width` wide. Rune strokes a polyline one segment at
+    /// a time, so round caps fill the wedge between segments; a translucent fill would show
+    /// where they overlap.
+    Ring { middle: Outline, width: f32 },
+}
+
+struct TextItem {
+    key: String,
+    content: String,
+    style: TextStyle,
+    /// The top-left of the run's box.
+    at: [f32; 2],
+    fill: Paint,
+    underline: bool,
+}
+
+impl Drawing {
+    /// Lowers `scene` in paint order, shaping its text with `baselines` at their device scale.
+    /// Groups flatten: each drawing already carries its groups' translation.
+    pub fn new(scene: &Scene, baselines: &mut Baselines, scale: f32) -> Result<Drawing, Unsupported> {
+        let mut items = Vec::new();
+        for visit in scene.paint() {
+            match visit {
+                PaintVisit::Begin(group) => {
+                    debug_assert_eq!(
+                        group.opacity, 1.0,
+                        "group opacity needs a Rune layer; no ported type has one yet"
+                    );
+                }
+                PaintVisit::End => {}
+                PaintVisit::Draw(draw) => items.extend(lower_draw(draw, baselines, scale)?),
+            }
+        }
+        let size = scene.size();
+        Ok(Drawing { size: [size.width as f32, size.height as f32], items })
+    }
+
+    /// The drawing as keyed sibling elements in paint order, in `paints`' colours.
+    pub fn el(&self, paints: &ResolvedPaints) -> El {
+        el().size(self.size[0], self.size[1]).children(self.items.iter().filter_map(|item| item.el(paints)))
+    }
+}
+
+pub(crate) fn colour(rgba: Rgba) -> Color {
+    let [r, g, b] = rgba.linear_srgb.map(|c| c as f32);
+    Color { r, g, b, a: rgba.alpha as f32 }
+}
+
+impl Item {
+    fn el(&self, paints: &ResolvedPaints) -> Option<El> {
+        let resolve = |paint: Paint| paints.get(paint).map(colour);
+        match self {
+            Item::Shape(shape) => {
+                let fill = resolve(shape.fill);
+                let stroke = shape.stroke.and_then(|(paint, width)| Some(Stroke { width, color: resolve(paint)? }));
+                let drawn = match &shape.area {
+                    Area::Simple => {
+                        shape.outline.paint(fill, stroke).expect("an outline lowered as simple has one contour")
+                    }
+                    Area::Ring { middle, width } => {
+                        let body = fill.map_or_else(Shape::new, |c| {
+                            Shape::new().stroke_path(&middle.path(), *width, LineCap::Round, c)
+                        });
+                        match stroke {
+                            Some(s) => body.stroke_path(&shape.outline.path(), s.width, LineCap::Round, s.color),
+                            None => body,
+                        }
+                    }
+                };
+                let [x, y] = shape.at;
+                Some(canvas(drawn).key(shape.key.as_str()).absolute(x, y).size(shape.size[0], shape.size[1]))
+            }
+            Item::Text(run) => {
+                let fill = resolve(run.fill)?;
+                let element = if run.underline {
+                    rich(run.content.as_str(), vec![Span::new(0, run.content.len()).underline(fill)])
+                } else {
+                    rune::text(run.content.as_str())
+                };
+                Some(element.font(run.style).color(fill).key(run.key.as_str()).absolute(run.at[0], run.at[1]))
+            }
+        }
+    }
+}
+
+fn point(origin: pele_core::scene::Point, p: pele_core::scene::Point) -> Point {
+    [origin.x + p.x, origin.y + p.y]
+}
+
+/// Whole circles, as `[centre, radius]`, where every contour of `commands` is one: a move, then
+/// two half-turn arcs of one radius back to the start.
+fn circles(commands: &[PathCommand]) -> Option<Vec<(Point, f64)>> {
+    commands
+        .split_inclusive(|c| *c == PathCommand::Close)
+        .map(|contour| match *contour {
+            [
+                PathCommand::Move(start),
+                PathCommand::Arc { rx, ry, end: opposite, .. },
+                PathCommand::Arc { rx: rx2, ry: ry2, end, .. },
+                PathCommand::Close,
+            ] if rx == ry && rx2 == rx && ry2 == ry && end == start => {
+                let centre = [(start.x + opposite.x) / 2.0, (start.y + opposite.y) / 2.0];
+                Some((centre, rx))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn lower_draw(draw: Draw, baselines: &mut Baselines, scale: f32) -> Result<Option<Item>, Unsupported> {
+    let key = draw.key.to_string();
+    let origin = draw.origin;
+    let commands = match draw.geometry {
+        Geometry::Path(commands) => commands,
+        Geometry::Rect { origin: corner, size, radius } => rect(corner, size.width, size.height, radius),
+        Geometry::Circle { centre, radius } => circle(centre, radius),
+        Geometry::Text(run) => {
+            let style = style(&run.font);
+            let line = baselines.line(&run.text, style);
+            let anchor = match run.anchor {
+                AnchorKind::Start => Anchor::Start,
+                AnchorKind::Middle => Anchor::Middle,
+                AnchorKind::End => Anchor::End,
+            };
+            // A browser's own choice for `baseline-shift: sub` and `super`, as a share of the
+            // smaller size the run is set in.
+            let shift = match run.script {
+                pele_core::Script::Normal => 0.0,
+                pele_core::Script::Sub => 0.3 * run.font.size,
+                pele_core::Script::Super => -0.45 * run.font.size,
+            };
+            let [x, y] = point(origin, run.baseline);
+            let at = [x as f32 - anchor.fraction() * line.advance, (y + shift) as f32 - line.baseline];
+            let item = TextItem { key, content: run.text, style, at, fill: draw.style.fill, underline: run.underline };
+            return Ok(Some(Item::Text(item)));
+        }
+    };
+    let segment = |c: &PathCommand| match *c {
+        PathCommand::Move(p) => Segment::Move(point(origin, p)),
+        PathCommand::Line(p) => Segment::Line(point(origin, p)),
+        PathCommand::Arc { rx, ry, large, sweep, end } => {
+            Segment::Arc(Arc { radii: [rx, ry], rotation: 0.0, large, sweep, to: point(origin, end) })
+        }
+        PathCommand::Close => Segment::Close,
+    };
+    let outline = Outline::lower(&commands.iter().map(segment).collect::<Vec<_>>());
+    let stroke = draw.style.stroke.map(|stroke| (stroke.paint, stroke.width as f32));
+    let area = match circles(&commands).as_deref() {
+        _ if outline.contours() <= 1 || draw.style.fill == Paint::None => Area::Simple,
+        Some(&[(centre, outer), (other, inner)]) if centre == other => {
+            let middle = (outer + inner) / 2.0;
+            let ring = circle(pele_core::scene::Point { x: centre[0], y: centre[1] }, middle);
+            let middle = Outline::lower(&ring.iter().map(segment).collect::<Vec<_>>());
+            Area::Ring { middle, width: (outer - inner).abs() as f32 }
+        }
+        _ => return Err(Unsupported::CompoundFill),
+    };
+    let Some([low, high]) = outline.bounds() else { return Ok(None) };
+    // The box starts on a device pixel, so the shapes either side of a seam move together.
+    let pad = stroke.map_or(0.0, |(_, width)| f64::from(width) / 2.0) + 1.0;
+    let scale = f64::from(scale);
+    let at = [((low[0] - pad) * scale).floor() / scale, ((low[1] - pad) * scale).floor() / scale];
+    let size = [((high[0] + pad - at[0]) * scale).ceil() / scale, ((high[1] + pad - at[1]) * scale).ceil() / scale];
+    let local = |o: &Outline| o.translated([-at[0], -at[1]]);
+    let area = match area {
+        Area::Ring { middle, width } => Area::Ring { middle: local(&middle), width },
+        simple => simple,
+    };
+    Ok(Some(Item::Shape(ShapeItem {
+        key,
+        at: at.map(|c| c as f32),
+        size: size.map(|c| c as f32),
+        outline: local(&outline),
+        area,
+        fill: draw.style.fill,
+        stroke,
+    })))
+}
+
+fn circle(centre: pele_core::scene::Point, r: f64) -> Vec<PathCommand> {
+    let at = |dy: f64| pele_core::scene::Point { x: centre.x, y: centre.y + dy };
+    vec![
+        PathCommand::Move(at(-r)),
+        PathCommand::Arc { rx: r, ry: r, large: true, sweep: true, end: at(r) },
+        PathCommand::Arc { rx: r, ry: r, large: true, sweep: true, end: at(-r) },
+        PathCommand::Close,
+    ]
+}
+
+/// SVG's `<rect>` with one corner radius, which it clamps to half of each side.
+fn rect(corner: pele_core::scene::Point, w: f64, h: f64, radius: f64) -> Vec<PathCommand> {
+    let r = radius.max(0.0).min(w / 2.0).min(h / 2.0);
+    let p = |x: f64, y: f64| pele_core::scene::Point { x: corner.x + x, y: corner.y + y };
+    let arc = |end| PathCommand::Arc { rx: r, ry: r, large: false, sweep: true, end };
+    vec![
+        PathCommand::Move(p(r, 0.0)),
+        PathCommand::Line(p(w - r, 0.0)),
+        arc(p(w, r)),
+        PathCommand::Line(p(w, h - r)),
+        arc(p(w - r, h)),
+        PathCommand::Line(p(r, h)),
+        arc(p(0.0, h - r)),
+        PathCommand::Line(p(0.0, r)),
+        arc(p(r, 0.0)),
+        PathCommand::Close,
     ]
 }
 
