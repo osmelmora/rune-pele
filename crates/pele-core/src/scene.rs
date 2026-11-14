@@ -7,26 +7,43 @@
 //! attributes were set in. Only this module builds a Scene, and `crate::svg` only reads one.
 
 use crate::catalog::DrawContext;
-use crate::input::{JsObject, JsText, JsValue, Units, decimal, is_digit, is_space, is_word};
+use crate::input::{JsObject, JsText, JsValue, Units, decimal, decode_entities, is_digit, is_space, is_word};
 use crate::measure::{Emphasis, Label};
 use crate::{DiagramKind, RenderError, js};
 use indexmap::IndexMap;
 use std::sync::LazyLock;
 
 mod palette;
+mod style;
 mod walk;
 
 pub(crate) use palette::PELE_SERIES;
 pub use palette::{Palette, ResolvedPaints, Rgba};
+pub(crate) use style::{AuthorClasses, ResolvedStyle, Style, ink_on, paints, px, resolve_style};
 pub use walk::{
-    BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, PaintStyle, PaintVisit, PartKey, PathCommand,
-    StrokeStyle,
+    BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, ImageFit, LinkRef, PaintStyle, PaintVisit,
+    PartKey, PathCommand, StrokeStyle,
 };
 
 /// Whether XML can't hold `c`, so that Pele drops it from text: C0 controls but tab, line feed and
 /// carriage return, DEL, and the two noncharacters U+FFFE and U+FFFF.
 pub(crate) fn xml_drops(c: char) -> bool {
     matches!(c, '\0'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{7f}' | '\u{fffe}' | '\u{ffff}')
+}
+
+/// Pele's `esc`: escapes text for XML and drops the characters XML cannot hold, DEL and any
+/// surrogate that has no partner.
+pub(crate) fn esc(text: &[u16], out: &mut String) {
+    for c in char::decode_utf16(text.iter().copied()).flatten() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ if xml_drops(c) => {}
+            _ => out.push(c),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,6 +69,14 @@ pub enum Role {
     OnLight,
     /// Text on a dark fill.
     OnDark,
+    /// Edges and their arrowheads.
+    Line,
+    /// The fill of a node.
+    Surface,
+    /// The fill of a group of nodes.
+    SurfaceAlt,
+    /// Text that stands back, such as a group's title.
+    Muted,
 }
 
 /// One of the eight series colours. A position past the eighth wraps around.
@@ -71,7 +96,7 @@ impl SeriesSlot {
 }
 
 /// A colour as an expression, so that a theme change needs no new layout.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Paint {
     None,
     Role(Role),
@@ -79,12 +104,31 @@ pub enum Paint {
     /// Text on a series colour. Pele sets it only where the source overrides that series with a
     /// colour whose contrast is known, and otherwise leaves the text to inherit.
     OnSeries(SeriesSlot),
+    /// A colour the source writes. [`Scene::resolve_paints`] reads it.
+    Source(SourceColourId),
+    /// `percent` of `tint` over `base`, mixed in sRGB.
+    Mix {
+        tint: Role,
+        percent: f64,
+        base: Role,
+    },
 }
+
+/// One of the colours a source writes, by its place among those the Scene holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SourceColourId(u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineJoin {
     /// SVG's default join, with its miter limit of 4.
     Miter,
+    Round,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineCap {
+    /// SVG's default: a stroke ends where its path does.
+    Butt,
     Round,
 }
 
@@ -109,12 +153,22 @@ pub enum Facet {
     Label,
     Legend,
     Title,
+    /// The wide stroke in the page's colour under an edge that crosses a filled border.
+    Casing,
+    /// The arrowhead where an edge starts.
+    StartMarker,
+    /// The arrowhead where an edge ends.
+    EndMarker,
+    /// The outline in the colour behind a title that edges run through.
+    Halo,
 }
 
 /// Mermaid's palette theme variables for one diagram type: the name before the number, and the
 /// number of the variable for the first series.
 #[derive(Clone, Copy)]
 pub(crate) enum PaletteRule {
+    /// The type has no series colours.
+    None,
     Slots(&'static str, usize),
 }
 
@@ -135,7 +189,9 @@ pub(crate) struct SourcePalette {
 impl SourcePalette {
     /// Pele's `palette`: an entry that is not a usable colour leaves its series in the theme's colour.
     pub(crate) fn from_config(rule: PaletteRule, config: &JsObject) -> Self {
-        let PaletteRule::Slots(prefix, first) = rule;
+        let PaletteRule::Slots(prefix, first) = rule else {
+            return SourcePalette::default();
+        };
         let variables = config.get("themeVariables").and_then(JsValue::as_record);
         let slot = |index: usize| {
             let spelling = safe_color(variables?.get(&format!("{prefix}{}", first + index))?)?;
@@ -487,34 +543,10 @@ impl Number {
     }
 }
 
-/// CSS declarations as they are written into a `style` attribute, in order.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Style {
-    pub(crate) declarations: Vec<Declaration>,
-    /// Whether a `;` follows the last declaration. Pele writes some lists with one and some
-    /// without, and code that adds to a list has to know which it has.
-    pub(crate) terminated: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Declaration {
-    pub(crate) property: String,
-    pub(crate) value: JsText,
-}
-
-impl Style {
-    pub(crate) fn unterminated() -> Self {
-        Style::default()
-    }
-
-    pub(crate) fn declare(&mut self, property: &str, value: impl Into<JsText>) {
-        self.declarations.push(Declaration { property: property.to_owned(), value: value.into() });
-    }
-}
-
-/// A path as the commands Pele writes, in the one spelling pie uses: no separator before a
-/// command, a comma inside a pair and spaces around an arc's flags.
-#[derive(Clone, Debug, PartialEq)]
+/// A path as the commands Pele writes: no separator before a command, a comma inside a pair, a
+/// space between pairs and around an arc's flags. A command whose letter Pele writes in
+/// lowercase moves by its numbers instead of to them.
+#[derive(Clone, Debug, PartialEq, Default)]
 pub(crate) struct PathProgram {
     pub(crate) steps: Vec<PathStep>,
 }
@@ -523,6 +555,12 @@ pub(crate) struct PathProgram {
 pub(crate) enum PathStep {
     Move([Number; 2]),
     Line([Number; 2]),
+    Horizontal(Number),
+    Vertical(Number),
+    /// Two handles, then the end.
+    Cubic([[Number; 2]; 3]),
+    /// One handle, then the end.
+    Quad([[Number; 2]; 2]),
     /// An unrotated elliptical arc.
     Arc {
         radii: [Number; 2],
@@ -531,6 +569,63 @@ pub(crate) enum PathStep {
         end: [Number; 2],
     },
     Close,
+    LineBy([Number; 2]),
+    HorizontalBy(Number),
+    QuadBy([[Number; 2]; 2]),
+    /// A quadratic curve whose handle mirrors the one before it.
+    SmoothQuadBy([Number; 2]),
+}
+
+impl PathProgram {
+    fn then(mut self, step: PathStep) -> Self {
+        self.steps.push(step);
+        self
+    }
+
+    pub(crate) fn m(self, x: Number, y: Number) -> Self {
+        self.then(PathStep::Move([x, y]))
+    }
+
+    pub(crate) fn l(self, x: Number, y: Number) -> Self {
+        self.then(PathStep::Line([x, y]))
+    }
+
+    pub(crate) fn h(self, x: Number) -> Self {
+        self.then(PathStep::Horizontal(x))
+    }
+
+    pub(crate) fn v(self, y: Number) -> Self {
+        self.then(PathStep::Vertical(y))
+    }
+
+    pub(crate) fn c(self, first: [Number; 2], second: [Number; 2], end: [Number; 2]) -> Self {
+        self.then(PathStep::Cubic([first, second, end]))
+    }
+
+    /// An arc of less than half a turn.
+    pub(crate) fn a(self, radii: [Number; 2], sweep: bool, end: [Number; 2]) -> Self {
+        self.then(PathStep::Arc { radii, large: false, sweep, end })
+    }
+
+    pub(crate) fn z(self) -> Self {
+        self.then(PathStep::Close)
+    }
+
+    pub(crate) fn l_by(self, x: Number, y: Number) -> Self {
+        self.then(PathStep::LineBy([x, y]))
+    }
+
+    pub(crate) fn h_by(self, x: Number) -> Self {
+        self.then(PathStep::HorizontalBy(x))
+    }
+
+    pub(crate) fn q_by(self, handle: [Number; 2], end: [Number; 2]) -> Self {
+        self.then(PathStep::QuadBy([handle, end]))
+    }
+
+    pub(crate) fn t_by(self, x: Number, y: Number) -> Self {
+        self.then(PathStep::SmoothQuadBy([x, y]))
+    }
 }
 
 pub(crate) mod paths {
@@ -607,25 +702,76 @@ pub(crate) enum TextEmission {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct NodeId(u32);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct PartId(u32);
+
+/// How a picture fills its box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Aspect {
+    /// Stretched to the box.
+    Stretch,
+    /// Whole and centred, at its own proportions.
+    Meet,
+}
+
+/// Where an `<a>` leads. Every text is written as it was approved, so what was checked is
+/// what is written.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Link {
+    /// The address, where the host's policy lets the link be followed.
+    pub(crate) href: Option<JsText>,
+    pub(crate) target: Option<&'static str>,
+    pub(crate) rel: Option<String>,
+    /// The note a link inside the host names, which a host follows itself.
+    pub(crate) note: Option<JsText>,
+}
 
 #[derive(Clone, Debug)]
 pub(crate) enum NodeContent {
     Group(Vec<NodeId>),
+    /// A group that is a link.
+    Link {
+        link: Link,
+        children: Vec<NodeId>,
+    },
     Path(PathProgram),
     Rect {
         x: Number,
         y: Number,
         width: Number,
         height: Number,
-        rx: Number,
+        rx: Option<Number>,
     },
-    /// A circle centred on its group's origin.
+    /// A circle, centred on its group's origin along each axis it gives no coordinate for.
     Circle {
+        cx: Option<Number>,
+        cy: Option<Number>,
         radius: Number,
     },
+    /// An ellipse centred on its group's origin.
+    Ellipse {
+        rx: Number,
+        ry: Number,
+    },
+    Polygon(Vec<[Number; 2]>),
     Text(PlacedText),
+    Image {
+        href: JsText,
+        x: Number,
+        y: Number,
+        width: Number,
+        height: Number,
+        aspect: Aspect,
+    },
+    /// The box of an icon the host draws. In parity mode no host does, so the box is empty.
+    Icon {
+        name: JsText,
+        x: Number,
+        y: Number,
+        size: Number,
+    },
+    /// The tooltip of the node's entity, at the place Pele writes it.
+    Tooltip,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -636,15 +782,22 @@ pub(crate) enum Transform {
 /// What a node sets. Each value is stored once; `Node::emission` gives the order they are written in.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Properties {
-    pub(crate) class: Option<&'static str>,
+    /// Pele's own class names, then the author's.
+    pub(crate) class: Option<String>,
     pub(crate) transform: Option<Transform>,
     pub(crate) fill: Option<Paint>,
+    pub(crate) fill_opacity: Option<Number>,
     pub(crate) stroke: Option<Paint>,
     pub(crate) stroke_width: Option<Number>,
+    pub(crate) dash: Vec<Number>,
+    pub(crate) cap: Option<LineCap>,
     pub(crate) join: Option<LineJoin>,
+    /// Whether the pointer passes through to what is underneath.
+    pub(crate) untouchable: bool,
     pub(crate) font_size: Option<Number>,
     pub(crate) weight: Option<TextWeight>,
     pub(crate) anchor: Option<AnchorKind>,
+    pub(crate) style: Option<Style>,
 }
 
 /// A reference to one value of a node, in the order Pele writes its attributes.
@@ -656,9 +809,13 @@ pub(crate) enum Field {
     Transform,
     Geometry(GeometryField),
     Fill,
+    FillOpacity,
     Stroke,
     StrokeWidth,
+    DashArray,
+    StrokeCap,
     StrokeJoin,
+    PointerEvents,
     FontSize,
     FontWeight,
     /// Italic, where every run of a label is.
@@ -666,6 +823,12 @@ pub(crate) enum Field {
     /// Monospace, where every run of a label is.
     FontFamily,
     Anchor,
+    Style,
+    Href,
+    Target,
+    Rel,
+    /// The note an internal link names.
+    DataHref,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -675,8 +838,16 @@ pub(crate) enum GeometryField {
     Width,
     Height,
     Rx,
+    Ry,
+    Cx,
+    Cy,
     Radius,
     D,
+    Points,
+    /// How a picture fills its box.
+    Aspect,
+    /// The name of an icon.
+    Icon,
 }
 
 #[derive(Clone, Debug)]
@@ -686,6 +857,8 @@ pub(crate) struct Node {
     pub(crate) content: NodeContent,
     pub(crate) properties: Properties,
     pub(crate) emission: Vec<Field>,
+    /// What the node's style declarations mean to an interpreter that has no CSS.
+    pub(crate) styled: style::Meaning,
 }
 
 /// What something in a diagram is, apart from where and how it is drawn. A source edit that
@@ -693,7 +866,8 @@ pub(crate) struct Node {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EntityKey {
     kind: EntityKind,
-    identity: JsText,
+    name: EntityName,
+    duplicate: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -702,6 +876,19 @@ pub enum EntityKind {
     Diagram,
     /// A pie section, named by its label.
     Section,
+    Node,
+    /// A group of nodes, such as a flowchart's subgraph.
+    Group,
+    Edge,
+}
+
+/// What tells an entity from the others of its kind.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum EntityName {
+    /// The name the author gave it, as UTF-16 code units. A surrogate may stand alone.
+    Named(Vec<u16>),
+    /// An edge the author gave no name: the entities it joins and what kind of edge it is.
+    Between { from: Vec<u16>, to: Vec<u16>, kind: String },
 }
 
 impl EntityKey {
@@ -709,9 +896,23 @@ impl EntityKey {
         self.kind
     }
 
-    /// The name the entity is known by, as UTF-16 code units. A surrogate may stand alone.
+    pub fn name(&self) -> &EntityName {
+        &self.name
+    }
+
+    /// The name the author gave the entity, as UTF-16 code units, or nothing for an edge with
+    /// no name of its own.
     pub fn identity(&self) -> &[u16] {
-        &self.identity
+        match &self.name {
+            EntityName::Named(name) => name,
+            EntityName::Between { .. } => &[],
+        }
+    }
+
+    /// The entity's place among those with the same kind and name, counted from 0. Only edges
+    /// repeat: two edges may join the same nodes in the same way, or share an id.
+    pub fn duplicate(&self) -> u32 {
+        self.duplicate
     }
 }
 
@@ -719,19 +920,43 @@ impl EntityKey {
 pub(crate) struct Entity {
     key: EntityKey,
     author_text: JsText,
+    tooltip: Option<JsText>,
 }
 
 impl Entity {
+    fn named(kind: EntityKind, name: &JsText) -> Self {
+        let key = EntityKey { kind, name: EntityName::Named(name.to_vec()), duplicate: 0 };
+        Entity { key, author_text: name.clone(), tooltip: None }
+    }
+
     pub(crate) fn diagram() -> Self {
-        Entity {
-            key: EntityKey { kind: EntityKind::Diagram, identity: JsText::default() },
-            author_text: JsText::default(),
-        }
+        Entity::named(EntityKind::Diagram, &JsText::default())
     }
 
     /// A pie section. Its label is its identity, since a pie keeps one section per label.
     pub(crate) fn pie_section(label: &JsText) -> Self {
-        Entity { key: EntityKey { kind: EntityKind::Section, identity: label.clone() }, author_text: label.clone() }
+        Entity::named(EntityKind::Section, label)
+    }
+
+    pub(crate) fn node(id: &JsText) -> Self {
+        Entity::named(EntityKind::Node, id)
+    }
+
+    pub(crate) fn group(id: &JsText) -> Self {
+        Entity::named(EntityKind::Group, id)
+    }
+
+    /// An edge. `written_id` is the id Pele writes, which counts edges and so changes when one
+    /// is added before it. The key does not hold it: `name` is the id the author gave or the
+    /// two ends, and `duplicate` the edge's place among those with the same name.
+    pub(crate) fn edge(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
+        let key = EntityKey { kind: EntityKind::Edge, name, duplicate };
+        Entity { key, author_text: written_id.clone(), tooltip: None }
+    }
+
+    pub(crate) fn tooltip(mut self, tooltip: Option<&JsText>) -> Self {
+        self.tooltip = tooltip.cloned();
+        self
     }
 }
 
@@ -740,6 +965,7 @@ pub(crate) struct EntityRecord {
     pub(crate) key: EntityKey,
     /// The name the author gave, which `data-id` carries.
     pub(crate) author_text: JsText,
+    pub(crate) tooltip: Option<JsText>,
 }
 
 /// The accessible title and description a source gives its diagram.
@@ -747,6 +973,13 @@ pub(crate) struct EntityRecord {
 pub(crate) struct Accessible {
     pub(crate) title: Option<JsText>,
     pub(crate) description: Option<JsText>,
+}
+
+/// A colour a source writes, kept as written, and the theme colour it is used in place of.
+#[derive(Clone, Debug)]
+pub(crate) struct WrittenColour {
+    pub(crate) spelling: JsText,
+    pub(crate) instead_of: Role,
 }
 
 /// What the root element is written from.
@@ -759,6 +992,7 @@ pub(crate) struct Document {
     pub(crate) id_prefix: Option<String>,
     pub(crate) accessible: Accessible,
     pub(crate) palette: SourcePalette,
+    pub(crate) colours: Vec<WrittenColour>,
     pub(crate) limit_utf16: usize,
 }
 
@@ -769,6 +1003,8 @@ pub struct Scene {
     pub(crate) arena: Vec<Node>,
     pub(crate) roots: Vec<NodeId>,
     pub(crate) entities: Vec<EntityRecord>,
+    /// Each edge with the two entities it joins.
+    pub(crate) relations: Vec<[PartId; 3]>,
 }
 
 impl Scene {
@@ -783,6 +1019,35 @@ impl Scene {
     pub(crate) fn entity(&self, part: PartId) -> &EntityRecord {
         &self.entities[part.0 as usize]
     }
+
+    pub(crate) fn colour(&self, id: SourceColourId) -> &WrittenColour {
+        &self.document.colours[id.0 as usize]
+    }
+
+    /// Every entity the drawing holds, in the order the diagram first drew each.
+    pub fn entities(&self) -> impl Iterator<Item = &EntityKey> {
+        self.entities.iter().map(|record| &record.key)
+    }
+
+    /// The text shown when the pointer rests on an entity.
+    pub fn tooltip(&self, entity: &EntityKey) -> Option<String> {
+        let record = self.entities.iter().find(|record| record.key == *entity)?;
+        record.tooltip.as_ref().map(|text| walk::drawable(&decode_entities(text)))
+    }
+
+    /// The entities an entity is joined to: an edge's two ends, and a node's edges.
+    pub fn related(&self, entity: &EntityKey) -> Vec<&EntityKey> {
+        let key = |part: PartId| &self.entity(part).key;
+        let mut out = Vec::new();
+        for &[edge, from, to] in &self.relations {
+            if key(edge) == entity {
+                out.extend([key(from), key(to)]);
+            } else if key(from) == entity || key(to) == entity {
+                out.push(key(edge));
+            }
+        }
+        out
+    }
 }
 
 /// Properties with the order they were set in. The builders below add to it at each call.
@@ -795,64 +1060,196 @@ struct Attributes {
 }
 
 impl Attributes {
+    fn of(part: PartId, facet: Facet) -> Self {
+        Attributes { part: Some(part), facet: Some(facet), ..Attributes::default() }
+    }
+
     fn set(mut self, field: Field, set: impl FnOnce(&mut Properties)) -> Self {
         set(&mut self.properties);
         self.emission.push(field);
         self
     }
 
-    fn node(self, content: NodeContent) -> Node {
-        Node { part: self.part, facet: self.facet, content, properties: self.properties, emission: self.emission }
+    fn geometry(mut self, fields: &[GeometryField]) -> Self {
+        self.emission.extend(fields.iter().map(|&field| Field::Geometry(field)));
+        self
+    }
+
+    /// Pele's attribute strings for a shape: its fill, its stroke and its style, each where set.
+    fn look(mut self, look: Look) -> Self {
+        if let Some(fill) = look.fill {
+            self = self.set(Field::Fill, |p| p.fill = Some(fill));
+        }
+        if let Some(stroke) = look.stroke {
+            self = self.set(Field::Stroke, |p| p.stroke = Some(stroke));
+        }
+        self.style(look.style)
+    }
+
+    fn style(self, style: Option<Style>) -> Self {
+        match style {
+            Some(style) => self.set(Field::Style, |p| p.style = Some(style)),
+            None => self,
+        }
+    }
+}
+
+/// The paint a shape is written with: a fill, a stroke and style declarations, in that order.
+/// Only [`ShapeLook`] and [`LineLook`] make one, so a look is rewritten at most once.
+#[derive(Clone, Debug)]
+pub(crate) struct Look {
+    fill: Option<Paint>,
+    stroke: Option<Paint>,
+    style: Option<Style>,
+}
+
+impl Look {
+    /// No fill and no stroke: a shape that only holds its place.
+    pub(crate) fn unseen() -> Self {
+        Look { fill: Some(Paint::None), stroke: Some(Paint::None), style: None }
+    }
+}
+
+/// How a node's shape is painted before a shape picks its form of it: the theme's fill and
+/// border, then the shape declarations of the node's style. Pele's `SHAPE_ATTRS + style.shape`.
+#[derive(Clone, Debug)]
+pub(crate) struct ShapeLook {
+    fill: Paint,
+    stroke: Paint,
+    style: Option<Style>,
+}
+
+impl ShapeLook {
+    pub(crate) fn new(fill: Role, stroke: Role, style: Option<&Style>) -> Self {
+        ShapeLook { fill: Paint::Role(fill), stroke: Paint::Role(stroke), style: style.cloned() }
+    }
+
+    /// As it is.
+    pub(crate) fn plain(&self) -> Look {
+        Look { fill: Some(self.fill), stroke: Some(self.stroke), style: self.style.clone() }
+    }
+
+    /// Pele's `rounded`: with the theme's corner radius, declared first so that the node's own
+    /// style can override it.
+    pub(crate) fn rounded(&self) -> Look {
+        Look { style: Some(Style::rounded(self.style.as_ref())), ..self.plain() }
+    }
+
+    /// Without the border, for a shape that draws only some of its sides.
+    pub(crate) fn borderless(&self) -> Look {
+        Look { stroke: Some(Paint::None), ..self.plain() }
+    }
+}
+
+/// How the lines inside a node's shape are painted: the theme's border, then the declarations
+/// of the node's style that apply to a line. Pele's `LINE_ATTRS + style.line`.
+#[derive(Clone, Debug)]
+pub(crate) struct LineLook {
+    stroke: Paint,
+    style: Option<Style>,
+}
+
+impl LineLook {
+    pub(crate) fn new(stroke: Role, style: Option<&Style>) -> Self {
+        LineLook { stroke: Paint::Role(stroke), style: style.cloned() }
+    }
+
+    /// A line with nothing inside it.
+    pub(crate) fn open(&self) -> Look {
+        self.filled(Paint::None)
+    }
+
+    /// A line around a fill of its own.
+    pub(crate) fn filled(&self, fill: Paint) -> Look {
+        Look { fill: Some(fill), stroke: Some(self.stroke), style: self.style.clone() }
     }
 }
 
 /// A group of nodes that share paint order and inherited attributes.
-pub(crate) struct LayerSpec(Attributes);
+pub(crate) struct LayerSpec {
+    attributes: Attributes,
+    keep_empty: bool,
+}
 
 impl LayerSpec {
-    pub(crate) fn class(class: &'static str) -> Self {
-        LayerSpec(Attributes::default().set(Field::Class, |p| p.class = Some(class)))
+    fn with(mut self, field: Field, set: impl FnOnce(&mut Properties)) -> Self {
+        self.attributes = self.attributes.set(field, set);
+        self
+    }
+
+    /// A group with no class of its own.
+    pub(crate) fn group() -> Self {
+        LayerSpec { attributes: Attributes::default(), keep_empty: false }
+    }
+
+    pub(crate) fn class(class: &str) -> Self {
+        LayerSpec::group().with(Field::Class, |p| p.class = Some(class.to_owned()))
+    }
+
+    /// Pele's class names, then the author's.
+    pub(crate) fn classes(own: &str, author: &AuthorClasses) -> Self {
+        LayerSpec::group().with(Field::Class, |p| p.class = Some(author.after(own)))
     }
 
     /// Makes the group a part of an entity.
     pub(crate) fn part(mut self, part: PartId, facet: Facet) -> Self {
-        self.0.part = Some(part);
-        self.0.facet = Some(facet);
+        self.attributes.part = Some(part);
+        self.attributes.facet = Some(facet);
         self
     }
 
     pub(crate) fn data_id(self) -> Self {
-        debug_assert!(self.0.part.is_some(), "only a part of an entity has the entity's name");
-        LayerSpec(self.0.set(Field::DataId, |_| {}))
+        debug_assert!(self.attributes.part.is_some(), "only a part of an entity has the entity's name");
+        self.with(Field::DataId, |_| {})
     }
 
     pub(crate) fn translate(self, point: Point) -> Self {
         let transform = Transform::Translate(Number::num(point.x), Number::num(point.y));
-        LayerSpec(self.0.set(Field::Transform, |p| p.transform = Some(transform)))
+        self.with(Field::Transform, |p| p.transform = Some(transform))
     }
 
     pub(crate) fn stroke(self, paint: Paint) -> Self {
-        LayerSpec(self.0.set(Field::Stroke, |p| p.stroke = Some(paint)))
+        self.with(Field::Stroke, |p| p.stroke = Some(paint))
     }
 
     pub(crate) fn stroke_width(self, width: Number) -> Self {
-        LayerSpec(self.0.set(Field::StrokeWidth, |p| p.stroke_width = Some(width)))
+        self.with(Field::StrokeWidth, |p| p.stroke_width = Some(width))
+    }
+
+    pub(crate) fn cap(self, cap: LineCap) -> Self {
+        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
     }
 
     pub(crate) fn join(self, join: LineJoin) -> Self {
-        LayerSpec(self.0.set(Field::StrokeJoin, |p| p.join = Some(join)))
+        self.with(Field::StrokeJoin, |p| p.join = Some(join))
+    }
+
+    /// Lets the pointer through to what is under the group.
+    pub(crate) fn untouchable(self) -> Self {
+        self.with(Field::PointerEvents, |p| p.untouchable = true)
     }
 
     pub(crate) fn font_size(self, size: Number) -> Self {
-        LayerSpec(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
+        self.with(Field::FontSize, |p| p.font_size = Some(size))
     }
 
     pub(crate) fn anchor(self, anchor: AnchorKind) -> Self {
-        LayerSpec(self.0.set(Field::Anchor, |p| p.anchor = Some(anchor)))
+        self.with(Field::Anchor, |p| p.anchor = Some(anchor))
     }
 
     pub(crate) fn fill(self, paint: Paint) -> Self {
-        LayerSpec(self.0.set(Field::Fill, |p| p.fill = Some(paint)))
+        self.with(Field::Fill, |p| p.fill = Some(paint))
+    }
+
+    pub(crate) fn style(mut self, style: Option<Style>) -> Self {
+        self.attributes = self.attributes.style(style);
+        self
+    }
+
+    /// Keeps the group in the drawing when nothing is drawn in it.
+    pub(crate) fn keep_empty(mut self) -> Self {
+        self.keep_empty = true;
+        self
     }
 }
 
@@ -861,12 +1258,32 @@ impl LayerSpec {
 pub(crate) struct LabelLook(Attributes);
 
 impl LabelLook {
-    pub(crate) fn class(class: &'static str) -> Self {
-        LabelLook(Attributes::default().set(Field::Class, |p| p.class = Some(class)))
+    pub(crate) fn class(class: &str) -> Self {
+        LabelLook(Attributes::default().set(Field::Class, |p| p.class = Some(class.to_owned())))
     }
 
     pub(crate) fn weight(self, weight: TextWeight) -> Self {
         LabelLook(self.0.set(Field::FontWeight, |p| p.weight = Some(weight)))
+    }
+
+    pub(crate) fn fill(self, paint: Option<Paint>) -> Self {
+        match paint {
+            Some(paint) => LabelLook(self.0.set(Field::Fill, |p| p.fill = Some(paint))),
+            None => self,
+        }
+    }
+
+    pub(crate) fn stroke(self, paint: Paint, width: Number, join: LineJoin) -> Self {
+        let attributes = self
+            .0
+            .set(Field::Stroke, |p| p.stroke = Some(paint))
+            .set(Field::StrokeWidth, |p| p.stroke_width = Some(width))
+            .set(Field::StrokeJoin, |p| p.join = Some(join));
+        LabelLook(attributes)
+    }
+
+    pub(crate) fn style(self, style: Option<&Style>) -> Self {
+        LabelLook(self.0.style(style.cloned()))
     }
 }
 
@@ -883,6 +1300,7 @@ pub(crate) struct SceneBuilder {
     /// The child lists being filled: the roots, then one per open layer.
     open: Vec<Vec<NodeId>>,
     entities: IndexMap<EntityKey, EntityRecord>,
+    relations: Vec<[PartId; 3]>,
 }
 
 impl SceneBuilder {
@@ -895,14 +1313,26 @@ impl SceneBuilder {
             id_prefix: cx.options.id_prefix.clone(),
             accessible,
             palette: cx.palette.clone(),
+            colours: Vec::new(),
             limit_utf16: cx.limits.svg_utf16,
         };
-        SceneBuilder { document, arena: Vec::new(), open: vec![Vec::new()], entities: IndexMap::new() }
+        SceneBuilder {
+            document,
+            arena: Vec::new(),
+            open: vec![Vec::new()],
+            entities: IndexMap::new(),
+            relations: Vec::new(),
+        }
     }
 
-    fn push(&mut self, node: Node) -> NodeId {
+    fn push(&mut self, attributes: Attributes, content: NodeContent) -> NodeId {
+        let Attributes { part, facet, properties, emission } = attributes;
+        let styled = match &properties.style {
+            Some(style) => style.meaning(&properties, &mut |spelling, instead_of| self.colour(spelling, instead_of)),
+            None => style::Meaning::default(),
+        };
         let id = NodeId(self.arena.len() as u32);
-        self.arena.push(node);
+        self.arena.push(Node { part, facet, content, properties, emission, styled });
         self.open.last_mut().expect("the roots are always open").push(id);
         id
     }
@@ -911,30 +1341,117 @@ impl SceneBuilder {
     pub(crate) fn part(&mut self, entity: Entity) -> PartId {
         let entry = self.entities.entry(entity.key.clone());
         let index = entry.index();
-        entry.or_insert(EntityRecord { key: entity.key, author_text: entity.author_text });
+        entry.or_insert(EntityRecord { key: entity.key, author_text: entity.author_text, tooltip: entity.tooltip });
         PartId(index as u32)
     }
 
-    /// Appends a group and draws its children in order. A layer that stays empty is not kept.
-    pub(crate) fn layer(&mut self, spec: LayerSpec, draw: impl FnOnce(&mut Self)) {
+    /// Records that `edge` joins `from` and `to`.
+    pub(crate) fn relation(&mut self, edge: PartId, from: PartId, to: PartId) {
+        self.relations.push([edge, from, to]);
+    }
+
+    /// A colour the source writes, used in place of a theme colour.
+    pub(crate) fn colour(&mut self, spelling: &[u16], instead_of: Role) -> Paint {
+        let id = SourceColourId(self.document.colours.len() as u32);
+        self.document.colours.push(WrittenColour { spelling: spelling.into(), instead_of });
+        Paint::Source(id)
+    }
+
+    fn scope(&mut self, draw: impl FnOnce(&mut Self)) -> Vec<NodeId> {
         self.open.push(Vec::new());
         draw(self);
-        let children = self.open.pop().expect("the layer opened above");
-        if !children.is_empty() {
-            self.push(spec.0.node(NodeContent::Group(children)));
+        self.open.pop().expect("the scope opened above")
+    }
+
+    /// Appends a group and draws its children in order. A layer that stays empty is kept only
+    /// where its spec says so.
+    pub(crate) fn layer(&mut self, spec: LayerSpec, draw: impl FnOnce(&mut Self)) {
+        let children = self.scope(draw);
+        if !children.is_empty() || spec.keep_empty {
+            self.push(spec.attributes, NodeContent::Group(children));
         }
+    }
+
+    /// Pele's `linked`: draws inside an `<a>` to an address the host's policy has passed.
+    pub(crate) fn link_to(
+        &mut self,
+        part: PartId,
+        href: JsText,
+        target: Option<&'static str>,
+        rel: Option<String>,
+        draw: impl FnOnce(&mut Self),
+    ) {
+        let children = self.scope(draw);
+        let mut attributes = Attributes::of(part, Facet::Shape);
+        attributes.emission.push(Field::Href);
+        if target.is_some() {
+            attributes.emission.push(Field::Target);
+        }
+        if rel.is_some() {
+            attributes.emission.push(Field::Rel);
+        }
+        let link = Link { href: Some(href), target, rel, note: None };
+        self.push(attributes, NodeContent::Link { link, children });
+    }
+
+    /// A link to a note inside the host, around what names the note. The host follows `note`
+    /// itself; `href` is the same name where the host's policy lets a browser follow it too.
+    pub(crate) fn link_inside(
+        &mut self,
+        part: PartId,
+        note: JsText,
+        followable: bool,
+        rel: Option<String>,
+        draw: impl FnOnce(&mut Self),
+    ) {
+        let children = self.scope(draw);
+        let mut attributes =
+            Attributes::of(part, Facet::Label).set(Field::Class, |p| p.class = Some("internal-link".to_owned()));
+        let rel = rel.filter(|_| followable);
+        if followable {
+            attributes.emission.push(Field::Href);
+        }
+        if rel.is_some() {
+            attributes.emission.push(Field::Rel);
+        }
+        attributes.emission.push(Field::DataHref);
+        let link = Link { href: followable.then(|| note.clone()), target: None, rel, note: Some(note) };
+        self.push(attributes, NodeContent::Link { link, children });
     }
 
     /// Starts a shape that is a part of an entity.
     pub(crate) fn element(&mut self, part: PartId, facet: Facet) -> ElementStart<'_> {
-        let attributes = Attributes { part: Some(part), facet: Some(facet), ..Attributes::default() };
-        ElementStart { builder: self, attributes }
+        ElementStart { builder: self, attributes: Attributes::of(part, facet) }
     }
 
     /// Starts a shape that belongs to no entity but the diagram itself.
     pub(crate) fn decoration(&mut self) -> ElementStart<'_> {
         let part = self.part(Entity::diagram());
         self.element(part, Facet::Shape)
+    }
+
+    /// The entity's tooltip, written here.
+    pub(crate) fn tooltip(&mut self, part: PartId) {
+        self.push(Attributes::of(part, Facet::Shape), NodeContent::Tooltip);
+    }
+
+    /// The box of an icon, `size` on each side, with its top left corner at `origin`.
+    pub(crate) fn icon(&mut self, part: PartId, name: &JsText, origin: [Number; 2], size: Number) {
+        use GeometryField::{Height, Icon, Width, X, Y};
+        let attributes = Attributes::of(part, Facet::Shape)
+            .set(Field::Class, |p| p.class = Some("pele-icon".to_owned()))
+            .geometry(&[Icon, X, Y, Width, Height]);
+        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size });
+    }
+
+    /// A picture from an address the host's policy has passed.
+    pub(crate) fn image(&mut self, part: PartId, href: JsText, origin: [Number; 2], size: [Number; 2], aspect: Aspect) {
+        use GeometryField::{Aspect as Fit, Height, Width, X, Y};
+        let mut attributes = Attributes::of(part, Facet::Shape);
+        attributes.emission.push(Field::Href);
+        let attributes = attributes.geometry(&[X, Y, Width, Height, Fit]);
+        let content = NodeContent::Image { href, x: origin[0], y: origin[1], width: size[0], height: size[1], aspect };
+        self.push(attributes, content);
     }
 
     pub(crate) fn title(&mut self, title: &TitleLayout) {
@@ -959,9 +1476,9 @@ impl SceneBuilder {
         };
         if only.is_some_and(|run| run.style.is_plain()) {
             let (x, y) = (Number::num(at.x), Number::num(top + label.line_height / 2.0 + shift));
-            attributes.emission.extend([Field::Geometry(GeometryField::X), Field::Geometry(GeometryField::Y)]);
+            attributes = attributes.geometry(&[GeometryField::X, GeometryField::Y]);
             let text = PlacedText { label: label.clone(), emission: TextEmission::Plain { x, y } };
-            self.push(attributes.set(Field::Anchor, middle).node(NodeContent::Text(text)));
+            self.push(attributes.set(Field::Anchor, middle), NodeContent::Text(text));
             return;
         }
 
@@ -991,25 +1508,30 @@ impl SceneBuilder {
             top += label.line_height;
         }
         let text = PlacedText { label: label.clone(), emission: TextEmission::Rich { lines, shared } };
-        self.push(attributes.set(Field::Anchor, middle).node(NodeContent::Text(text)));
+        self.push(attributes.set(Field::Anchor, middle), NodeContent::Text(text));
     }
 
     /// Plain text at a baseline point, for text whose group sets its anchor and size.
     pub(crate) fn baseline_text(&mut self, part: PartId, label: Label, at: [Number; 2], fill: Option<Paint>) {
-        let mut attributes = Attributes { part: Some(part), facet: Some(Facet::Label), ..Attributes::default() };
-        attributes.emission.extend([Field::Geometry(GeometryField::X), Field::Geometry(GeometryField::Y)]);
+        let mut attributes = Attributes::of(part, Facet::Label).geometry(&[GeometryField::X, GeometryField::Y]);
         if let Some(paint) = fill {
             attributes = attributes.set(Field::Fill, |p| p.fill = Some(paint));
         }
         let text = PlacedText { label, emission: TextEmission::Plain { x: at[0], y: at[1] } };
-        self.push(attributes.node(NodeContent::Text(text)));
+        self.push(attributes, NodeContent::Text(text));
     }
 
     /// Seals the drawing. Nothing of an attempt is visible before this returns.
     pub(crate) fn finish(mut self) -> Result<Scene, RenderError> {
         let roots = self.open.pop().expect("the roots are always open");
         debug_assert!(self.open.is_empty(), "every layer is closed");
-        Ok(Scene { document: self.document, arena: self.arena, roots, entities: self.entities.into_values().collect() })
+        Ok(Scene {
+            document: self.document,
+            arena: self.arena,
+            roots,
+            entities: self.entities.into_values().collect(),
+            relations: self.relations,
+        })
     }
 }
 
@@ -1020,8 +1542,8 @@ pub(crate) struct ElementStart<'a> {
 }
 
 impl<'a> ElementStart<'a> {
-    pub(crate) fn class(mut self, class: &'static str) -> Self {
-        self.attributes = self.attributes.set(Field::Class, |p| p.class = Some(class));
+    pub(crate) fn class(mut self, class: &str) -> Self {
+        self.attributes = self.attributes.set(Field::Class, |p| p.class = Some(class.to_owned()));
         self
     }
 
@@ -1031,24 +1553,43 @@ impl<'a> ElementStart<'a> {
         self
     }
 
-    fn shape(mut self, content: NodeContent, fields: &[GeometryField]) -> ShapeElement<'a> {
-        self.attributes.emission.extend(fields.iter().map(|&field| Field::Geometry(field)));
-        ShapeElement { builder: self.builder, attributes: self.attributes, content }
+    fn shape(self, content: NodeContent, fields: &[GeometryField]) -> ShapeElement<'a> {
+        ShapeElement { builder: self.builder, attributes: self.attributes.geometry(fields), content }
     }
 
     pub(crate) fn path(self, path: PathProgram) -> ShapeElement<'a> {
         self.shape(NodeContent::Path(path), &[GeometryField::D])
     }
 
-    /// A rectangle with one corner radius, at `origin`.
-    pub(crate) fn rect(self, origin: [Number; 2], size: [Number; 2], rx: Number) -> ShapeElement<'a> {
+    /// A rectangle at `origin`, with one corner radius where it has one of its own.
+    pub(crate) fn rect(self, origin: [Number; 2], size: [Number; 2], rx: Option<Number>) -> ShapeElement<'a> {
         let content = NodeContent::Rect { x: origin[0], y: origin[1], width: size[0], height: size[1], rx };
         use GeometryField::{Height, Rx, Width, X, Y};
-        self.shape(content, &[X, Y, Width, Height, Rx])
+        let fields: &[GeometryField] = if rx.is_some() { &[X, Y, Width, Height, Rx] } else { &[X, Y, Width, Height] };
+        self.shape(content, fields)
     }
 
+    /// A circle centred on its group's origin.
     pub(crate) fn circle(self, radius: Number) -> ShapeElement<'a> {
-        self.shape(NodeContent::Circle { radius }, &[GeometryField::Radius])
+        self.circle_at([None, None], radius)
+    }
+
+    /// A circle whose centre is off its group's origin along the axes given.
+    pub(crate) fn circle_at(self, centre: [Option<Number>; 2], radius: Number) -> ShapeElement<'a> {
+        let [cx, cy] = centre;
+        let mut fields = Vec::new();
+        fields.extend(cx.map(|_| GeometryField::Cx));
+        fields.extend(cy.map(|_| GeometryField::Cy));
+        fields.push(GeometryField::Radius);
+        self.shape(NodeContent::Circle { cx, cy, radius }, &fields)
+    }
+
+    pub(crate) fn ellipse(self, rx: Number, ry: Number) -> ShapeElement<'a> {
+        self.shape(NodeContent::Ellipse { rx, ry }, &[GeometryField::Rx, GeometryField::Ry])
+    }
+
+    pub(crate) fn polygon(self, points: Vec<[Number; 2]>) -> ShapeElement<'a> {
+        self.shape(NodeContent::Polygon(points), &[GeometryField::Points])
     }
 }
 
@@ -1060,18 +1601,44 @@ pub(crate) struct ShapeElement<'a> {
 }
 
 impl ShapeElement<'_> {
-    pub(crate) fn fill(mut self, paint: Paint) -> Self {
-        self.attributes = self.attributes.set(Field::Fill, |p| p.fill = Some(paint));
+    fn with(mut self, field: Field, set: impl FnOnce(&mut Properties)) -> Self {
+        self.attributes = self.attributes.set(field, set);
         self
     }
 
-    pub(crate) fn stroke(mut self, paint: Paint) -> Self {
-        self.attributes = self.attributes.set(Field::Stroke, |p| p.stroke = Some(paint));
+    pub(crate) fn fill(self, paint: Paint) -> Self {
+        self.with(Field::Fill, |p| p.fill = Some(paint))
+    }
+
+    pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
+        self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
+    pub(crate) fn stroke(self, paint: Paint) -> Self {
+        self.with(Field::Stroke, |p| p.stroke = Some(paint))
+    }
+
+    pub(crate) fn stroke_width(self, width: Number) -> Self {
+        self.with(Field::StrokeWidth, |p| p.stroke_width = Some(width))
+    }
+
+    /// Dashes and the gaps between them, in turn.
+    pub(crate) fn dash(self, pattern: &[Number]) -> Self {
+        self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
+    }
+
+    pub(crate) fn style(mut self, style: Option<Style>) -> Self {
+        self.attributes = self.attributes.style(style);
+        self
+    }
+
+    pub(crate) fn look(mut self, look: Look) -> Self {
+        self.attributes = self.attributes.look(look);
         self
     }
 
     pub(crate) fn finish(self) {
-        self.builder.push(self.attributes.node(self.content));
+        self.builder.push(self.attributes, self.content);
     }
 }
 

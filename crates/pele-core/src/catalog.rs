@@ -189,6 +189,7 @@ macro_rules! diagram_catalog {
         }
 
         /// What a ported kind's parser made of a source.
+        #[allow(clippy::large_enum_variant, reason = "a source has one model, so the larger kinds cost nothing")]
         pub(crate) enum PreparedModel {
             $($($kind(<$port as Diagram>::Model),)?)+
         }
@@ -219,10 +220,14 @@ macro_rules! diagram_catalog {
 }
 
 diagram_catalog! {
-    Flowchart => { name: "flowchart", detectors: [
-        (0, "flowchart-elk", starts(&["flowchart-elk"])),
-        (14, "flowchart-v2", starts(&["graph", "flowchart"])),
-    ] },
+    Flowchart => {
+        name: "flowchart",
+        port: { diagram: diagrams::flowchart::Flowchart, section: "flowchart", palette: PaletteRule::None },
+        detectors: [
+            (0, "flowchart-elk", starts(&["flowchart-elk"])),
+            (14, "flowchart-v2", starts(&["graph", "flowchart"])),
+        ],
+    },
     Mindmap => { name: "mindmap", detectors: [(1, "mindmap", starts(&["mindmap"]))] },
     Architecture => { name: "architecture", detectors: [(2, "architecture", starts(&["architecture"]))] },
     Agentflow => { name: "agentflow", detectors: [

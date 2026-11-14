@@ -499,7 +499,7 @@ fn draw(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> Result<S
                     .rect(
                         [Number::num(item.swatch.x), Number::num(item.swatch.y)],
                         [Number::raw(SWATCH), Number::raw(SWATCH)],
-                        Number::raw(2.0),
+                        Some(Number::raw(2.0)),
                     )
                     .fill(Paint::Series(SeriesSlot::new(item.series)))
                     .finish();

@@ -44,3 +44,44 @@ pub(crate) fn fit_width(
 pub(crate) fn title_room(options: &LayoutOptions) -> f64 {
     available(options).map_or(4000.0, |available| js::max(80.0, available - 2.0 * options.padding))
 }
+
+/// Under this width, a diagram that runs across may be drawn running down instead.
+const BREAKPOINT: f64 = 640.0;
+
+/// Pele's `turnToFit`, for a diagram that can run across or down: draws it across, and down
+/// instead when the host allows it, the width it has is under the breakpoint, across does not
+/// fit, and down is narrower.
+pub(crate) fn turn_to_fit(
+    options: &LayoutOptions,
+    mut draw: impl FnMut(bool) -> Result<Scene, RenderError>,
+) -> Result<Scene, RenderError> {
+    let across = draw(false)?;
+    let Some(available) = available(options).filter(|_| options.auto_direction) else {
+        return Ok(across);
+    };
+    if across.size().width <= available {
+        return Ok(across);
+    }
+    if available >= options.direction_breakpoint.filter(|&breakpoint| breakpoint > 0.0).unwrap_or(BREAKPOINT) {
+        return Ok(across);
+    }
+    let down = draw(true)?;
+    Ok(if down.size().width < across.size().width { down } else { across })
+}
+
+/// Pele's `tighten`: draws a diagram with room to spare, and tightly instead when that does not
+/// fit the width the host has and tight is narrower.
+pub(crate) fn tighten(
+    options: &LayoutOptions,
+    mut draw: impl FnMut(bool) -> Result<Scene, RenderError>,
+) -> Result<Scene, RenderError> {
+    let loose = draw(false)?;
+    let Some(available) = available(options) else {
+        return Ok(loose);
+    };
+    if loose.size().width <= available {
+        return Ok(loose);
+    }
+    let tight = draw(true)?;
+    Ok(if tight.size().width < loose.size().width { tight } else { loose })
+}

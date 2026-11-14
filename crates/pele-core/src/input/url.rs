@@ -3,6 +3,7 @@
 //! parser, as `new URL` does.
 
 use super::{JsText, Units, decode_entities, hex_digit, is_line_end, is_word, string_to_number, to_lowercase};
+use crate::ResourcePolicy;
 
 const BLANK: &str = "about:blank";
 
@@ -243,6 +244,62 @@ fn sanitize_url(url: &[u16]) -> JsText {
 /// cannot hide a scheme.
 pub(crate) fn safe_url(url: &[u16]) -> JsText {
     sanitize_url(&decode_entities(url))
+}
+
+/// Pele's `allowed`: whether a URL is relative or names one of `schemes`. A network path such
+/// as `//host/share` is neither.
+fn allowed(url: &[u16], schemes: &[String]) -> bool {
+    let slash = |c: Option<u16>| matches!(c, Some(47 | 92));
+    if slash(url.at(0)) && slash(url.at(1)) {
+        return false;
+    }
+    // /^([a-z][a-z0-9+.-]*):/i
+    let letter = |c: u16| u8::try_from(c).is_ok_and(|c| c.is_ascii_alphabetic());
+    if !url.at(0).is_some_and(letter) {
+        return true;
+    }
+    let end = url.run(1, |c| letter(c) || u8::try_from(c).is_ok_and(|c| c.is_ascii_digit() || b"+.-".contains(&c)));
+    if url.at(end) != Some(unit(b':')) {
+        return true;
+    }
+    let scheme = String::from_utf16_lossy(&url[..end]).to_ascii_lowercase();
+    schemes.contains(&scheme)
+}
+
+/// Pele's `allow`: a URL that `sanitize_url` has passed, kept only when it and what an app
+/// would decode it to are relative or use a scheme the host allows.
+fn allow(url: &[u16], schemes: &[String]) -> bool {
+    unwrap(url, true).is_some_and(|decoded| allowed(url, schemes) && allowed(&decoded, schemes))
+}
+
+/// Pele's `linkUrl`: whether a link may lead to `url`. One that may not is left out of the
+/// drawing: written as `about:blank`, it would still take the page it is in somewhere.
+pub(crate) fn link_allowed(url: &[u16], policy: &ResourcePolicy) -> bool {
+    policy.links && allow(url, &policy.link_schemes)
+}
+
+/// Pele's `imageUrl`: whether a picture may be loaded from `url`.
+pub(crate) fn image_allowed(url: &[u16], policy: &ResourcePolicy) -> bool {
+    policy.images && allow(url, &policy.image_schemes)
+}
+
+/// Pele's `internalLink`: whether the name of a note may also be written as an `href`. The
+/// name is written as it is, so it is checked as it is, as sanitized, and as a browser reads it.
+pub(crate) fn internal_link_allowed(name: &[u16], policy: &ResourcePolicy) -> bool {
+    let url = sanitize_url(name);
+    if url.is_str(BLANK) || !link_allowed(&url, policy) {
+        return false;
+    }
+    // What `esc` and the browser drop: characters XML cannot hold, then tabs and line breaks,
+    // then leading controls and spaces.
+    let seen: Vec<u16> = char::decode_utf16(name.iter().copied())
+        .flatten()
+        .filter(|&c| !crate::scene::xml_drops(c) && !matches!(c, '\t' | '\n' | '\r'))
+        .collect::<String>()
+        .encode_utf16()
+        .collect();
+    let seen = &seen[seen.run(0, |c| c <= 0x20)..];
+    link_allowed(seen, policy)
 }
 
 #[cfg(test)]

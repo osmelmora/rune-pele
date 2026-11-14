@@ -71,6 +71,8 @@ pub enum Unsupported {
     /// A fill of more than one contour (a full donut, a shape with holes). `Shape::fill_path`
     /// fills each contour on its own, so the hole would be painted over.
     CompoundFill,
+    /// A drawing no ported view lowers yet: a curve, a polygon, an ellipse, a picture or an icon.
+    Drawing,
 }
 
 /// The cubics that draw `arc` from `from`, each spanning at most 90 degrees, per the SVG 1.1
@@ -381,6 +383,9 @@ fn lower_draw(draw: Draw, baselines: &mut Baselines, scale: f32) -> Result<Optio
         Geometry::Path(commands) => commands,
         Geometry::Rect { origin: corner, size, radius } => rect(corner, size.width, size.height, radius),
         Geometry::Circle { centre, radius } => circle(centre, radius),
+        Geometry::Ellipse { .. } | Geometry::Polygon(_) | Geometry::Image { .. } | Geometry::Icon { .. } => {
+            return Err(Unsupported::Drawing);
+        }
         Geometry::Text(run) => {
             let style = style(&run.font);
             let line = baselines.line(&run.text, style);
@@ -402,6 +407,9 @@ fn lower_draw(draw: Draw, baselines: &mut Baselines, scale: f32) -> Result<Optio
             return Ok(Some(Item::Text(item)));
         }
     };
+    if commands.iter().any(|c| matches!(c, PathCommand::Quad { .. } | PathCommand::Cubic { .. })) {
+        return Err(Unsupported::Drawing);
+    }
     let segment = |c: &PathCommand| match *c {
         PathCommand::Move(p) => Segment::Move(point(origin, p)),
         PathCommand::Line(p) => Segment::Line(point(origin, p)),
@@ -409,6 +417,7 @@ fn lower_draw(draw: Draw, baselines: &mut Baselines, scale: f32) -> Result<Optio
             Segment::Arc(Arc { radii: [rx, ry], rotation: 0.0, large, sweep, to: point(origin, end) })
         }
         PathCommand::Close => Segment::Close,
+        PathCommand::Quad { .. } | PathCommand::Cubic { .. } => unreachable!("curves are refused above"),
     };
     let outline = Outline::lower(&commands.iter().map(segment).collect::<Vec<_>>());
     let stroke = draw.style.stroke.map(|stroke| (stroke.paint, stroke.width as f32));

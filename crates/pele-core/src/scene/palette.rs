@@ -62,16 +62,20 @@ impl Rgba {
     }
 }
 
-const ROLES: [Role; 5] = [Role::Background, Role::Foreground, Role::Border, Role::OnLight, Role::OnDark];
+const ROLES: [Role; 9] = [
+    Role::Background,
+    Role::Foreground,
+    Role::Border,
+    Role::OnLight,
+    Role::OnDark,
+    Role::Line,
+    Role::Surface,
+    Role::SurfaceAlt,
+    Role::Muted,
+];
 
 fn index(role: Role) -> usize {
-    match role {
-        Role::Background => 0,
-        Role::Foreground => 1,
-        Role::Border => 2,
-        Role::OnLight => 3,
-        Role::OnDark => 4,
-    }
+    ROLES.iter().position(|&known| known == role).expect("every role is listed")
 }
 
 /// The colours an interpreter draws a diagram's roles and series in. Only colours: nothing
@@ -94,8 +98,11 @@ impl Palette {
         // `ROOT_STYLE` in the SVG writer, and `--pele-fg-on-light` and `--pele-fg-on-dark`.
         let roles = ROLES.map(|role| match role {
             Role::Background | Role::OnDark => Rgba::hex("#fff"),
-            Role::Foreground | Role::OnLight => Rgba::hex("#1f1f1f"),
+            Role::Foreground | Role::OnLight | Role::Line => Rgba::hex("#1f1f1f"),
             Role::Border => Rgba::hex("#8a8a8a"),
+            Role::Surface => Rgba::hex("#f3f3f3"),
+            Role::SurfaceAlt => Rgba::hex("#e6e6e6"),
+            Role::Muted => Rgba::hex("#6e6e6e"),
         });
         Palette { roles, series: PELE_SERIES.map(Rgba::hex) }
     }
@@ -127,6 +134,8 @@ pub struct ResolvedPaints {
     series: [Rgba; 8],
     /// The text colour on each series.
     ink: [Rgba; 8],
+    /// The colours the source writes, each where it can be read without a page.
+    written: Vec<Rgba>,
 }
 
 impl ResolvedPaints {
@@ -137,6 +146,10 @@ impl ResolvedPaints {
             Paint::Role(role) => Some(self.roles[index(role)]),
             Paint::Series(slot) => Some(self.series[slot.index()]),
             Paint::OnSeries(slot) => Some(self.ink[slot.index()]),
+            Paint::Source(id) => Some(self.written[id.0 as usize]),
+            Paint::Mix { tint, percent, base } => {
+                Some(mix(self.roles[index(tint)], self.roles[index(base)], percent / 100.0))
+            }
         }
     }
 }
@@ -166,8 +179,28 @@ impl Scene {
                 palette.role(Role::OnDark)
             }
         });
-        ResolvedPaints { roles: palette.roles, series, ink }
+        // A colour that needs a page to be read is drawn as the theme colour it stands in for.
+        let written = self
+            .document
+            .colours
+            .iter()
+            .map(|colour| css_colour(&colour.spelling, dark).unwrap_or(palette.role(colour.instead_of)))
+            .collect();
+        ResolvedPaints { roles: palette.roles, series, ink, written }
     }
+}
+
+/// CSS's `color-mix(in srgb, a share, b)`: the two colours' sRGB channels, each weighted by its
+/// alpha, then by its share.
+fn mix(a: Rgba, b: Rgba, share: f64) -> Rgba {
+    let share = share.clamp(0.0, 1.0);
+    let alpha = a.alpha * share + b.alpha * (1.0 - share);
+    if alpha == 0.0 {
+        return Rgba { linear_srgb: [0.0; 3], alpha: 0.0 };
+    }
+    let [a_rgb, b_rgb] = [a, b].map(|colour| colour.linear_srgb.map(encode));
+    let channel = |i: usize| (a_rgb[i] * a.alpha * share + b_rgb[i] * b.alpha * (1.0 - share)) / alpha;
+    Rgba { linear_srgb: [channel(0), channel(1), channel(2)].map(decode), alpha }
 }
 
 // CSS's named colours, in the spelling with "gray", which `color` also reads "grey" as.
@@ -210,7 +243,7 @@ fn named_hex(name: &str) -> Option<&'static str> {
 /// A source's series colour as a colour, where it is one this can know without a page: a hex,
 /// named, `rgb()` or `hsl()` colour, or `light-dark()` of two. `var()`, `color-mix()` and the
 /// other functions Pele lets through need a browser, so they leave the palette's colour.
-fn css_colour(raw: &[u16], dark: bool) -> Option<Rgba> {
+pub(super) fn css_colour(raw: &[u16], dark: bool) -> Option<Rgba> {
     let value = lowercase(raw.trim_js());
     if let Some(pair) = value.strip_prefix("light-dark(").and_then(|rest| rest.strip_suffix(')')) {
         let (light, dark_side) = split_top_comma(pair)?;

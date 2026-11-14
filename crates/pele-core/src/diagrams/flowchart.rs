@@ -1,13 +1,13 @@
-//! Flowcharts, ported from Pele's `src/diagrams/flowchart`. The front end is here: the lexer,
-//! the parser and the db build Pele's model, and `build_flow_graph` resolves it into the nodes
-//! and edges that are drawn. Rendering is not ported yet, so the catalog still reports flowcharts
-//! as not ported.
+//! Flowcharts, ported from Pele's `src/diagrams/flowchart`. The lexer, the parser and the db
+//! build Pele's model, `build_flow_graph` resolves it into the nodes and edges that are drawn,
+//! and `render` lays those out and draws them.
 
 mod db;
 mod graph;
 pub(crate) mod json;
 mod lexer;
 mod parser;
+mod render;
 mod shapes;
 
 use crate::RenderError;
@@ -17,6 +17,8 @@ use indexmap::IndexMap;
 use std::collections::HashMap;
 
 pub(crate) use graph::{FlowGraph, GraphEdge, GraphNode, build_flow_graph};
+pub(crate) use render::Flowchart;
+pub(crate) use shapes::Shape;
 use shapes::ShapeName;
 
 /// How a label's text is read.

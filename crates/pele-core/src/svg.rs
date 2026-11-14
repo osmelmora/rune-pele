@@ -6,8 +6,8 @@
 use crate::input::{JsText, decode_entities};
 use crate::measure::{Emphasis, Script};
 use crate::scene::{
-    AnchorKind, Field, GeometryField, LineJoin, NodeContent, NodeId, PELE_SERIES, Paint, PathProgram, PathStep,
-    PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform, xml_drops,
+    AnchorKind, Aspect, Field, GeometryField, LineCap, LineJoin, Node, NodeContent, NodeId, Number, PELE_SERIES, Paint,
+    PathProgram, PathStep, PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform, esc,
 };
 use crate::{Diagnostic, ErrorCode, ParityScene, RenderError, Rendered, js};
 
@@ -28,21 +28,6 @@ pub fn write(parity: &ParityScene) -> Result<Rendered, RenderError> {
     Ok(Rendered { svg, width: scene.size().width, height: scene.size().height })
 }
 
-/// Pele's `esc`: escapes text for XML and drops the characters XML cannot hold, DEL and any
-/// surrogate that has no partner.
-fn esc(text: &[u16], out: &mut String) {
-    for c in char::decode_utf16(text.iter().copied()).flatten() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            _ if xml_drops(c) => {}
-            _ => out.push(c),
-        }
-    }
-}
-
 fn esc_str(text: &str, out: &mut String) {
     esc(&text.encode_utf16().collect::<Vec<_>>(), out);
 }
@@ -60,6 +45,10 @@ fn role(role: Role) -> &'static str {
         Role::Border => "var(--_b)",
         Role::OnLight => "var(--pele-fg-on-light,#1f1f1f)",
         Role::OnDark => "var(--pele-fg-on-dark,#fff)",
+        Role::Line => "var(--_l)",
+        Role::Surface => "var(--_s)",
+        Role::SurfaceAlt => "var(--_a)",
+        Role::Muted => "var(--_m)",
     }
 }
 
@@ -70,26 +59,49 @@ fn paint(scene: &Scene, paint: Paint) -> Option<String> {
         Paint::Role(named) => role(named).to_owned(),
         Paint::Series(slot) => format!("var(--pele-series-{},{})", slot.index() + 1, PELE_SERIES[slot.index()]),
         Paint::OnSeries(slot) => role(scene.document.palette.ink(slot)?).to_owned(),
+        Paint::Source(id) => {
+            let mut spelling = String::new();
+            esc(&scene.colour(id).spelling, &mut spelling);
+            spelling
+        }
+        Paint::Mix { tint, percent, base } => {
+            format!("color-mix(in srgb,{} {}%,{})", role(tint), js::num(percent), role(base))
+        }
     })
 }
 
-fn write_pair(pair: &[crate::scene::Number; 2], out: &mut String) {
+fn write_pair(pair: &[Number; 2], out: &mut String) {
     pair[0].write(out);
     out.push(',');
     pair[1].write(out);
 }
 
+/// A command letter, then its pairs with a space between them.
+fn write_pairs(letter: char, pairs: &[[Number; 2]], out: &mut String) {
+    out.push(letter);
+    for (index, pair) in pairs.iter().enumerate() {
+        if index > 0 {
+            out.push(' ');
+        }
+        write_pair(pair, out);
+    }
+}
+
 fn write_path(path: &PathProgram, out: &mut String) {
     for step in &path.steps {
         match step {
-            PathStep::Move(to) => {
-                out.push('M');
-                write_pair(to, out);
+            PathStep::Move(to) => write_pairs('M', &[*to], out),
+            PathStep::Line(to) => write_pairs('L', &[*to], out),
+            PathStep::Horizontal(x) => {
+                out.push('H');
+                x.write(out);
             }
-            PathStep::Line(to) => {
-                out.push('L');
-                write_pair(to, out);
+            PathStep::Vertical(y) => {
+                out.push('V');
+                y.write(out);
             }
+            PathStep::Cubic(pairs) => write_pairs('C', pairs, out),
+            PathStep::Quad(pairs) => write_pairs('Q', pairs, out),
             PathStep::Arc { radii, large, sweep, end } => {
                 out.push('A');
                 write_pair(radii, out);
@@ -98,7 +110,66 @@ fn write_path(path: &PathProgram, out: &mut String) {
                 write_pair(end, out);
             }
             PathStep::Close => out.push('Z'),
+            PathStep::LineBy(to) => write_pairs('l', &[*to], out),
+            PathStep::HorizontalBy(x) => {
+                out.push('h');
+                x.write(out);
+            }
+            PathStep::QuadBy(pairs) => write_pairs('q', pairs, out),
+            PathStep::SmoothQuadBy(to) => write_pairs('t', &[*to], out),
         }
+    }
+}
+
+fn write_attribute(name: &str, out: &mut String, value: impl FnOnce(&mut String)) {
+    out.push(' ');
+    out.push_str(name);
+    out.push_str("=\"");
+    value(out);
+    out.push('"');
+}
+
+/// Writes one geometry attribute of a node. The builder records only the fields its content has.
+fn write_geometry(node: &Node, field: GeometryField, out: &mut String) {
+    use GeometryField as G;
+    let number = |name: &str, value: &Number, out: &mut String| write_attribute(name, out, |out| value.write(out));
+    match (&node.content, field) {
+        (NodeContent::Rect { x, .. } | NodeContent::Image { x, .. } | NodeContent::Icon { x, .. }, G::X) => {
+            number("x", x, out);
+        }
+        (NodeContent::Rect { y, .. } | NodeContent::Image { y, .. } | NodeContent::Icon { y, .. }, G::Y) => {
+            number("y", y, out);
+        }
+        (NodeContent::Rect { width, .. } | NodeContent::Image { width, .. }, G::Width) => number("width", width, out),
+        (NodeContent::Rect { height, .. } | NodeContent::Image { height, .. }, G::Height) => {
+            number("height", height, out);
+        }
+        (NodeContent::Icon { size, .. }, G::Width) => number("width", size, out),
+        (NodeContent::Icon { size, .. }, G::Height) => number("height", size, out),
+        (NodeContent::Rect { rx: Some(rx), .. } | NodeContent::Ellipse { rx, .. }, G::Rx) => number("rx", rx, out),
+        (NodeContent::Ellipse { ry, .. }, G::Ry) => number("ry", ry, out),
+        (NodeContent::Circle { cx: Some(cx), .. }, G::Cx) => number("cx", cx, out),
+        (NodeContent::Circle { cy: Some(cy), .. }, G::Cy) => number("cy", cy, out),
+        (NodeContent::Circle { radius, .. }, G::Radius) => number("r", radius, out),
+        (NodeContent::Text(PlacedText { emission: TextEmission::Plain { x, .. }, .. }), G::X) => number("x", x, out),
+        (NodeContent::Text(PlacedText { emission: TextEmission::Plain { y, .. }, .. }), G::Y) => number("y", y, out),
+        (NodeContent::Path(path), G::D) => write_attribute("d", out, |out| write_path(path, out)),
+        (NodeContent::Polygon(points), G::Points) => write_attribute("points", out, |out| {
+            for (index, point) in points.iter().enumerate() {
+                if index > 0 {
+                    out.push(' ');
+                }
+                write_pair(point, out);
+            }
+        }),
+        (NodeContent::Image { aspect, .. }, G::Aspect) => write_attribute("preserveAspectRatio", out, |out| {
+            out.push_str(match aspect {
+                Aspect::Stretch => "none",
+                Aspect::Meet => "xMidYMid meet",
+            });
+        }),
+        (NodeContent::Icon { name, .. }, G::Icon) => write_attribute("data-icon", out, |out| esc_text(name, out)),
+        (content, field) => unreachable!("the builder never records {field:?} for {content:?}"),
     }
 }
 
@@ -106,73 +177,71 @@ fn write_path(path: &PathProgram, out: &mut String) {
 fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
     let node = scene.node(id);
     let properties = &node.properties;
-    let mut number = |name: &str, value: Option<&crate::scene::Number>| {
+    let number = |name: &str, value: Option<&Number>, out: &mut String| {
         if let Some(value) = value {
-            out.push_str(name);
-            value.write(out);
-            out.push('"');
+            write_attribute(name, out, |out| value.write(out));
         }
+    };
+    let link = match &node.content {
+        NodeContent::Link { link, .. } => Some(link),
+        _ => None,
     };
     match field {
         Field::Class => {
-            if let Some(class) = properties.class {
-                out.push_str(" class=\"");
-                out.push_str(class);
-                out.push('"');
+            if let Some(class) = &properties.class {
+                write_attribute("class", out, |out| out.push_str(class));
             }
         }
         Field::DataId => {
             if let Some(part) = node.part {
-                out.push_str(" data-id=\"");
-                esc_text(&scene.entity(part).author_text, out);
-                out.push('"');
+                write_attribute("data-id", out, |out| esc_text(&scene.entity(part).author_text, out));
             }
         }
         Field::Transform => {
             if let Some(Transform::Translate(x, y)) = &properties.transform {
-                out.push_str(" transform=\"translate(");
-                write_pair(&[*x, *y], out);
-                out.push_str(")\"");
+                write_attribute("transform", out, |out| {
+                    out.push_str("translate(");
+                    write_pair(&[*x, *y], out);
+                    out.push(')');
+                });
             }
         }
-        Field::Geometry(geometry) => match (&node.content, geometry) {
-            (NodeContent::Rect { x, .. }, GeometryField::X) => number(" x=\"", Some(x)),
-            (NodeContent::Rect { y, .. }, GeometryField::Y) => number(" y=\"", Some(y)),
-            (NodeContent::Rect { width, .. }, GeometryField::Width) => number(" width=\"", Some(width)),
-            (NodeContent::Rect { height, .. }, GeometryField::Height) => number(" height=\"", Some(height)),
-            (NodeContent::Rect { rx, .. }, GeometryField::Rx) => number(" rx=\"", Some(rx)),
-            (NodeContent::Circle { radius }, GeometryField::Radius) => number(" r=\"", Some(radius)),
-            (NodeContent::Text(PlacedText { emission: TextEmission::Plain { x, .. }, .. }), GeometryField::X) => {
-                number(" x=\"", Some(x));
-            }
-            (NodeContent::Text(PlacedText { emission: TextEmission::Plain { y, .. }, .. }), GeometryField::Y) => {
-                number(" y=\"", Some(y));
-            }
-            (NodeContent::Path(path), GeometryField::D) => {
-                out.push_str(" d=\"");
-                write_path(path, out);
-                out.push('"');
-            }
-            (content, geometry) => unreachable!("the builder never records {geometry:?} for {content:?}"),
-        },
+        Field::Geometry(geometry) => write_geometry(node, geometry, out),
         Field::Fill | Field::Stroke => {
             let (name, value) = match field {
-                Field::Fill => (" fill=\"", properties.fill),
-                _ => (" stroke=\"", properties.stroke),
+                Field::Fill => ("fill", properties.fill),
+                _ => ("stroke", properties.stroke),
             };
             if let Some(value) = value.and_then(|value| paint(scene, value)) {
-                out.push_str(name);
-                out.push_str(&value);
-                out.push('"');
+                write_attribute(name, out, |out| out.push_str(&value));
             }
         }
-        Field::StrokeWidth => number(" stroke-width=\"", properties.stroke_width.as_ref()),
+        Field::FillOpacity => number("fill-opacity", properties.fill_opacity.as_ref(), out),
+        Field::StrokeWidth => number("stroke-width", properties.stroke_width.as_ref(), out),
+        Field::DashArray => write_attribute("stroke-dasharray", out, |out| {
+            for (index, length) in properties.dash.iter().enumerate() {
+                if index > 0 {
+                    out.push(' ');
+                }
+                length.write(out);
+            }
+        }),
+        Field::StrokeCap => match properties.cap {
+            Some(LineCap::Butt) => out.push_str(" stroke-linecap=\"butt\""),
+            Some(LineCap::Round) => out.push_str(" stroke-linecap=\"round\""),
+            None => {}
+        },
         Field::StrokeJoin => match properties.join {
             Some(LineJoin::Miter) => out.push_str(" stroke-linejoin=\"miter\""),
             Some(LineJoin::Round) => out.push_str(" stroke-linejoin=\"round\""),
             None => {}
         },
-        Field::FontSize => number(" font-size=\"", properties.font_size.as_ref()),
+        Field::PointerEvents => {
+            if properties.untouchable {
+                out.push_str(" pointer-events=\"none\"");
+            }
+        }
+        Field::FontSize => number("font-size", properties.font_size.as_ref(), out),
         Field::FontWeight => match properties.weight {
             Some(TextWeight::Title) => out.push_str(" font-weight=\"var(--_tw)\""),
             Some(TextWeight::Bold) => out.push_str(BOLD),
@@ -189,6 +258,35 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
                     AnchorKind::End => "end",
                 });
                 out.push('"');
+            }
+        }
+        Field::Style => {
+            if let Some(style) = &properties.style {
+                write_attribute("style", out, |out| style.write(out));
+            }
+        }
+        Field::Href => {
+            let href = match &node.content {
+                NodeContent::Image { href, .. } => Some(href),
+                _ => link.and_then(|link| link.href.as_ref()),
+            };
+            if let Some(href) = href {
+                write_attribute("href", out, |out| esc(href, out));
+            }
+        }
+        Field::Target => {
+            if let Some(target) = link.and_then(|link| link.target) {
+                write_attribute("target", out, |out| esc_str(target, out));
+            }
+        }
+        Field::Rel => {
+            if let Some(rel) = link.and_then(|link| link.rel.as_deref()) {
+                write_attribute("rel", out, |out| esc_str(rel, out));
+            }
+        }
+        Field::DataHref => {
+            if let Some(note) = link.and_then(|link| link.note.as_ref()) {
+                write_attribute("data-href", out, |out| esc(note, out));
             }
         }
     }
@@ -258,14 +356,23 @@ fn write_text(text: &PlacedText, out: &mut String) {
     out.push_str("</text>");
 }
 
+// What every icon's box sets for the drawing the host puts in it.
+const ICON_FRAME: &str = " viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"";
+
 fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
     let node = scene.node(id);
     let tag = match &node.content {
         NodeContent::Group(_) => "g",
+        NodeContent::Link { .. } => "a",
         NodeContent::Path(_) => "path",
         NodeContent::Rect { .. } => "rect",
         NodeContent::Circle { .. } => "circle",
+        NodeContent::Ellipse { .. } => "ellipse",
+        NodeContent::Polygon(_) => "polygon",
         NodeContent::Text(_) => "text",
+        NodeContent::Image { .. } => "image",
+        NodeContent::Icon { .. } => "svg",
+        NodeContent::Tooltip => "title",
     };
     out.push('<');
     out.push_str(tag);
@@ -273,15 +380,33 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
         write_field(scene, id, field, out);
     }
     match &node.content {
-        NodeContent::Group(children) => {
+        NodeContent::Group(children) | NodeContent::Link { children, .. } => {
             out.push('>');
             for &child in children {
                 write_node(scene, child, out);
             }
-            out.push_str("</g>");
+            out.push_str("</");
+            out.push_str(tag);
+            out.push('>');
         }
         NodeContent::Text(text) => write_text(text, out),
-        NodeContent::Path(_) | NodeContent::Rect { .. } | NodeContent::Circle { .. } => out.push_str("/>"),
+        NodeContent::Icon { .. } => {
+            out.push_str(ICON_FRAME);
+            out.push_str("></svg>");
+        }
+        NodeContent::Tooltip => {
+            out.push('>');
+            if let Some(tooltip) = node.part.and_then(|part| scene.entity(part).tooltip.as_ref()) {
+                esc_text(tooltip, out);
+            }
+            out.push_str("</title>");
+        }
+        NodeContent::Path(_)
+        | NodeContent::Rect { .. }
+        | NodeContent::Circle { .. }
+        | NodeContent::Ellipse { .. }
+        | NodeContent::Polygon(_)
+        | NodeContent::Image { .. } => out.push_str("/>"),
     }
 }
 
@@ -333,20 +458,6 @@ fn root_style(scene: &Scene, body: &str) -> Style {
     style
 }
 
-fn write_style(style: &Style, out: &mut String) {
-    for (index, declaration) in style.declarations.iter().enumerate() {
-        if index > 0 {
-            out.push(';');
-        }
-        out.push_str(&declaration.property);
-        out.push(':');
-        esc(&declaration.value, out);
-    }
-    if style.terminated {
-        out.push(';');
-    }
-}
-
 /// Pele's `svgDocument`: the root element around a body that is already written.
 fn write_root(scene: &Scene, body: &str) -> String {
     let document = &scene.document;
@@ -359,7 +470,7 @@ fn write_root(scene: &Scene, body: &str) -> String {
     out.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pele pele-");
     out.push_str(kind);
     out.push_str(&format!("\" viewBox=\"0 0 {0} {1}\" width=\"{0}\" height=\"{1}\" style=\"", size[0], size[1]));
-    write_style(&root_style(scene, body), &mut out);
+    root_style(scene, body).write(&mut out);
     out.push_str("\" fill=\"var(--_fg)\" role=\"graphics-document document\" aria-roledescription=\"");
     out.push_str(kind);
     out.push('"');
@@ -414,7 +525,18 @@ mod tests {
     #[test]
     fn the_pele_palette_is_the_fallbacks_the_svg_spells() {
         let pele = Palette::pele();
-        for named in [Role::Background, Role::Foreground, Role::Border, Role::OnLight, Role::OnDark] {
+        let roles = [
+            Role::Background,
+            Role::Foreground,
+            Role::Border,
+            Role::OnLight,
+            Role::OnDark,
+            Role::Line,
+            Role::Surface,
+            Role::SurfaceAlt,
+            Role::Muted,
+        ];
+        for named in roles {
             let spelled = fallback(role(named));
             assert_eq!(pele.role(named).to_srgb8(), bytes(&spelled), "{named:?} falls back to {spelled}");
         }

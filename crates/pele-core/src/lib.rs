@@ -3,6 +3,7 @@
 mod catalog;
 mod diagrams;
 mod fit;
+mod graph;
 mod input;
 pub mod js;
 // Renderers inside this crate are the callers. It is public so that `tests/layout_replay.rs` can
@@ -142,6 +143,40 @@ pub struct LayoutOptions {
     pub responsive: Option<bool>,
     /// The prefix of the ids a drawing declares. Unset, it is `pele`.
     pub id_prefix: Option<String>,
+    /// Whether a diagram that runs across may be drawn running down when it does not fit
+    /// `max_width`.
+    pub auto_direction: bool,
+    /// The width under which that is done. Unset, it is 640 pixels.
+    pub direction_breakpoint: Option<f64>,
+    pub resources: ResourcePolicy,
+}
+
+/// What a diagram may link to and load. A source cannot change it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResourcePolicy {
+    /// Whether a node may be a link.
+    pub links: bool,
+    /// Whether a node may show a picture.
+    pub images: bool,
+    /// The schemes a link may use besides a relative address.
+    pub link_schemes: Vec<String>,
+    /// The schemes a picture's address may use besides a relative address.
+    pub image_schemes: Vec<String>,
+    /// The `rel` of a link. Empty, a link has none.
+    pub link_rel: String,
+}
+
+impl Default for ResourcePolicy {
+    fn default() -> Self {
+        let schemes = |names: &[&str]| names.iter().map(|&name| name.to_owned()).collect();
+        ResourcePolicy {
+            links: true,
+            images: true,
+            link_schemes: schemes(&["http", "https", "mailto", "tel"]),
+            image_schemes: schemes(&["http", "https"]),
+            link_rel: "noopener".to_owned(),
+        }
+    }
 }
 
 impl Default for LayoutOptions {
@@ -152,6 +187,9 @@ impl Default for LayoutOptions {
             max_width: None,
             responsive: None,
             id_prefix: None,
+            auto_direction: true,
+            direction_breakpoint: None,
+            resources: ResourcePolicy::default(),
         }
     }
 }
@@ -264,7 +302,6 @@ pub fn prepare(source: &str, options: ParseOptions) -> Result<Prepared, RenderEr
 
 /// The flowchart front end's model and flow graph as JSON, in the words of the oracle's
 /// `flow_front` op, for the differential test. A source of another type answers only that type.
-/// Flowcharts are not drawn yet, so `prepare` still reports them as not ported.
 #[doc(hidden)]
 pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -337,9 +374,9 @@ pub fn render(source: &str) -> Result<Rendered, RenderError> {
 
 #[cfg(test)]
 fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderError> {
-    prepare(source, ParseOptions::default()).map(|prepared| {
-        let catalog::PreparedModel::Pie(model) = prepared.model;
-        model
+    prepare(source, ParseOptions::default()).map(|prepared| match prepared.model {
+        catalog::PreparedModel::Pie(model) => model,
+        catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
     })
 }
 

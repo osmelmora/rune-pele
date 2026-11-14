@@ -128,6 +128,9 @@ impl std::fmt::Display for ViewError {
             ViewError::Geometry(lower::Unsupported::CompoundFill) => {
                 f.write_str("a fill with a hole cannot be drawn yet")
             }
+            ViewError::Geometry(lower::Unsupported::Drawing) => {
+                f.write_str("this diagram type cannot be drawn natively yet")
+            }
         }
     }
 }

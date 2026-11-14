@@ -81,7 +81,7 @@ fn slices_inherit_the_seam_and_end_where_their_share_of_a_turn_ends() {
         assert_eq!(draw.key.part.entity.kind(), EntityKind::Section);
         assert_eq!(String::from_utf16_lossy(draw.key.part.entity.identity()), label);
         assert_eq!(draw.style.fill, Paint::Series(SeriesSlot::new(index)));
-        let stroke = draw.style.stroke.expect("the slices layer strokes every slice");
+        let stroke = draw.style.stroke.as_ref().expect("the slices layer strokes every slice");
         assert_eq!((stroke.paint, stroke.width, stroke.join), (Paint::Role(Role::Background), 1.0, LineJoin::Round));
         assert!(draw.origin.x > 120.0 && draw.origin.y > 120.0, "origin is the plot's centre: {:?}", draw.origin);
         let Geometry::Path(commands) = &draw.geometry else { unreachable!() };

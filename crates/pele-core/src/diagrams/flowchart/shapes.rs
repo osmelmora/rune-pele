@@ -19,7 +19,6 @@ macro_rules! shapes {
 
         impl Shape {
             /// The canonical name, which is the shape's documented short name.
-            #[cfg_attr(not(test), allow(dead_code, reason = "the drawing unit dispatches on it"))]
             pub(crate) fn name(self) -> &'static str {
                 match self {
                     $(Shape::$doc => shapes!(@first $($name),+),)+
@@ -174,7 +173,6 @@ impl ShapeName {
     }
 
     /// Pele's `canonicalShape`.
-    #[cfg_attr(not(test), allow(dead_code, reason = "the drawing unit dispatches on it"))]
     pub(crate) fn shape(self) -> Shape {
         self.shape
     }
