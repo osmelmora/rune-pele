@@ -372,47 +372,121 @@ fn push_icons(line: &mut Vec<LabelRun>, text: &[u16], style: Emphasis) {
     push_plain(line, &text[last..], style);
 }
 
-/// Pele's `inline` for a label that is not Markdown: splits inline HTML into styled runs.
-fn inline(line: &mut Vec<LabelRun>, source: &[u16], base: Emphasis, open: &mut Open) {
-    let flush = |line: &mut Vec<LabelRun>, text: &mut Vec<u16>, open: &Open| {
-        let script = open.shifts.last().copied().unwrap_or(open.style.script);
-        push_icons(line, text, Emphasis { script, ..open.style });
+/// The emphasis a mark turns on or off. A shift is not one: the innermost open one applies.
+fn flag(style: &mut Emphasis, mark: Mark) -> Option<&mut bool> {
+    match mark {
+        Mark::Bold => Some(&mut style.bold),
+        Mark::Italic => Some(&mut style.italic),
+        Mark::Mono => Some(&mut style.mono),
+        Mark::Underline => Some(&mut style.underline),
+        Mark::Shift(_) => None,
+    }
+}
+
+/// Pele's `inline`: splits inline HTML and, for a Markdown label, emphasis markers into styled
+/// runs. What a tag opens carries to the next line of the label through `open`; what a marker
+/// opens ends with its line.
+fn inline(line: &mut Vec<LabelRun>, source: &[u16], markdown: bool, base: Emphasis, open: &mut Open) {
+    let mut style = open.style;
+    let (mut marked_bold, mut marked_italic) = (false, false);
+    let flush = |line: &mut Vec<LabelRun>, text: &mut Vec<u16>, style: Emphasis, open: &Open| {
+        let script = open.shifts.last().copied().unwrap_or(style.script);
+        push_icons(line, text, Emphasis { script, ..style });
         text.clear();
     };
     let mut text = Vec::new();
     let mut i = 0;
     while i < source.len() {
-        if source[i] == u16::from(b'<')
-            && let Some(tag) = match_tag(source, i)
-        {
-            let mark = tag_mark(&tag.name);
-            if let Some(mark) = mark {
-                flush(line, &mut text, open);
-                let set = |on: &mut bool, base: bool| *on = if tag.closing { base } else { true };
-                match mark {
-                    Mark::Bold => set(&mut open.style.bold, base.bold),
-                    Mark::Italic => set(&mut open.style.italic, base.italic),
-                    Mark::Mono => set(&mut open.style.mono, base.mono),
-                    Mark::Underline => set(&mut open.style.underline, base.underline),
-                    Mark::Shift(script) if !tag.closing => open.shifts.push(script),
-                    Mark::Shift(script) => {
-                        if let Some(at) = open.shifts.iter().rposition(|&shift| shift == script) {
-                            open.shifts.remove(at);
+        let ch = source[i];
+        if ch == u16::from(b'<') {
+            if let Some(tag) = match_tag(source, i) {
+                let mark = tag_mark(&tag.name);
+                if let Some(mark) = mark {
+                    flush(line, &mut text, style, open);
+                    match mark {
+                        Mark::Shift(script) if !tag.closing => open.shifts.push(script),
+                        Mark::Shift(script) => {
+                            if let Some(at) = open.shifts.iter().rposition(|&shift| shift == script) {
+                                open.shifts.remove(at);
+                            }
+                        }
+                        // A closing tag leaves what the label as a whole has.
+                        on_or_off => {
+                            let mut whole = base;
+                            let on = !tag.closing || flag(&mut whole, on_or_off).is_some_and(|on| *on);
+                            for style in [&mut open.style, &mut style] {
+                                if let Some(flag) = flag(style, on_or_off) {
+                                    *flag = on;
+                                }
+                            }
                         }
                     }
                 }
+                // Other HTML tags are dropped and their text kept. Anything else shaped like a tag,
+                // such as the type in List<T>, is text.
+                if mark.is_some() || HTML_TAGS.split(' ').any(|known| known == tag.name) {
+                    i = tag.end;
+                    continue;
+                }
             }
-            // Other HTML tags are dropped and their text kept. Anything else shaped like a tag,
-            // such as the type in List<T>, is text.
-            if mark.is_some() || HTML_TAGS.split(' ').any(|known| known == tag.name) {
-                i = tag.end;
+        } else if markdown && (ch == u16::from(b'*') || ch == u16::from(b'_')) {
+            let double = source.at(i + 1) == Some(ch);
+            let len = if double { 2 } else { 1 };
+            let marked = if double { &mut marked_bold } else { &mut marked_italic };
+            let prev = if i > 0 { source[i - 1] } else { 32 };
+            let next = source.at(i + len).unwrap_or(32);
+            let closes_later =
+                (i + len..source.len()).any(|at| source[at] == ch && (!double || source.at(at + 1) == Some(ch)));
+            let can_open = !*marked && !is_space(next) && closes_later;
+            let can_close = *marked && !is_space(prev);
+            let wordy = ch == u16::from(b'_') && is_word(prev) && is_word(next);
+            if (can_open || can_close) && !wordy {
+                *marked = can_open;
+                flush(line, &mut text, style, open);
+                let on = if double { &mut style.bold } else { &mut style.italic };
+                *on = can_open || if double { base.bold } else { base.italic };
+                i += len;
                 continue;
             }
         }
-        text.push(source[i]);
+        text.push(ch);
         i += 1;
     }
-    flush(line, &mut text, open);
+    flush(line, &mut text, style, open);
+}
+
+/// Pele's `dedent`: removes the indentation every line that is not blank shares.
+fn dedent(text: &[u16]) -> Vec<u16> {
+    let indent = |line: &[u16]| line.len() - line.trim_start_js().len();
+    let lines: Vec<&[u16]> = text.split(|&c| c == 10).collect();
+    let shared = lines.iter().filter(|line| !line.trim_js().is_empty()).map(|line| indent(line)).min();
+    let Some(shared) = shared.filter(|&shared| shared > 0) else {
+        return text.to_vec();
+    };
+    let mut out = Vec::with_capacity(text.len());
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            out.push(10);
+        }
+        out.extend_from_slice(&line[shared.min(indent(line))..]);
+    }
+    out
+}
+
+/// `raw.replace(/\r\n?/g, '\n')`
+fn unix_breaks(raw: &[u16]) -> Vec<u16> {
+    let mut out = Vec::with_capacity(raw.len());
+    let mut at = 0;
+    while at < raw.len() {
+        if raw[at] == 13 {
+            out.push(10);
+            at += 1 + usize::from(raw.at(at + 1) == Some(10));
+        } else {
+            out.push(raw[at]);
+            at += 1;
+        }
+    }
+    out
 }
 
 /// Ends the line being filled, as `commit` does inside Pele's `wrap`.
@@ -552,10 +626,11 @@ fn finish(lines: Vec<LabelLine>, size: f64, line_height: f64) -> Label {
     Label { height: lines.len() as f64 * snug, lines, width: widest, size, line_height: snug }
 }
 
-/// Pele's `layoutLabel` for a label that is not Markdown, on a host with no icons and no math.
-/// `raw` is empty where Pele's is `undefined`.
+/// Pele's `layoutLabel`, on a host with no icons and no math. `raw` is empty where Pele's is
+/// `undefined`.
 pub(crate) fn layout_label(
     raw: &[u16],
+    markdown: bool,
     measurer: &dyn TextMeasurer,
     size: f64,
     max_width: f64,
@@ -579,10 +654,11 @@ pub(crate) fn layout_label(
 
     let mut lines = Vec::new();
     // HTML tags can span explicit breaks.
+    let dedented = if markdown { dedent(&unix_breaks(raw)) } else { raw.to_vec() };
     let mut open = Open { style: base, shifts: Vec::new() };
-    for part in split_breaks(raw.trim_js()) {
+    for part in split_breaks(dedented.trim_js()) {
         let mut line = Vec::new();
-        inline(&mut line, part.trim_js(), base, &mut open);
+        inline(&mut line, part.trim_js(), markdown, base, &mut open);
         let mut w = 0.0;
         for run in &mut line {
             run.width = width(measurer, &run.text, size, run.style);
@@ -702,28 +778,63 @@ mod tests {
         out
     }
 
+    /// Labels that read differently as Markdown: emphasis markers, indentation and line ends.
+    fn markdown_labels() -> Vec<Vec<u16>> {
+        [
+            "**bold** and *italic* and __bold__ and _italic_",
+            "***both*** **a *b* c** *a **b** c*",
+            "snake_case_name and _lead and trail_ and a_b",
+            "2 * 3 * 4 and ** spaced ** and *open only",
+            "**unclosed and *closed* after",
+            "*a*b*c* **a**b**c** _a_ _b_",
+            "* item\n* item two\n**bold\nacross** lines",
+            "    indented\n      more\n    back",
+            "  one\r\n   two\r  three\n\n  four",
+            "<b>tag **and** marker</b> *then <i>both</i>*",
+            "**a**<br>*b*\\n_c_",
+            "\tTabbed *line*\n\t  deeper",
+            "****  ** __ _ * *_*",
+            "**bold** text that is long enough to wrap around *the* width it has __for__ it",
+            "a*b _c_ d_e_ *f g*",
+        ]
+        .iter()
+        .map(|text| units(text))
+        .collect()
+    }
+
     #[test]
     fn layout_label_matches_pele() {
-        let settings = [(14.0, 4000.0, 0), (16.0, 4000.0, 1), (16.0, 80.0, 1), (14.0, 40.0, 0), (13.0, 1.0, 0)];
-        let cases: Vec<(Vec<u16>, f64, f64, u8)> = labels()
+        let settings = [
+            (14.0, 4000.0, 0, false),
+            (16.0, 4000.0, 1, false),
+            (16.0, 80.0, 1, false),
+            (14.0, 40.0, 0, false),
+            (13.0, 1.0, 0, false),
+            (16.0, 4000.0, 0, true),
+            (14.0, 60.0, 3, true),
+        ];
+        let cases: Vec<(Vec<u16>, f64, f64, u8, bool)> = labels()
             .into_iter()
-            .flat_map(|raw| settings.map(|(size, max_width, base)| (raw.clone(), size, max_width, base)))
+            .chain(markdown_labels())
+            .flat_map(|raw| {
+                settings.map(|(size, max_width, base, markdown)| (raw.clone(), size, max_width, base, markdown))
+            })
             .collect();
         let requests: Vec<String> = cases
             .iter()
-            .map(|(raw, size, max_width, base)| {
-                format!("label\t{}\t{}\t{}\t{base}", json(raw), bits(*size), bits(*max_width))
+            .map(|(raw, size, max_width, base, markdown)| {
+                format!("label\t{}\t{}\t{}\t{base}\t{markdown}", json(raw), bits(*size), bits(*max_width))
             })
             .collect();
         let theirs = pele_oracle::ask(&requests);
         let parse = |text: &str| parse_json(&units(text)).ok().expect("a label is JSON");
-        for ((raw, size, max_width, base), theirs) in cases.iter().zip(&theirs) {
-            let base = if *base == 1 { Emphasis::BOLD } else { Emphasis::default() };
-            let ours = shape(&layout_label(raw, &ArialMetrics, *size, *max_width, base));
+        for ((raw, size, max_width, base, markdown), theirs) in cases.iter().zip(&theirs) {
+            let base = Emphasis { bold: base & 1 != 0, italic: base & 2 != 0, ..Emphasis::default() };
+            let ours = shape(&layout_label(raw, *markdown, &ArialMetrics, *size, *max_width, base));
             assert!(matches!(parse(theirs), JsValue::Object(_)), "the oracle answers a label");
             assert!(
                 parse(&ours) == parse(theirs),
-                "label {:?} at {size}px in {max_width}px:\n ours {ours}\n pele {theirs}",
+                "label {:?} at {size}px in {max_width}px, markdown {markdown}:\n ours {ours}\n pele {theirs}",
                 String::from_utf16_lossy(raw)
             );
         }

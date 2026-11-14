@@ -91,8 +91,8 @@ const ops: Record<string, (args: string[]) => string> = {
       return JSON.stringify({ error: String(error) });
     }
   },
-  label: ([raw, size, maxWidth, base]) => {
-    const label = layoutLabel(JSON.parse(raw) as string, false, metricsMeasurer, double(size), double(maxWidth), Number(base));
+  label: ([raw, size, maxWidth, base, markdown]) => {
+    const label = layoutLabel(JSON.parse(raw) as string, markdown === 'true', metricsMeasurer, double(size), double(maxWidth), Number(base));
     return JSON.stringify({
       lines: label.lines.map((line) => line.map((span) => ({ text: span.text, style: span.style, width: bits(span.width) }))),
       widths: label.widths.map(bits),

@@ -285,7 +285,7 @@ fn layout(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> PieLay
             if model.show_data {
                 text.push_str(&format!(" [{}]", js::to_string(value)));
             }
-            layout_label(&text, cx.measure, small, 4000.0, plain)
+            layout_label(&text, false, cx.measure, small, 4000.0, plain)
         })
         .collect();
     let mut legend_width = 0.0;
@@ -296,7 +296,7 @@ fn layout(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> PieLay
     let legend_height = labels.len() as f64 * ROW;
 
     let title_text = model.title.as_deref().unwrap_or_default();
-    let title = layout_label(title_text, cx.measure, size, fit::title_room(cx.options), Emphasis::BOLD);
+    let title = layout_label(title_text, false, cx.measure, size, fit::title_room(cx.options), Emphasis::BOLD);
     let title_height = if title.height > 0.0 { title.height + 16.0 } else { 0.0 };
 
     let percent = |share: f64| -> JsText {
