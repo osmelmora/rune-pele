@@ -6,8 +6,8 @@
 use crate::input::{JsText, decode_entities};
 use crate::measure::{Emphasis, Script};
 use crate::scene::{
-    AnchorKind, Field, GeometryField, LineJoin, NodeContent, NodeId, Paint, PathProgram, PathStep, PlacedText, Role,
-    Scene, Style, TextEmission, TextWeight, Transform,
+    AnchorKind, Field, GeometryField, LineJoin, NodeContent, NodeId, PELE_SERIES, Paint, PathProgram, PathStep,
+    PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform, xml_drops,
 };
 use crate::{Diagnostic, ErrorCode, ParityScene, RenderError, Rendered, js};
 
@@ -37,7 +37,7 @@ fn esc(text: &[u16], out: &mut String) {
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
-            '\0'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{7f}' | '\u{fffe}' | '\u{ffff}' => {}
+            _ if xml_drops(c) => {}
             _ => out.push(c),
         }
     }
@@ -53,11 +53,10 @@ fn esc_text(text: &JsText, out: &mut String) {
     esc(&decode_entities(text), out);
 }
 
-const SERIES: [&str; 8] = ["#4c78a8", "#f58518", "#54a24b", "#e45756", "#72b7b2", "#eeca3b", "#b279a2", "#9d755d"];
-
 fn role(role: Role) -> &'static str {
     match role {
         Role::Background => "var(--_bg)",
+        Role::Foreground => "var(--_fg)",
         Role::Border => "var(--_b)",
         Role::OnLight => "var(--pele-fg-on-light,#1f1f1f)",
         Role::OnDark => "var(--pele-fg-on-dark,#fff)",
@@ -69,7 +68,7 @@ fn paint(scene: &Scene, paint: Paint) -> Option<String> {
     Some(match paint {
         Paint::None => "none".to_owned(),
         Paint::Role(named) => role(named).to_owned(),
-        Paint::Series(slot) => format!("var(--pele-series-{},{})", slot.index() + 1, SERIES[slot.index()]),
+        Paint::Series(slot) => format!("var(--pele-series-{},{})", slot.index() + 1, PELE_SERIES[slot.index()]),
         Paint::OnSeries(slot) => role(scene.document.palette.ink(slot)?).to_owned(),
     })
 }
@@ -168,11 +167,11 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
             }
         }
         Field::StrokeWidth => number(" stroke-width=\"", properties.stroke_width.as_ref()),
-        Field::StrokeJoin => {
-            if let Some(LineJoin::Round) = properties.join {
-                out.push_str(" stroke-linejoin=\"round\"");
-            }
-        }
+        Field::StrokeJoin => match properties.join {
+            Some(LineJoin::Miter) => out.push_str(" stroke-linejoin=\"miter\""),
+            Some(LineJoin::Round) => out.push_str(" stroke-linejoin=\"round\""),
+            None => {}
+        },
         Field::FontSize => number(" font-size=\"", properties.font_size.as_ref()),
         Field::FontWeight => match properties.weight {
             Some(TextWeight::Title) => out.push_str(" font-weight=\"var(--_tw)\""),
@@ -389,4 +388,38 @@ fn write_root(scene: &Scene, body: &str) -> String {
     out.push_str(body);
     out.push_str("</svg>");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scene::Palette;
+
+    /// The fallback Pele's SVG spells for a role, through the root's private aliases.
+    fn fallback(role_spelling: &str) -> String {
+        let spelling = match ROOT_STYLE.iter().find(|(alias, _)| role_spelling == format!("var({alias})")) {
+            Some((_, value)) => *value,
+            None => role_spelling,
+        };
+        let (_, rest) = spelling.split_once(',').expect("a variable with a fallback");
+        rest.trim_end_matches(')').to_owned()
+    }
+
+    fn bytes(hex: &str) -> [u8; 4] {
+        let digits: String = hex[1..].chars().flat_map(|c| if hex.len() == 4 { vec![c, c] } else { vec![c] }).collect();
+        let byte = |i: usize| u8::from_str_radix(&digits[i * 2..i * 2 + 2], 16).expect("hex");
+        [byte(0), byte(1), byte(2), 255]
+    }
+
+    #[test]
+    fn the_pele_palette_is_the_fallbacks_the_svg_spells() {
+        let pele = Palette::pele();
+        for named in [Role::Background, Role::Foreground, Role::Border, Role::OnLight, Role::OnDark] {
+            let spelled = fallback(role(named));
+            assert_eq!(pele.role(named).to_srgb8(), bytes(&spelled), "{named:?} falls back to {spelled}");
+        }
+        for (index, hex) in PELE_SERIES.iter().enumerate() {
+            assert_eq!(pele.series(index).to_srgb8(), bytes(hex), "series {}", index + 1);
+        }
+    }
 }

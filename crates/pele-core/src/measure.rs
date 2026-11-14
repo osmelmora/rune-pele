@@ -122,8 +122,9 @@ impl TextMeasurer for ArialMetrics {
     }
 }
 
+/// Where a run of text sits against its line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub(crate) enum Script {
+pub enum Script {
     #[default]
     Normal,
     Sub,
@@ -150,7 +151,7 @@ impl Emphasis {
 }
 
 // Approximate divisor for CSS font-size="smaller".
-const SMALLER: f64 = 1.2;
+pub(crate) const SMALLER: f64 = 1.2;
 
 /// The width of `text` at `size` pixels with `style`, as Pele's `measurer.width(text, size, style)`.
 pub(crate) fn width(measurer: &dyn TextMeasurer, text: &[u16], size: f64, style: Emphasis) -> f64 {

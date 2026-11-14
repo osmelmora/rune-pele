@@ -13,6 +13,22 @@ use crate::{DiagramKind, RenderError, js};
 use indexmap::IndexMap;
 use std::sync::LazyLock;
 
+mod palette;
+mod walk;
+
+pub(crate) use palette::PELE_SERIES;
+pub use palette::{Palette, ResolvedPaints, Rgba};
+pub use walk::{
+    BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, PaintStyle, PaintVisit, PartKey, PathCommand,
+    StrokeStyle,
+};
+
+/// Whether XML can't hold `c`, so that Pele drops it from text: C0 controls but tab, line feed and
+/// carriage return, DEL, and the two noncharacters U+FFFE and U+FFFF.
+pub(crate) fn xml_drops(c: char) -> bool {
+    matches!(c, '\0'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{7f}' | '\u{fffe}' | '\u{ffff}')
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
     pub x: f64,
@@ -29,6 +45,8 @@ pub struct Size {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
     Background,
+    /// Text and anything else the diagram draws in its own ink.
+    Foreground,
     Border,
     /// Text on a light fill.
     OnLight,
@@ -41,11 +59,13 @@ pub enum Role {
 pub struct SeriesSlot(u8);
 
 impl SeriesSlot {
-    pub(crate) fn new(position: usize) -> Self {
+    /// The slot of the series at `position`, counted from 0.
+    pub fn new(position: usize) -> Self {
         SeriesSlot((position % 8) as u8)
     }
 
-    pub(crate) fn index(self) -> usize {
+    /// From 0 to 7.
+    pub fn index(self) -> usize {
         usize::from(self.0)
     }
 }
@@ -63,6 +83,8 @@ pub enum Paint {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineJoin {
+    /// SVG's default join, with its miter limit of 4.
+    Miter,
     Round,
 }
 
@@ -363,11 +385,19 @@ fn color(raw: &[u16]) -> Option<(f64, f64)> {
     if named(LIGHT, &name) {
         return Some((1.0, 1.0));
     }
-    if is_hex_color(&value) {
+    let (rgb, alpha) = srgb(&value)?;
+    let lum = luminance(rgb[0], rgb[1], rgb[2]);
+    (!(lum + alpha).is_nan()).then_some((lum, alpha))
+}
+
+/// The sRGB channels from 0 to 1, and the alpha, of a lowercase hex colour or `rgb()`, `rgba()`,
+/// `hsl()` or `hsla()`, as Pele's `color` reads them. A part that does not read is NaN.
+fn srgb(value: &str) -> Option<([f64; 3], f64)> {
+    if is_hex_color(value) {
         let digits: Vec<u32> = value[1..].chars().filter_map(|c| c.to_digit(16)).collect();
         let digits: Vec<u32> = if value.len() < 6 { digits.iter().flat_map(|&d| [d, d]).collect() } else { digits };
         let n = |i: usize| f64::from(digits[2 * i] * 16 + digits[2 * i + 1]) / 255.0;
-        return Some((luminance(n(0), n(1), n(2)), if digits.len() == 8 { n(3) } else { 1.0 }));
+        return Some(([n(0), n(1), n(2)], if digits.len() == 8 { n(3) } else { 1.0 }));
     }
     // /^(rgba?|hsla?)\(([^()]*)\)$/i
     let (function, rest) = value.split_once('(')?;
@@ -390,8 +420,7 @@ fn color(raw: &[u16]) -> Option<(f64, f64)> {
     } else {
         [amount(&list[0], 255.0), amount(&list[1], 255.0), amount(&list[2], 255.0)]
     };
-    let lum = luminance(rgb[0], rgb[1], rgb[2]);
-    (!(lum + alpha).is_nan()).then_some((lum, alpha))
+    Some((rgb, alpha))
 }
 
 /// Pele's `ink` for a fill with no opacity of its own: the text colour that contrasts with it.
@@ -440,6 +469,20 @@ impl Number {
             NumberForm::Num => js::write_num(out, self.value),
             NumberForm::Raw => out.push_str(&js::to_string(self.value)),
             NumberForm::Fixed(digits) => out.push_str(&js::to_fixed(self.value, usize::from(digits))),
+        }
+    }
+
+    /// The number `write` spells, so that what an interpreter draws is what the SVG says.
+    pub(crate) fn effective(&self) -> f64 {
+        match self.form {
+            NumberForm::Num => {
+                let hundredths = js::round(self.value * 100.0);
+                if hundredths == 0.0 { 0.0 } else { hundredths / 100.0 }
+            }
+            NumberForm::Raw => self.value,
+            NumberForm::Fixed(digits) => {
+                js::to_fixed(self.value, usize::from(digits)).parse().expect("toFixed spells a number")
+            }
         }
     }
 }
@@ -639,23 +682,37 @@ pub(crate) enum GeometryField {
 #[derive(Clone, Debug)]
 pub(crate) struct Node {
     pub(crate) part: Option<PartId>,
-    #[expect(dead_code, reason = "read by the Rune interpreter, which is not built yet")]
     pub(crate) facet: Option<Facet>,
     pub(crate) content: NodeContent,
     pub(crate) properties: Properties,
     pub(crate) emission: Vec<Field>,
 }
 
-/// What something in a diagram is, apart from where and how it is drawn.
+/// What something in a diagram is, apart from where and how it is drawn. A source edit that
+/// keeps an entity keeps its key.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct EntityKey {
+pub struct EntityKey {
     kind: EntityKind,
     identity: JsText,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum EntityKind {
+pub enum EntityKind {
+    /// The diagram as a whole, which owns its title and what belongs to no other entity.
+    Diagram,
+    /// A pie section, named by its label.
     Section,
+}
+
+impl EntityKey {
+    pub fn kind(&self) -> EntityKind {
+        self.kind
+    }
+
+    /// The name the entity is known by, as UTF-16 code units. A surrogate may stand alone.
+    pub fn identity(&self) -> &[u16] {
+        &self.identity
+    }
 }
 
 /// An entity as a diagram names it while drawing.
@@ -665,6 +722,13 @@ pub(crate) struct Entity {
 }
 
 impl Entity {
+    pub(crate) fn diagram() -> Self {
+        Entity {
+            key: EntityKey { kind: EntityKind::Diagram, identity: JsText::default() },
+            author_text: JsText::default(),
+        }
+    }
+
     /// A pie section. Its label is its identity, since a pie keeps one section per label.
     pub(crate) fn pie_section(label: &JsText) -> Self {
         Entity { key: EntityKey { kind: EntityKind::Section, identity: label.clone() }, author_text: label.clone() }
@@ -673,6 +737,7 @@ impl Entity {
 
 #[derive(Clone, Debug)]
 pub(crate) struct EntityRecord {
+    pub(crate) key: EntityKey,
     /// The name the author gave, which `data-id` carries.
     pub(crate) author_text: JsText,
 }
@@ -844,9 +909,9 @@ impl SceneBuilder {
 
     /// The part for an entity. Asking again for the same entity gives the same part.
     pub(crate) fn part(&mut self, entity: Entity) -> PartId {
-        let entry = self.entities.entry(entity.key);
+        let entry = self.entities.entry(entity.key.clone());
         let index = entry.index();
-        entry.or_insert(EntityRecord { author_text: entity.author_text });
+        entry.or_insert(EntityRecord { key: entity.key, author_text: entity.author_text });
         PartId(index as u32)
     }
 
@@ -866,24 +931,26 @@ impl SceneBuilder {
         ElementStart { builder: self, attributes }
     }
 
-    /// Starts a shape that belongs to no entity.
+    /// Starts a shape that belongs to no entity but the diagram itself.
     pub(crate) fn decoration(&mut self) -> ElementStart<'_> {
-        ElementStart { builder: self, attributes: Attributes::default() }
+        let part = self.part(Entity::diagram());
+        self.element(part, Facet::Shape)
     }
 
     pub(crate) fn title(&mut self, title: &TitleLayout) {
         let look = LabelLook::class("pele-title").weight(TextWeight::Title);
-        self.label(None, Facet::Title, &title.label, title.at, look);
+        let part = self.part(Entity::diagram());
+        self.label(part, Facet::Title, &title.label, title.at, look);
     }
 
     /// Pele's `labelSvg`: a measured label as text centred on `at`. An empty label draws nothing.
-    pub(crate) fn label(&mut self, part: Option<PartId>, facet: Facet, label: &Label, at: Point, look: LabelLook) {
+    pub(crate) fn label(&mut self, part: PartId, facet: Facet, label: &Label, at: Point, look: LabelLook) {
         if label.lines.is_empty() {
             return;
         }
         let shift = label.size * 0.35;
         let mut top = at.y - label.height / 2.0;
-        let mut attributes = Attributes { part, facet: Some(facet), ..look.0 };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
         let middle = |p: &mut Properties| p.anchor = Some(AnchorKind::Middle);
 
         let only = match label.lines.as_slice() {

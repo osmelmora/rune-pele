@@ -10,7 +10,7 @@ pub mod scene;
 pub mod svg;
 
 pub use catalog::{DiagramKind, MermaidType};
-pub use measure::{Font, FontFamily, FontWeight, TextMeasure, TextMeasurer, TextRef, Typography};
+pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
 pub use scene::Scene;
 
 /// A diagram rendered to SVG.

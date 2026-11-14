@@ -503,7 +503,7 @@ fn draw(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> Result<S
                     )
                     .fill(Paint::Series(SeriesSlot::new(item.series)))
                     .finish();
-                out.label(Some(part), Facet::Legend, &item.label, item.at, LabelLook::default());
+                out.label(part, Facet::Legend, &item.label, item.at, LabelLook::default());
             });
         }
     });
