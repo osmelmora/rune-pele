@@ -7,7 +7,7 @@ use crate::input::{JsText, decode_entities};
 use crate::measure::{Emphasis, Script};
 use crate::scene::{
     AnchorKind, Field, GeometryField, LineJoin, NodeContent, NodeId, Paint, PathProgram, PathStep, PlacedText, Role,
-    Scene, TextEmission, TextWeight, Transform,
+    Scene, Style, TextEmission, TextWeight, Transform,
 };
 use crate::{Diagnostic, ErrorCode, ParityScene, RenderError, Rendered, js};
 
@@ -287,13 +287,68 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
 }
 
 // Private aliases set once on the root element, so each use is short and the public --pele-*
-// tokens keep their fallbacks. Copied from Pele's `src/svg/theme.ts`.
-const ROOT_STYLE: &str = "--_bg:var(--pele-bg,#fff);--_fg:var(--pele-fg,#1f1f1f);--_m:var(--pele-muted,#6e6e6e);\
---_l:var(--pele-line,#1f1f1f);--_s:var(--pele-surface,#f3f3f3);--_a:var(--pele-surface-alt,#e6e6e6);\
---_b:var(--pele-border,#8a8a8a);--_c:var(--pele-accent,#5b7bd5);color:var(--_fg)";
+// tokens keep their fallbacks. Copied from Pele's `ROOT_STYLE` in `src/svg/theme.ts`.
+const ROOT_STYLE: [(&str, &str); 9] = [
+    ("--_bg", "var(--pele-bg,#fff)"),
+    ("--_fg", "var(--pele-fg,#1f1f1f)"),
+    ("--_m", "var(--pele-muted,#6e6e6e)"),
+    ("--_l", "var(--pele-line,#1f1f1f)"),
+    ("--_s", "var(--pele-surface,#f3f3f3)"),
+    ("--_a", "var(--pele-surface-alt,#e6e6e6)"),
+    ("--_b", "var(--pele-border,#8a8a8a)"),
+    ("--_c", "var(--pele-accent,#5b7bd5)"),
+    ("color", "var(--_fg)"),
+];
 
-/// Pele's `svgDocument`: the root element around a body that is already written. The root sets
-/// the radius and each bold weight only where the body uses it, so it reads those from the bytes.
+/// The root's style in Pele's order: fit, aliases, the radius and weights the body uses, font,
+/// then the palette the source sets. The root sets the radius and each bold weight only where
+/// the body uses it, so those are read from the bytes of the body.
+fn root_style(scene: &Scene, body: &str) -> Style {
+    let document = &scene.document;
+    let mut style = Style::unterminated();
+    if document.responsive {
+        style.declare("max-width", "100%");
+        style.declare("height", "auto");
+    }
+    for (property, value) in ROOT_STYLE {
+        style.declare(property, value);
+    }
+    if body.contains("var(--_r)") {
+        style.declare("--_r", "var(--pele-radius,4px)");
+    }
+    for (alias, name) in [("tw", "title"), ("hw", "heading"), ("w", "bold")] {
+        if body.contains(&format!("var(--_{alias})")) {
+            style.declare(&format!("--_{alias}"), format!("var(--pele-{name}-weight,bold)").as_str());
+        }
+    }
+    style.declare("--_fm", "var(--pele-font-mono,monospace)");
+    style.declare("font", format!("{}px sans-serif", js::to_string(document.font_size)).as_str());
+    style.declare("letter-spacing", "normal");
+    style.declare("word-spacing", "normal");
+    style.declare("text-transform", "none");
+    style.declare("direction", "ltr");
+    style.declare("font-family", "var(--pele-font,sans-serif)");
+    for (index, colour) in document.palette.slots() {
+        style.declare(&format!("--pele-series-{}", index + 1), colour.spelling.clone());
+    }
+    style
+}
+
+fn write_style(style: &Style, out: &mut String) {
+    for (index, declaration) in style.declarations.iter().enumerate() {
+        if index > 0 {
+            out.push(';');
+        }
+        out.push_str(&declaration.property);
+        out.push(':');
+        esc(&declaration.value, out);
+    }
+    if style.terminated {
+        out.push(';');
+    }
+}
+
+/// Pele's `svgDocument`: the root element around a body that is already written.
 fn write_root(scene: &Scene, body: &str) -> String {
     let document = &scene.document;
     let kind = document.kind.name();
@@ -305,26 +360,7 @@ fn write_root(scene: &Scene, body: &str) -> String {
     out.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pele pele-");
     out.push_str(kind);
     out.push_str(&format!("\" viewBox=\"0 0 {0} {1}\" width=\"{0}\" height=\"{1}\" style=\"", size[0], size[1]));
-    if document.responsive {
-        out.push_str("max-width:100%;height:auto;");
-    }
-    out.push_str(ROOT_STYLE);
-    if body.contains("var(--_r)") {
-        out.push_str(";--_r:var(--pele-radius,4px)");
-    }
-    for (alias, name) in [("tw", "title"), ("hw", "heading"), ("w", "bold")] {
-        if body.contains(&format!("var(--_{alias})")) {
-            out.push_str(&format!(";--_{alias}:var(--pele-{name}-weight,bold)"));
-        }
-    }
-    out.push_str(";--_fm:var(--pele-font-mono,monospace);font:");
-    out.push_str(&js::to_string(document.font_size));
-    out.push_str("px sans-serif;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;");
-    out.push_str("font-family:var(--pele-font,sans-serif)");
-    for (index, colour) in document.palette.slots() {
-        out.push_str(&format!(";--pele-series-{}:", index + 1));
-        esc(&colour.spelling, &mut out);
-    }
+    write_style(&root_style(scene, body), &mut out);
     out.push_str("\" fill=\"var(--_fg)\" role=\"graphics-document document\" aria-roledescription=\"");
     out.push_str(kind);
     out.push('"');

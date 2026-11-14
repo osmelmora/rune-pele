@@ -444,6 +444,31 @@ impl Number {
     }
 }
 
+/// CSS declarations as they are written into a `style` attribute, in order.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Style {
+    pub(crate) declarations: Vec<Declaration>,
+    /// Whether a `;` follows the last declaration. Pele writes some lists with one and some
+    /// without, and code that adds to a list has to know which it has.
+    pub(crate) terminated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Declaration {
+    pub(crate) property: String,
+    pub(crate) value: JsText,
+}
+
+impl Style {
+    pub(crate) fn unterminated() -> Self {
+        Style::default()
+    }
+
+    pub(crate) fn declare(&mut self, property: &str, value: impl Into<JsText>) {
+        self.declarations.push(Declaration { property: property.to_owned(), value: value.into() });
+    }
+}
+
 /// A path as the commands Pele writes, in the one spelling pie uses: no separator before a
 /// command, a comma inside a pair and spaces around an arc's flags.
 #[derive(Clone, Debug, PartialEq)]
