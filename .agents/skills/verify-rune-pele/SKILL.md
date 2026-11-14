@@ -1,11 +1,11 @@
 ---
 name: verify-rune-pele
-description: Drive rune-pele's `pele` CLI the way a porter or consumer does, rendering Mermaid through this port and through Pele 1.13.0 and proving byte-parity on Pele's documentation corpus. Use after any change to crates/, harness/, mise.toml or the Pele pin, before claiming a diagram type, numeric helper or CLI behavior works.
+description: Drive rune-pele's `pele` CLI and its native Rune view the way a porter or consumer does, rendering Mermaid through this port and through Pele 1.13.0, proving byte-parity on Pele's documentation corpus, and capturing the Rune drawing headless. Use after any change to crates/, harness/, mise.toml or the Pele pin, before claiming a diagram type, numeric helper, CLI behavior or Rune view works.
 ---
 
 # Verify rune-pele
 
-rune-pele is a Rust port of Pele (the Mermaid to SVG renderer, pinned at 1.13.0). Users touch it through the `pele` CLI today. The Rune adapter crate does not exist yet. When it lands, add its surface to this skill and to `features/`.
+rune-pele is a Rust port of Pele (the Mermaid to SVG renderer, pinned at 1.13.0). Users touch it in two places. The `pele` CLI renders SVG. The `rune-pele` crate draws the same Scene as native Rune elements, and its `pie` example shows that in a window or headless.
 
 The truth source is Pele itself. `harness/oracle.ts` imports Pele's TypeScript source from `vendor/pele` and is bundled to `harness/dist/oracle.mjs`. Every parity claim compares our output with what that oracle prints. Never compare against a hand-written expected SVG.
 
@@ -18,19 +18,21 @@ There is no server. Launch means a pinned toolchain, Pele at the pinned commit, 
 1. `mise install`. This installs the Rust, Node and Kani versions pinned in `mise.toml`.
 2. `mise run setup`. This clones or checks out `vendor/pele` at `scripts/pele-pin.txt`, runs `npm ci` in `harness/`, and bundles the oracle. Ready when it prints `pele 1.13.0 at 3a2f075…, oracle at harness/dist/oracle.mjs`.
 3. `mise exec -- cargo build -p pele-cli`. The binary is `target/debug/pele`.
+4. `mise exec -- cargo build -p rune-pele --example pie`. The example is `target/debug/examples/pie`. Run it bare for a window, or with `--snap <png>` to draw one frame offscreen and exit. Headless runs need a GPU adapter but no display.
 
 Run every command through `mise exec --` or a `mise run` task. A bare `node` or `cargo` may be a different version, and the oracle's numbers then stop meaning Pele 1.13.0.
 
-Teardown is the Cleanup section. Nothing keeps running between commands.
+Teardown is the Cleanup section. Nothing keeps running between commands. A window the example opens closes with it.
 
 ## Doctor
 
-Run `.agents/skills/verify-rune-pele/scripts/doctor.sh` first, and again whenever a result looks wrong. It is read-only. It checks four things:
+Run `.agents/skills/verify-rune-pele/scripts/doctor.sh` first, and again whenever a result looks wrong. It is read-only. It checks five things:
 
 - Node and rustc match `mise.toml`.
 - `vendor/pele` is at the pin with no local edits.
 - The oracle bundle's first-line stamp matches the sha256 of `harness/oracle.ts` and the pin, and it answers `num(0.125)=0.13 num(-0.125)=-0.12`.
 - `pele-cli` builds.
+- The rune-pele `pie` example builds.
 
 It ends with `doctor: ok` or stops at the first `doctor: FAIL <reason>` with the fix. Do not drive a checkout the doctor fails.
 
@@ -56,6 +58,12 @@ Exit codes are part of the contract:
 
 Run it as `mise exec -- target/debug/pele …` after building, or `mise exec -- cargo run -q -p pele-cli -- …`.
 
+Drive the Rune view through the `pie` example and the headless tests. Each is a user path for an app that embeds rune-pele.
+
+- `target/debug/examples/pie --snap <png> [--theme light|dark] [--scene hues] [--script <json>]`. Draws the example's first frame, or its frame after the script, to a PNG at 2× by default, and exits 0.
+- `cargo test -p rune-pele --test pie_view -- --nocapture`. Captures pie-pets through `Diagram::view` at 1× and 2×, measures it in pixels, and writes PNGs and reports to `$RUNE_PELE_OUT` or `out/verify/pie-rune/`.
+- `cargo test -p pele-core --test scene_walk`. Reads the Scene as the Rune view reads it.
+
 The recipe for each feature is in `features/`.
 
 ## Evidence
@@ -71,6 +79,7 @@ For example, `capture.sh 2026-11-14-pie render-pele target/debug/pele render tes
 Proof standards:
 
 - Exercise the CLI, not internal functions. A unit test passing does not prove the CLI behavior it covers.
+- A Rune view claim needs the PNGs on disk and opened. It also needs the product test's numbers from the same run, not from an earlier one.
 - A parity claim needs both sides on disk: `<i>.pele.svg` and `<i>.ours.svg` from the same run, plus the `report.json` row. "Identical" means byte-equal SVG and equal width and height.
 - A "type X is ported" claim needs `pele parity --type X` with `different 0` and `not ported 0`. Name any `pele errors` rows, since Pele rejected those sources itself. It also needs the type's wider differential test passing, such as `cargo test -p pele-core --test pie_parity` for pie.
 - A numeric claim needs `mise exec -- cargo test -p pele-core --test oracle` passing. Those tests diff against the oracle on more than 200,000 doubles.

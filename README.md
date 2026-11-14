@@ -11,6 +11,7 @@ The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own 
 | `crates/pele-core` | Rune-free core: the input boundary, the diagram catalog, text measurement, the Scene, the SVG writer and the ported types. `js` holds the JavaScript number rules every Pele coordinate goes through. |
 | `crates/pele-oracle` | Asks Pele, built from source, what it would output. Tests and the CLI use it. |
 | `crates/pele-cli` | The `pele` binary: `pele render` and `pele parity`. |
+| `crates/rune-pele` | The Rune adapter, and the only crate that depends on Rune. `Diagram::view` draws a Scene as native Rune elements. `examples/pie.rs` shows it. |
 | `harness/` | `oracle.ts`, bundled by esbuild into `harness/dist/oracle.mjs` and run by the pinned Node. |
 | `vendor/pele` | Pele's source at `scripts/pele-pin.txt`. Gitignored, and fetched by `mise run setup`. |
 | `tests/fixtures` | Sources for the CLI recipes, and `pie/` with the pie sources harvested from Pele's tests by `scripts/harvest-pie.mjs`. |
@@ -30,7 +31,7 @@ mise exec -- cargo run -q -p pele-cli -- parity
 
 Two project skills live in `.agents/skills/`. `.claude/skills` links to them.
 
-- `verify-rune-pele` drives the `pele` CLI and proves parity against Pele, with a feature map in `features/`.
+- `verify-rune-pele` drives the `pele` CLI and the Rune view, and proves parity against Pele, with a feature map in `features/`.
 - `prove-js-numerics` holds the Kani proofs that `Math.round` and Pele's `num()` match for every double.
 
 ## License
