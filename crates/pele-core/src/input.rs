@@ -8,6 +8,8 @@ mod yaml;
 
 use crate::js;
 use crate::{Diagnostic, ErrorCode, RenderError};
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 /// A JavaScript string: UTF-16 code units, which may hold a surrogate with no partner.
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
@@ -515,9 +517,12 @@ fn record(steps: &mut Option<&mut Steps>, edits: Vec<Edit>) {
 
 /// Pele's `inputOffset`: where the unit at `at` of the preprocessed text sits in the source.
 pub(crate) fn input_offset(steps: &Steps, at: usize) -> usize {
-    steps.iter().rev().fold(at, |at, edits| {
+    // An entity code grows when it is hidden, so the shift can be negative.
+    let signed = |n: usize| n as isize;
+    let at = steps.iter().rev().fold(signed(at), |at, edits| {
         let mut shift = 0;
         for &(from, to, length) in edits {
+            let (from, to, length) = (signed(from), signed(to), signed(length));
             let start = from - shift;
             if at < start {
                 break;
@@ -528,7 +533,8 @@ pub(crate) fn input_offset(steps: &Steps, at: usize) -> usize {
             shift += to - from - length;
         }
         at + shift
-    })
+    });
+    at.max(0) as usize
 }
 
 /// What preprocessing leaves of a source.
@@ -857,10 +863,12 @@ fn drop_color_semicolons(text: Vec<u16>, keyword: &str, steps: &mut Option<&mut 
                 after_colon = false;
             }
         }
+        // Pele takes the last semicolon before the line's end and keeps it only if it comes
+        // after the hash, which is the last semicolon between the two.
         if let Some(hash) = hash
-            && let Some(semicolon) = text[..line_end].iter().rposition(|&c| c == u16::from(b';'))
-            && semicolon > hash
+            && let Some(offset) = text[hash + 1..line_end].iter().rposition(|&c| c == u16::from(b';'))
         {
+            let semicolon = hash + 1 + offset;
             edits.push((semicolon, semicolon + 1, 0));
             out.extend_from_slice(&text[last..semicolon]);
             last = semicolon + 1;
@@ -983,13 +991,14 @@ Upsilon:933,Phi:934,Chi:935,Psi:936,Omega:937,alpha:945,beta:946,gamma:947,delta
 eta:951,theta:952,iota:953,kappa:954,lambda:955,mu:956,nu:957,xi:958,omicron:959,pi:960,rho:961,sigmaf:962,\
 sigma:963,tau:964,upsilon:965,phi:966,chi:967,psi:968,omega:969";
 
-/// The code point of a named entity. A name listed twice keeps its last code, as Pele's map does.
+/// The code point of each named entity. A name listed twice keeps its last code, as Pele's map does.
+static NAMED_ENTITIES: LazyLock<HashMap<&str, u32>> = LazyLock::new(|| {
+    let pairs = NAMED.split(',').filter_map(|pair| pair.split_once(':'));
+    pairs.map(|(name, code)| (name, code.parse().expect("the entity table holds code points"))).collect()
+});
+
 fn named_entity(name: &[u16]) -> Option<u32> {
-    NAMED
-        .split(',')
-        .filter_map(|pair| pair.split_once(':'))
-        .rfind(|(known, _)| name.is_str(known))
-        .map(|(_, code)| code.parse().expect("the entity table holds code points"))
+    NAMED_ENTITIES.get(String::from_utf16_lossy(name).as_str()).copied()
 }
 
 /// A code point an entity may stand for: `n > 0 && n <= 0x10ffff` and no surrogate.
