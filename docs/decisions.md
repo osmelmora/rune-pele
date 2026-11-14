@@ -34,3 +34,12 @@ The renderer-neutral Scene is the one-way-door decision. All 33 types will emit 
 - Three read-only explorers produced the grounding in `docs/grounding/`: Pele's pipeline, Pele's drawing vocabulary, and Rune's drawing surface. Rune was read at commit 165f87a.
 - The how explainer pass was skipped. The three angles barely overlap, and the design runners read the raw findings directly.
 - Two architect runners on different models design the Scene independently. A cross-judge on a third model scores them, then synthesis picks a base and grafts from the other.
+
+## 2026-11-14 Scene design: candidate B as the base, with four grafts from A
+
+The full record is `docs/design/scene/design.md` ("Synthesis decision"), with both candidates in `docs/design/scene/candidates/`.
+
+- The Scene is one immutable ordered drawing. Semantic parts form a separate table. Private recipes keep Pele's exact spelling.
+- The SVG writer is `pele_core::svg`.
+- `rune-pele` alone depends on Rune.
+- The cross-judge and the orchestrator agreed on B. Grafted from A: shared fit helpers, explicit style termination, the translucent-stroke fast path, and pie-parity-first sequencing.
