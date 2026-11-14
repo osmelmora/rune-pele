@@ -3,7 +3,10 @@
 //! The detectors are Pele's `DETECTORS` (`src/detect.ts`). Each regular expression there is a
 //! start-of-text match, so it is written as the words it may start with and what must follow.
 
-use crate::input::{Units, is_space, is_word};
+use crate::diagrams::tokens::SyntaxError;
+use crate::diagrams::{self};
+use crate::input::{JsText, Units, is_space, is_word};
+use crate::{Diagnostic, ErrorCode, Origin, RenderError};
 use std::sync::LazyLock;
 
 /// What must follow a detector's word.
@@ -88,11 +91,44 @@ pub(crate) struct Detected {
     pub(crate) mermaid: MermaidType,
 }
 
+/// What a diagram's parser is given.
+pub(crate) struct ParseContext<'a> {
+    /// The preprocessed source with its entity codes hidden, ending in a line break.
+    pub(crate) text: &'a [u16],
+    /// The title front matter sets.
+    pub(crate) title: Option<&'a JsText>,
+    pub(crate) origin: &'a Origin<'a>,
+}
+
+impl ParseContext<'_> {
+    /// Pele's `syntaxError`: the message names the line and shows it with a caret.
+    pub(crate) fn syntax(&self, error: SyntaxError) -> RenderError {
+        let location = self.origin.locate(self.text, error.at);
+        let message = if error.lexical {
+            format!("Lexical error on line {}. Unrecognized text.\n{}", location.line, location.snippet)
+        } else {
+            format!("Parse error on line {}:\n{}\n{}", location.line, location.snippet, error.detail)
+        };
+        RenderError::Diagnostic(Diagnostic { location: Some(location), ..Diagnostic::new(ErrorCode::Syntax, message) })
+    }
+
+    pub(crate) fn semantic(&self, message: String) -> RenderError {
+        RenderError::Diagnostic(Diagnostic::new(ErrorCode::Semantic, message))
+    }
+}
+
+/// One diagram type's whole pipeline. A module that implements it is a port.
+pub(crate) trait Diagram {
+    type Model;
+    fn parse(cx: &ParseContext<'_>) -> Result<Self::Model, RenderError>;
+}
+
 /// One registration per kind. `rank` is the detector's position in Mermaid's order, where the
-/// first match wins.
+/// first match wins. `port` names the module that renders the kind, once there is one.
 macro_rules! diagram_catalog {
     ($($kind:ident => {
         name: $name:literal,
+        $(port: $port:ty,)?
         detectors: [$(($rank:literal, $mermaid:literal, $pattern:expr)),+ $(,)?] $(,)?
     }),+ $(,)?) => {
         /// A diagram type, named as Pele names it.
@@ -109,6 +145,20 @@ macro_rules! diagram_catalog {
                 match self {
                     $(DiagramKind::$kind => $name),+
                 }
+            }
+        }
+
+        /// What a ported kind's parser made of a source.
+        #[cfg_attr(not(test), expect(dead_code, reason = "the draw step in the following commit reads the model"))]
+        pub(crate) enum PreparedModel {
+            $($($kind(<$port as Diagram>::Model),)?)+
+        }
+
+        /// Parses with the kind's port, or reports that it has none.
+        pub(crate) fn parse(kind: DiagramKind, cx: &ParseContext<'_>) -> Result<PreparedModel, RenderError> {
+            match kind {
+                $($(DiagramKind::$kind => <$port as Diagram>::parse(cx).map(PreparedModel::$kind),)?)+
+                _ => Err(RenderError::NotPorted),
             }
         }
 
@@ -140,7 +190,7 @@ diagram_catalog! {
     Er => { name: "er", detectors: [(7, "er", starts(&["erDiagram"]))] },
     Gantt => { name: "gantt", detectors: [(8, "gantt", starts(&["gantt"]))] },
     Info => { name: "info", detectors: [(9, "info", starts(&["info"]))] },
-    Pie => { name: "pie", detectors: [(10, "pie", starts(&["pie"]))] },
+    Pie => { name: "pie", port: diagrams::pie::Pie, detectors: [(10, "pie", starts(&["pie"]))] },
     Requirement => { name: "requirement", detectors: [(11, "requirement", starts(&["requirement"]))] },
     Sequence => { name: "sequence", detectors: [(12, "sequence", starts(&["sequenceDiagram"]))] },
     Swimlane => { name: "swimlane", detectors: [

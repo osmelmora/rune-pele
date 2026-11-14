@@ -2,11 +2,11 @@
 // Protocol: one request per stdin line, `<op>\t<arg>...`, one answer per stdout line.
 // Doubles travel as 16 hex digits of their IEEE-754 bits so no decimal parse sits between the sides.
 // `render` takes a JSON string and answers one JSON object. `render_with` also takes a JSON object
-// of Pele render options, laid over the pinned ones. `detect`, `preprocess` and `label` expose the
-// stages before drawing, so a port can be diffed one stage at a time.
+// of Pele render options, laid over the pinned ones. `detect`, `preprocess`, `model` and `label`
+// expose the stages before drawing, so a port can be diffed one stage at a time.
 import { createInterface } from 'node:readline';
 import { detectDiagram } from '../vendor/pele/src/detect.ts';
-import { detectType, render } from '../vendor/pele/src/index.ts';
+import { detectType, parse, render } from '../vendor/pele/src/index.ts';
 import { encodeEntities, preprocess } from '../vendor/pele/src/preprocess.ts';
 import { num } from '../vendor/pele/src/svg/builder.ts';
 import { layoutLabel } from '../vendor/pele/src/text/label.ts';
@@ -70,6 +70,23 @@ const ops: Record<string, (args: string[]) => string> = {
     try {
       const { text, title, config } = preprocess(JSON.parse(source) as string);
       return JSON.stringify({ text, title: title ?? null, config: plain(config), parsed: encodeEntities(text) });
+    } catch (error) {
+      return JSON.stringify({ error: String(error) });
+    }
+  },
+  model: ([source]) => {
+    try {
+      const model = parse(JSON.parse(source) as string);
+      if (model.type !== 'pie') return JSON.stringify({ type: model.type });
+      const { type, title, accTitle, accDescr, showData, sections } = model;
+      return JSON.stringify({
+        type,
+        title: title ?? null,
+        accTitle: accTitle ?? null,
+        accDescr: accDescr ?? null,
+        showData,
+        sections: [...sections].map(([label, value]) => [label, bits(value)]),
+      });
     } catch (error) {
       return JSON.stringify({ error: String(error) });
     }

@@ -507,6 +507,36 @@ pub(crate) fn decimal(text: &[u16]) -> f64 {
     format!("{sign}{whole}.{fraction}e{exponent}").parse().expect("a decimal literal parses")
 }
 
+/// The input range `from..to` replaced by `length` output units.
+pub(crate) type Edit = (usize, usize, usize);
+
+/// The edits of each preprocessing step in order, recorded only when a source position is needed.
+pub(crate) type Steps = Vec<Vec<Edit>>;
+
+fn record(steps: &mut Option<&mut Steps>, edits: Vec<Edit>) {
+    if let Some(steps) = steps {
+        steps.push(edits);
+    }
+}
+
+/// Pele's `inputOffset`: where the unit at `at` of the preprocessed text sits in the source.
+pub(crate) fn input_offset(steps: &Steps, at: usize) -> usize {
+    steps.iter().rev().fold(at, |at, edits| {
+        let mut shift = 0;
+        for &(from, to, length) in edits {
+            let start = from - shift;
+            if at < start {
+                break;
+            }
+            if at < start + length {
+                return from + (at - start).min(to - from - 1);
+            }
+            shift += to - from - length;
+        }
+        at + shift
+    })
+}
+
 /// What preprocessing leaves of a source.
 pub(crate) struct Preprocessed {
     /// The diagram text with front matter, directives and comment lines removed.
@@ -523,8 +553,8 @@ pub(crate) fn nested_too_deeply() -> RenderError {
     RenderError::Diagnostic(Diagnostic::new(ErrorCode::Limit, "Diagram is nested too deeply.".to_owned()))
 }
 
-/// Pele's `preprocess`.
-pub(crate) fn preprocess(source: &str) -> Result<Preprocessed, RenderError> {
+/// Pele's `preprocess` followed by its `cleanupComments`.
+pub(crate) fn preprocess(source: &str, mut steps: Option<&mut Steps>) -> Result<Preprocessed, RenderError> {
     let mut text = single_quote_attributes(normalize_line_breaks(&source.encode_utf16().collect::<Vec<_>>()));
     let mut config = JsObject::default();
     let mut title = None;
@@ -546,10 +576,11 @@ pub(crate) fn preprocess(source: &str) -> Result<Preprocessed, RenderError> {
             }
         }
         text.drain(..front.length);
+        record(&mut steps, vec![(0, front.length, 0)]);
     }
 
-    let text = directives(text, &mut config)?;
-    Ok(Preprocessed { text: cleanup_comments(text).into(), title, config })
+    let text = directives(text, &mut config, &mut steps)?;
+    Ok(Preprocessed { text: cleanup_comments(text, &mut steps).into(), title, config })
 }
 
 /// `text.replace(/\r\n?/g, '\n')`.
@@ -718,7 +749,7 @@ fn match_directive(text: &[u16], at: usize) -> Option<Directive> {
 }
 
 /// Pele's `directives`: reads `%%{init: ...}%%` and `%%{wrap}%%` into the config and removes them.
-fn directives(text: Vec<u16>, config: &mut JsObject) -> Result<Vec<u16>, RenderError> {
+fn directives(text: Vec<u16>, config: &mut JsObject, steps: &mut Option<&mut Steps>) -> Result<Vec<u16>, RenderError> {
     if !text.has("%%{") {
         return Ok(text);
     }
@@ -744,26 +775,37 @@ fn directives(text: Vec<u16>, config: &mut JsObject) -> Result<Vec<u16>, RenderE
     }
 
     let mut out = Vec::with_capacity(text.len());
+    let mut edits = Vec::new();
     let mut at = 0;
     while at < text.len() {
         match match_directive(&text, at) {
-            Some(found) => at = found.end,
+            Some(found) => {
+                edits.push((at, found.end, 0));
+                at = found.end;
+            }
             None => {
                 out.push(text[at]);
                 at += 1;
             }
         }
     }
+    record(steps, edits);
     Ok(out)
 }
 
 /// Pele's `cleanupComments`: drops `%%` comment lines, then leading whitespace.
 /// The lines are those `/^\s*%%(?!{)[^\n]+\n?/gm` matches.
-fn cleanup_comments(text: Vec<u16>) -> Vec<u16> {
+fn cleanup_comments(text: Vec<u16>, steps: &mut Option<&mut Steps>) -> Vec<u16> {
+    let trim_start = |text: Vec<u16>, steps: &mut Option<&mut Steps>| {
+        let trimmed = text.trim_start_js().to_vec();
+        record(steps, vec![(0, text.len() - trimmed.len(), 0)]);
+        trimmed
+    };
     if !text.has("%%") {
-        return text.trim_start_js().to_vec();
+        return trim_start(text, steps);
     }
     let mut out = Vec::with_capacity(text.len());
+    let mut edits = Vec::new();
     let mut at = 0;
     // Where the whitespace run that holds `at` ends, kept so a long run is scanned once.
     let mut marker = 0;
@@ -777,13 +819,15 @@ fn cleanup_comments(text: Vec<u16>) -> Vec<u16> {
             && text.at(marker + 2).is_some_and(|c| c != u16::from(b'{') && c != 10);
         if commented {
             let line_end = text.find_unit(10, marker + 2).map_or(text.len(), |newline| newline + 1);
+            edits.push((at, line_end, 0));
             at = line_end;
         } else {
             out.push(text[at]);
             at += 1;
         }
     }
-    out.trim_start_js().to_vec()
+    record(steps, edits);
+    trim_start(out, steps)
 }
 
 const PLACEHOLDER_OPEN: [u16; 2] = [0xfb02, 0xb0];
@@ -795,10 +839,12 @@ fn has_units(text: &[u16], needle: &[u16]) -> bool {
 
 /// Pele's `dropColorSemicolons`: on a line where `keyword` is followed by a colon, a `#` and
 /// later a semicolon, the last semicolon goes.
-fn drop_color_semicolons(text: Vec<u16>, keyword: &str) -> Vec<u16> {
+fn drop_color_semicolons(text: Vec<u16>, keyword: &str, steps: &mut Option<&mut Steps>) -> Vec<u16> {
     let Some(mut from) = text.find_str(keyword, 0) else {
+        record(steps, Vec::new());
         return text;
     };
+    let mut edits = Vec::new();
     let mut out = Vec::new();
     let mut last = 0;
     loop {
@@ -821,6 +867,7 @@ fn drop_color_semicolons(text: Vec<u16>, keyword: &str) -> Vec<u16> {
             && let Some(semicolon) = text[..line_end].iter().rposition(|&c| c == u16::from(b';'))
             && semicolon > hash
         {
+            edits.push((semicolon, semicolon + 1, 0));
             out.extend_from_slice(&text[last..semicolon]);
             last = semicolon + 1;
         }
@@ -829,6 +876,7 @@ fn drop_color_semicolons(text: Vec<u16>, keyword: &str) -> Vec<u16> {
             None => break,
         }
     }
+    record(steps, edits);
     if last == 0 {
         return text;
     }
@@ -838,29 +886,34 @@ fn drop_color_semicolons(text: Vec<u16>, keyword: &str) -> Vec<u16> {
 
 /// Pele's `encodeEntities`: hides `#name;` codes behind placeholder characters, so that `#` and
 /// `;` survive parsing.
-pub(crate) fn encode_entities(text: &[u16]) -> Vec<u16> {
+pub(crate) fn encode_entities(text: &[u16], mut steps: Option<&mut Steps>) -> Vec<u16> {
     if !text.contains(&u16::from(b'#')) {
         return text.to_vec();
     }
-    let text = drop_color_semicolons(drop_color_semicolons(text.to_vec(), "style"), "classDef");
+    let text = drop_color_semicolons(text.to_vec(), "style", &mut steps);
+    let text = drop_color_semicolons(text, "classDef", &mut steps);
     let mut out = Vec::with_capacity(text.len());
+    let mut edits = Vec::new();
     let mut at = 0;
     while at < text.len() {
         let end = if text[at] == u16::from(b'#') { text.run(at + 1, is_word) } else { at + 1 };
         if end > at + 1 && text.at(end) == Some(u16::from(b';')) {
             let inner = &text[at + 1..end];
+            let start = out.len();
             out.extend_from_slice(&PLACEHOLDER_OPEN);
             if inner.iter().all(|&c| is_digit(c)) {
                 out.push(0xb0);
             }
             out.extend_from_slice(inner);
             out.extend_from_slice(&PLACEHOLDER_CLOSE);
+            edits.push((at, end + 1, out.len() - start));
             at = end + 1;
         } else {
             out.push(text[at]);
             at += 1;
         }
     }
+    record(&mut steps, edits);
     out
 }
 
@@ -1106,7 +1159,7 @@ mod tests {
         let theirs = oracle("preprocess", &sources);
         for (source, theirs) in sources.iter().zip(&theirs) {
             let JsValue::Object(theirs) = theirs else { panic!("the oracle answers an object") };
-            match (preprocess(source), theirs.get("error")) {
+            match (preprocess(source, None), theirs.get("error")) {
                 (Err(RenderError::Diagnostic(ours)), Some(JsValue::String(error))) => {
                     assert_eq!(format!("PeleError: {}", ours.message), error.to_display(), "error for {source:?}");
                 }
@@ -1117,7 +1170,7 @@ mod tests {
                     let config = JsValue::Object(ours.config.clone());
                     let wanted = theirs.get("config").expect("config");
                     assert!(same(&config, wanted), "config of {source:?}: ours {config:?}, pele {wanted:?}");
-                    let parsed = JsValue::String(encode_entities(&ours.text).into());
+                    let parsed = JsValue::String(encode_entities(&ours.text, None).into());
                     assert_eq!(Some(&parsed), theirs.get("parsed"), "encoded entities of {source:?}");
                 }
                 (ours, error) => panic!("{source:?}: ours {:?}, pele error {error:?}", ours.map(|pre| pre.text)),
@@ -1150,14 +1203,14 @@ mod tests {
 
     #[test]
     fn entities_decode_once_and_leave_unknown_codes() {
-        let decoded = |text: &str| String::from_utf16_lossy(&decode_entities(&encode_entities(&units(text))));
+        let decoded = |text: &str| String::from_utf16_lossy(&decode_entities(&encode_entities(&units(text), None)));
         assert_eq!(decoded("B #35; c #amp; #quot;"), "B # c & \"");
         let html =
             String::from_utf16_lossy(&decode_entities(&units("&#x41;&#65;&lt;&nope;&#0;&#xd800;&#1114112;&#12abc;")));
         assert_eq!(html, "AA<&nope;&#0;&#xd800;&#1114112;&#12abc;");
         assert_eq!(decoded("#38;lt;"), "&lt;");
         assert_eq!(
-            String::from_utf16_lossy(&written_codes(&encode_entities(&units("a #35; #amp; b")))),
+            String::from_utf16_lossy(&written_codes(&encode_entities(&units("a #35; #amp; b"), None))),
             "a #35; #amp; b"
         );
     }
