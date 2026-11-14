@@ -132,3 +132,31 @@ Decisions on the worker's questions:
 - `pele_core::layout` is `#[doc(hidden)] pub` so integration tests can reach it, the same convention as `flowchart_front_json`. Accepted.
 - The esbuild tap in `harness/build.mjs` routes Pele's layout functions through a recorder in the oracle bundle only. Accepted. The cost is one global check per call, in the oracle only.
 - The worker's rebase resolution of `harness/oracle.ts` (both blocks kept) was checked by rerunning both tests.
+
+## 2026-11-14 Flowchart pilot complete; re-estimate for the other 31 types
+
+`flow-draw` was fast-forwarded at `bbf8799`. The parent reran parity, `flowchart_parity`, `pie_parity` and `mise run check`, all green.
+
+**Results (measured).**
+
+- Corpus: flowchart 114 of 114 identical, pie 2 of 2. The scoreboard reads `522 116 0 406 0`.
+- `flowchart_parity.rs`: 25,462 inputs, 0 different. This covers the harvest as written and at maxWidth 320/480/640/900, Pele's mutation inputs, 4,000 seeded random flowcharts with a 30-path coverage gate, and 80 cases.
+
+**Decision.** The Rune view keeps flowchart on the rune-mermaid fallback until a flowchart adapter unit lowers dashes, curves, polygons, fill-opacity and the text styles. Accepted.
+
+**What the pilot cost.**
+
+| Unit | Pele TS lines | Rust lines (code + tests) | Worker runs |
+|---|---|---|---|
+| Pie, plus the shared input, measure, Scene and SVG writer | about 3,000 | about 6,000 | 1 |
+| Flowchart front end | 2,661 | about 4,100 | 1 |
+| Compound layout (shared by 7 types) | about 3,200 | layout plus replay | 1 |
+| Flowchart drawing, plus shared shapes, edges, clusters, styles and markdown | about 1,860 | 5,420 | 1 |
+
+That is roughly 2,500–3,000 TS lines per worker run, each verified against the oracle with differential tests. The workspace holds 25,216 Rust lines.
+
+**What remains (measured with `wc -l`).** 39,185 TS lines across 31 types, with the per-type directories ranging from agentflow (3,781) to info (121). Also left: `layout/lanes.ts` (629, swimlane), and the parts of `svg/edges.ts` flowchart did not reach (`hollowOn` and others).
+
+**Estimate (inferred from the pilot rate).** About 14–17 more worker runs to reach parity for all types. Graph types reuse shapes, edges, layout and styles, so they should run cheaper per line than the pilot. Add about 3 runs for the Rune adapter's general lowering (dashes, curves, polygons, opacity, text styles, links, tooltips and hover). After that, per-type Rune work is mostly generic.
+
+Grouped into waves of 3–4 parallel workers on disjoint types, that is about 6 waves.
