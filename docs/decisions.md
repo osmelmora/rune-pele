@@ -93,3 +93,18 @@ Findings that change the Scene design:
 - **Theme change without relayout (measured).** A palette change gives layouts 1 → 1, measurements 16 → 16, and paints 1 → 2.
 - **Product-mode differences from Pele's look** are listed in `DIVERGENCES.md`. A difference not listed there is a bug.
 - **Capture fix.** A renderer per capture lost all text after the first capture, so `Capturer::window` keeps one renderer.
+
+## 2026-11-14 Flowchart cost pilot, wave 1: front end and layout in parallel
+
+Flowchart is split along its seams, by line count of Pele's TypeScript:
+
+- the front end, about 2.6k lines: lexer, parser, db and graph;
+- the compound layout, about 3.2k lines: layered, compound and components, which seven types share;
+- drawing, about 1.7k lines: shapes, edges, clusters and render.
+
+Wave 1 runs the first two in parallel worktrees with disjoint write fences. Drawing follows once both merge.
+
+- **`flow-front`** (Claude Opus 5.5). Done when its model JSON is byte-equal to Pele's over every harvested flowchart source and seeded random inputs, with errors matching.
+- **`flow-layout`** (Claude Fable 5.2). Real `compoundLayout` calls are recorded in the Node oracle across all seven types. Done when the Rust port replays every one of them bit-identically.
+
+When wave 1 merges, the porting cost (lines, hours and findings) is re-estimated for the remaining 31 types.
