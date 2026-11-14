@@ -29,7 +29,7 @@ Together these cover every input of `write_num`. `n = round(value * 100.0)` is i
 - Rust code under proof is `crates/pele-core/src/js.rs`, functions `round`, `write_num` and `split_hundredths`, and the `Hundredths` struct.
 - The Pele code transcribed is `vendor/pele/src/svg/builder.ts`, function `num` (lines 33–47 at Pele `3a2f075ee0c3d914f0fad3545fc0f193693975ac`, tag 1.13.0). Its transcription is `pele_split` in the proofs module.
 - The spec transcribed is ECMAScript `Math.round` (ECMA-262, the `Math.round` clause), as `spec_round` in the proofs module.
-- Last confirmed in sync at rune-pele commit `SYNC_COMMIT_PENDING`.
+- Last confirmed in sync at rune-pele commit `bfd1299ab4f1e238325bdf0dd6b3a0b14f99ac11`.
 
 Move the sync commit forward only after you have read the covered code at the new commit, confirmed that the transcriptions still match it, and seen `mise run prove` pass.
 
