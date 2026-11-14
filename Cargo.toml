@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/pele-core", "crates/pele-oracle", "crates/pele-cli"]
+members = ["crates/pele-core", "crates/pele-oracle", "crates/pele-cli", "crates/rune-pele"]
 
 [workspace.package]
 edition = "2024"
@@ -10,3 +10,12 @@ rust-version = "1.100"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+
+# Rune patches these four crates in its own workspace, and a dependency's `[patch]` does not reach
+# the workspace that depends on it (vendor/rune/crates/rune/README.md, "Depending on Rune"). Keep
+# the rev equal to rune-pele's `rune` rev.
+[patch.crates-io]
+winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }

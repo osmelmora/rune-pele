@@ -1,0 +1,20 @@
+[package]
+name = "rune-pele"
+description = "Draw rune-pele's Mermaid Scene natively in Rune apps"
+publish = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Rune's default features (Metal backend, D-Bus, Ogg audio, embedded Inter, SVG images) are the
+# app's choice. rune-mermaid depends on Rune the same way.
+rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false }
+
+[dev-dependencies]
+# Headless tests need fonts: without `embedded-fonts` and without app fonts, text draws nothing.
+rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts"] }
+
+[lints]
+workspace = true
