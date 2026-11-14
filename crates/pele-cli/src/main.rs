@@ -56,6 +56,10 @@ fn render(file: PathBuf, engine: &str, out: Option<PathBuf>) -> ExitCode {
                 eprintln!("not ported: rune-pele cannot render {} yet", pele.diagram_type().unwrap_or("this source"));
                 return ExitCode::from(3);
             }
+            Err(error @ pele_core::RenderError::Diagnostic(_)) => {
+                eprintln!("rune-pele: {error}");
+                return ExitCode::from(65);
+            }
         },
         "pele" => match pele_oracle::render_all(std::slice::from_ref(&source)).remove(0) {
             PeleRender::Svg { svg, .. } => svg,
@@ -106,6 +110,10 @@ fn parity(only: Option<String>, dir: PathBuf) -> ExitCode {
             std::fs::write(folder.join(format!("{i}.pele.svg")), &want).expect("write pele svg");
             match pele_core::render(source) {
                 Err(pele_core::RenderError::NotPorted) => tally.not_ported += 1,
+                Err(error @ pele_core::RenderError::Diagnostic(_)) => {
+                    eprintln!("{name} {i}: rune-pele rejects a source Pele renders: {error}");
+                    tally.different += 1;
+                }
                 Ok(ours) => {
                     std::fs::write(folder.join(format!("{i}.ours.svg")), &ours.svg).expect("write our svg");
                     if ours.svg == want && ours.width == width && ours.height == height {

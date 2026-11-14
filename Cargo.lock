@@ -1731,8 +1731,11 @@ dependencies = [
 name = "pele-core"
 version = "0.0.0"
 dependencies = [
+ "indexmap",
+ "libm",
  "pele-oracle",
  "ryu-js",
+ "serde_json",
 ]
 
 [[package]]

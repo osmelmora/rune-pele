@@ -16,6 +16,50 @@ pub fn round(x: f64) -> f64 {
     if rounded == 0.0 && x < 0.0 { -0.0 } else { rounded }
 }
 
+/// `Math.sin`, from fdlibm.
+///
+/// The pinned Node on arm64 answers one ulp away on about 1 input in 80, because its build fuses
+/// multiply-adds inside V8's copy of fdlibm. `num` hides that unless the true value sits within
+/// an ulp of a rounding tie. `tests/oracle.rs` measures the gap.
+pub fn sin(x: f64) -> f64 {
+    libm::sin(x)
+}
+
+/// `Math.cos`, with the same one-ulp gap as [`sin`].
+pub fn cos(x: f64) -> f64 {
+    libm::cos(x)
+}
+
+/// `Math.pow`, which is also the `**` operator.
+///
+/// V8 calls the platform's `pow`, so no port matches every engine. Use it only where one ulp
+/// cannot change the output, such as a threshold comparison.
+pub fn pow(base: f64, exponent: f64) -> f64 {
+    libm::pow(base, exponent)
+}
+
+/// `Math.max` of two numbers: NaN if either is, and `+0` over `-0`.
+pub fn max(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else if a > b || (a == b && a.is_sign_positive()) {
+        a
+    } else {
+        b
+    }
+}
+
+/// `Math.min` of two numbers: NaN if either is, and `-0` under `+0`.
+pub fn min(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else if a < b || (a == b && a.is_sign_negative()) {
+        a
+    } else {
+        b
+    }
+}
+
 /// `String(x)` for a number: shortest round-trip digits with JavaScript's exponent rules.
 pub fn to_string(x: f64) -> String {
     ryu_js::Buffer::new().format(x).to_owned()
@@ -121,6 +165,17 @@ mod tests {
         assert_eq!(round(0.49999999999999994), 0.0);
         assert_eq!(round(4503599627370497.0), 4503599627370497.0);
         assert!(round(-0.5).is_sign_negative() && round(-0.5) == 0.0);
+    }
+
+    #[test]
+    fn max_and_min_follow_ecmascript() {
+        assert!(max(f64::NAN, 1.0).is_nan() && max(1.0, f64::NAN).is_nan());
+        assert!(min(f64::NAN, 1.0).is_nan() && min(1.0, f64::NAN).is_nan());
+        assert!(max(-0.0, 0.0).is_sign_positive() && max(0.0, -0.0).is_sign_positive());
+        assert!(min(-0.0, 0.0).is_sign_negative() && min(0.0, -0.0).is_sign_negative());
+        assert_eq!(max(2.0, 3.0), 3.0);
+        assert_eq!(min(2.0, 3.0), 2.0);
+        assert_eq!(max(f64::NEG_INFINITY, -1.0), -1.0);
     }
 
     #[test]
