@@ -55,3 +55,17 @@ The two units touch disjoint crates, so each runs as its own leaf worker in its 
   - It settles three risks: Rune builds as a dependency on Rust 1.100, text lands on a baseline from public metrics, and a headless PNG can be captured.
 
 The briefs are in the session scratch area (`briefs/`). The parent reviews each diff and reruns each done check before merging.
+
+## 2026-11-14 Rune spike merged: all three risks verified
+
+`rune-spike` was fast-forwarded into main at `b65f042`. The parent reran the tests and clippy and inspected the PNGs.
+
+- **Rune builds as a git dependency on Rust 1.100.0 (measured).** A cold build took 31 s. `rune-pele` is the only crate that depends on `rune`.
+- **Baselines (measured).** Text placed at `top = y − line.metrics().baseline / scale`, using `TextSystem::layout_rich`, lands on the rule's own pixel row in all 24 cases: sizes 12, 14 and 16, scales 1× and 2×, H and x, integer and fractional y. The worst error against the unrounded `y × scale` is 0.40 device px, because Rune rounds baselines to whole pixels.
+- **Headless PNG capture works (measured).** `rune_pele::capture::Capturer` produces it.
+
+Findings that change the Scene design:
+
+- **Flatten curves in `lower` and pass points.** For zoom-adaptive curves, `lower` flattens them itself and passes points to `Shape::fill` / `stroke_with`. Rune's `Path` flattens at a fixed 0.1 pt before scaling.
+- **Anchor advance must come from the same device-scale layout as the baseline.** `rune::text::measure` rounds widths to 1/64 pt.
+- **Capturing with app fonts needs `Runtime::with_text`.**
