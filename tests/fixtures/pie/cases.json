@@ -1,0 +1,1126 @@
+[
+ {
+  "name": "show-data",
+  "source": "pie showData\n \"A\" : 42.96\n \"B\" : 50"
+ },
+ {
+  "name": "show-data-number-spellings",
+  "source": "pie showData\n \"int\" : 5\n \"sextillion\" : 1000000000000000000000\n \"tiny\" : 0.0000001\n \"negative zero\" : -0\n \"tenth\" : 0.1\n \"trailing zeros\" : 10.50"
+ },
+ {
+  "name": "show-data-with-title",
+  "source": "pie showData title Key elements\n \"Calcium\" : 42.96\n \"Potassium\" : 50.05\n \"Magnesium\" : 10.01\n \"Iron\" : 5"
+ },
+ {
+  "name": "donut-hole-half",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.5\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-largest",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.9\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-too-large",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.91\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-zero",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-negative",
+  "source": "---\nconfig:\n  pie:\n    donutHole: -0.2\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-string",
+  "source": "---\nconfig:\n  pie:\n    donutHole: \"0.5\"\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-tiny",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.001\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-nan",
+  "source": "---\nconfig:\n  pie:\n    donutHole: .nan\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-true",
+  "source": "---\nconfig:\n  pie:\n    donutHole: true\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "donut-hole-full-ring",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.4\n---\npie\n \"Only\" : 5"
+ },
+ {
+  "name": "donut-hole-thin-slices",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.6\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "text-position-centre",
+  "source": "---\nconfig:\n  pie:\n    textPosition: 0\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-rim",
+  "source": "---\nconfig:\n  pie:\n    textPosition: 1\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-half",
+  "source": "---\nconfig:\n  pie:\n    textPosition: 0.5\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-too-large",
+  "source": "---\nconfig:\n  pie:\n    textPosition: 1.5\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-negative",
+  "source": "---\nconfig:\n  pie:\n    textPosition: -1\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-string",
+  "source": "---\nconfig:\n  pie:\n    textPosition: \"0.5\"\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-nan",
+  "source": "---\nconfig:\n  pie:\n    textPosition: .nan\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-true",
+  "source": "---\nconfig:\n  pie:\n    textPosition: true\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-third",
+  "source": "---\nconfig:\n  pie:\n    textPosition: 0.3333\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "text-position-thin-slices",
+  "source": "---\nconfig:\n  pie:\n    textPosition: 0.2\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-left",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: left\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-left-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: left\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-right",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: right\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-right-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: right\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-center",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: center\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-center-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: center\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-top",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: top\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-top-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: top\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-bottom",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: bottom\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-bottom-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: bottom\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-number",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: 5\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-number-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: 5\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-list",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: [left]\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-list-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: [left]\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-nested-list",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: [[top]]\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-nested-list-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: [[top]]\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-true",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: true\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-true-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: true\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-empty",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: \"\"\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-empty-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: \"\"\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-null",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: ~\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-null-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: ~\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-object",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: {a: 1}\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-object-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: {a: 1}\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-upper",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: LEFT\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-upper-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: LEFT\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-two-in-list",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: [left, right]\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n"
+ },
+ {
+  "name": "legend-position-two-in-list-thin",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: [left, right]\n---\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "legend-position-top-no-title",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: top\n---\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "legend-position-left-wide-title",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: left\n---\npie title A title that is much wider than the chart and its legend together are\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "legend-position-bottom-wide-legend",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: bottom\n---\npie\n \"A label that is wider than the whole plot of the pie chart is\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "max-width-600",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 600
+  }
+ },
+ {
+  "name": "max-width-600-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 600
+  }
+ },
+ {
+  "name": "max-width-397",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 397
+  }
+ },
+ {
+  "name": "max-width-397-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 397
+  }
+ },
+ {
+  "name": "max-width-396",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 396
+  }
+ },
+ {
+  "name": "max-width-396-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 396
+  }
+ },
+ {
+  "name": "max-width-360",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 360
+  }
+ },
+ {
+  "name": "max-width-360-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 360
+  }
+ },
+ {
+  "name": "max-width-330",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 330
+  }
+ },
+ {
+  "name": "max-width-330-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 330
+  }
+ },
+ {
+  "name": "max-width-300",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 300
+  }
+ },
+ {
+  "name": "max-width-300-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 300
+  }
+ },
+ {
+  "name": "max-width-280",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 280
+  }
+ },
+ {
+  "name": "max-width-280-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 280
+  }
+ },
+ {
+  "name": "max-width-250",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 250
+  }
+ },
+ {
+  "name": "max-width-250-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 250
+  }
+ },
+ {
+  "name": "max-width-200",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 200
+  }
+ },
+ {
+  "name": "max-width-200-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 200
+  }
+ },
+ {
+  "name": "max-width-150",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 150
+  }
+ },
+ {
+  "name": "max-width-150-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 150
+  }
+ },
+ {
+  "name": "max-width-100",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 100
+  }
+ },
+ {
+  "name": "max-width-100-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 100
+  }
+ },
+ {
+  "name": "max-width-50",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 50
+  }
+ },
+ {
+  "name": "max-width-50-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 50
+  }
+ },
+ {
+  "name": "max-width-1",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 1
+  }
+ },
+ {
+  "name": "max-width-1-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 1
+  }
+ },
+ {
+  "name": "max-width-0",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 0
+  }
+ },
+ {
+  "name": "max-width-0-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 0
+  }
+ },
+ {
+  "name": "max-width--5",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": -5
+  }
+ },
+ {
+  "name": "max-width--5-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": -5
+  }
+ },
+ {
+  "name": "max-width-333.3",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 333.3
+  }
+ },
+ {
+  "name": "max-width-333.3-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 333.3
+  }
+ },
+ {
+  "name": "max-width-0.5",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 0.5
+  }
+ },
+ {
+  "name": "max-width-0.5-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "maxWidth": 0.5
+  }
+ },
+ {
+  "name": "max-width-legend-placed-bottom",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: bottom\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 360
+  }
+ },
+ {
+  "name": "max-width-legend-placed-left",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: left\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 300
+  }
+ },
+ {
+  "name": "max-width-legend-placed-top",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: top\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 200
+  }
+ },
+ {
+  "name": "max-width-legend-placed-center",
+  "source": "---\nconfig:\n  pie:\n    legendPosition: center\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 200
+  }
+ },
+ {
+  "name": "max-width-wrapping-title",
+  "source": "pie title A long title that has to wrap onto several lines when the host is narrow\n \"A\" : 1\n \"B\" : 2",
+  "options": {
+   "maxWidth": 220
+  }
+ },
+ {
+  "name": "max-width-wrapping-title-tiny",
+  "source": "pie title Supercalifragilisticexpialidocious and some other words\n \"A\" : 1",
+  "options": {
+   "maxWidth": 60
+  }
+ },
+ {
+  "name": "max-width-wide-legend",
+  "source": "pie\n \"A legend label far wider than any phone screen could ever show in one line\" : 1\n \"B\" : 2",
+  "options": {
+   "maxWidth": 300
+  }
+ },
+ {
+  "name": "max-width-padding-0",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 300,
+   "padding": 0
+  }
+ },
+ {
+  "name": "max-width-padding-40",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 300,
+   "padding": 40
+  }
+ },
+ {
+  "name": "max-width-font-size-24",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 320,
+   "fontSize": 24
+  }
+ },
+ {
+  "name": "max-width-donut",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.5\n---\npie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "maxWidth": 260
+  }
+ },
+ {
+  "name": "max-width-empty",
+  "source": "pie title Nothing here\n \"Zero\" : 0",
+  "options": {
+   "maxWidth": 120
+  }
+ },
+ {
+  "name": "padding-0",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "padding": 0
+  }
+ },
+ {
+  "name": "padding-fraction",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "padding": 30.5
+  }
+ },
+ {
+  "name": "font-size-12",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "fontSize": 12
+  }
+ },
+ {
+  "name": "font-size-12-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "fontSize": 12
+  }
+ },
+ {
+  "name": "font-size-13",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "fontSize": 13
+  }
+ },
+ {
+  "name": "font-size-13-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "fontSize": 13
+  }
+ },
+ {
+  "name": "font-size-20",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "fontSize": 20
+  }
+ },
+ {
+  "name": "font-size-20-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "fontSize": 20
+  }
+ },
+ {
+  "name": "font-size-9.5",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "fontSize": 9.5
+  }
+ },
+ {
+  "name": "font-size-9.5-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "fontSize": 9.5
+  }
+ },
+ {
+  "name": "font-size-40",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "fontSize": 40
+  }
+ },
+ {
+  "name": "font-size-40-thin",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50",
+  "options": {
+   "fontSize": 40
+  }
+ },
+ {
+  "name": "id-prefix",
+  "source": "pie\n accTitle: Named\n accDescr: Described\n \"A\" : 1",
+  "options": {
+   "idPrefix": "chart-7"
+  }
+ },
+ {
+  "name": "id-prefix-escaped",
+  "source": "pie\n accTitle: Named\n accDescr: Described\n \"A\" : 1",
+  "options": {
+   "idPrefix": "a<b>&\"c"
+  }
+ },
+ {
+  "name": "id-prefix-empty",
+  "source": "pie\n accTitle: Named\n \"A\" : 1",
+  "options": {
+   "idPrefix": ""
+  }
+ },
+ {
+  "name": "responsive-off",
+  "source": "pie\n \"A\" : 1\n \"B\" : 2",
+  "options": {
+   "responsive": false
+  }
+ },
+ {
+  "name": "responsive-on-over-config",
+  "source": "---\nconfig:\n  pie:\n    useMaxWidth: false\n---\npie\n \"A\" : 1\n \"B\" : 2",
+  "options": {
+   "responsive": true
+  }
+ },
+ {
+  "name": "use-max-width-false",
+  "source": "---\nconfig:\n  pie:\n    useMaxWidth: false\n---\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "use-max-width-false-string",
+  "source": "---\nconfig:\n  pie:\n    useMaxWidth: \"false\"\n---\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "use-max-width-false-other-section",
+  "source": "---\nconfig:\n  flowchart:\n    useMaxWidth: false\n---\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "host-config",
+  "source": "pie\n \"A\" : 1\n \"B\" : 2",
+  "options": {
+   "config": {
+    "pie": {
+     "textPosition": 0.2,
+     "donutHole": 0.4,
+     "legendPosition": "left"
+    },
+    "themeVariables": {
+     "pie1": "navy"
+    }
+   }
+  }
+ },
+ {
+  "name": "host-config-section-replaced-by-source",
+  "source": "---\nconfig:\n  pie:\n    donutHole: 0.1\n---\npie\n \"A\" : 1\n \"B\" : 2",
+  "options": {
+   "config": {
+    "pie": {
+     "textPosition": 0.2,
+     "donutHole": 0.4,
+     "legendPosition": "left"
+    },
+    "themeVariables": {
+     "pie1": "navy"
+    }
+   }
+  }
+ },
+ {
+  "name": "host-config-use-max-width",
+  "source": "pie\n \"A\" : 1\n \"B\" : 2",
+  "options": {
+   "config": {
+    "pie": {
+     "useMaxWidth": false
+    }
+   }
+  }
+ },
+ {
+  "name": "limit-exceeded",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "limit": 20
+  }
+ },
+ {
+  "name": "limit-met",
+  "source": "pie\n \"A\" : 1",
+  "options": {
+   "limit": 12
+  }
+ },
+ {
+  "name": "output-limit-exceeded",
+  "source": "pie title Pets adopted by volunteers\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n",
+  "options": {
+   "outputLimit": 500
+  }
+ },
+ {
+  "name": "palette-named",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"red\", \"pie2\": \"blue\"}}}%%\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "palette-ink-light-dark",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"#ffeb3b\", \"pie2\": \"navy\", \"pie3\": \"var(--pele-accent)\"}}}%%\npie\n \"A\": 1\n \"B\": 1\n \"C\": 1"
+ },
+ {
+  "name": "palette-all-eight-and-wrap",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"#000\", \"pie2\": \"#fff\", \"pie3\": \"#777\", \"pie4\": \"#808080\", \"pie5\": \"#123456\", \"pie6\": \"#abcdef80\", \"pie7\": \"#abcdef7f\", \"pie8\": \"#f0f8\"}}}%%\npie\n \"S0\" : 3\n \"S1\" : 4\n \"S2\" : 5\n \"S3\" : 6\n \"S4\" : 7\n \"S5\" : 8\n \"S6\" : 9\n \"S7\" : 10\n \"S8\" : 11\n \"S9\" : 12\n"
+ },
+ {
+  "name": "palette-functions",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"rgb(255, 0, 0)\", \"pie2\": \"rgb(0 0 0 / 0.6)\", \"pie3\": \"hsl(240, 100%, 25%)\", \"pie4\": \"hsla(60, 100%, 50%, 0.4)\", \"pie5\": \"oklch(70% 0.1 200)\", \"pie6\": \"light-dark(#000, #fff)\", \"pie7\": \"color-mix(in srgb, red 40%, blue)\", \"pie8\": \"hwb(0 0% 0%)\"}}}%%\npie\n \"S0\" : 3\n \"S1\" : 4\n \"S2\" : 5\n \"S3\" : 6\n \"S4\" : 7\n \"S5\" : 8\n \"S6\" : 9\n \"S7\" : 10\n \"S8\" : 11\n \"S9\" : 12\n"
+ },
+ {
+  "name": "palette-more-functions",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"RGB(10%, 20%, 30%)\", \"pie2\": \"rgb(10%, 20, 30)\", \"pie3\": \"hsl(0.5turn 50% 50%)\", \"pie4\": \"hsl(200grad, 50%, 80%)\", \"pie5\": \"hsl(3.1rad 100% 10% / 50%)\", \"pie6\": \"rgb(none 255 none)\", \"pie7\": \"rgba(1e2, 2.5e1, .5, 1)\", \"pie8\": \"hsl(120deg, 100%, 50%)\"}}}%%\npie\n \"S0\" : 3\n \"S1\" : 4\n \"S2\" : 5\n \"S3\" : 6\n \"S4\" : 7\n \"S5\" : 8\n \"S6\" : 9\n \"S7\" : 10\n \"S8\" : 11\n \"S9\" : 12\n"
+ },
+ {
+  "name": "palette-rejected",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"javascript:alert(1)\", \"pie2\": \"url(x)\", \"pie3\": \"red;\", \"pie4\": \"notacolor\", \"pie5\": \"var(--page-bg)\", \"pie6\": \"rgb(1,2,3\", \"pie7\": \"expression(1)\", \"pie8\": \"#12\"}}}%%\npie\n \"S0\" : 3\n \"S1\" : 4\n \"S2\" : 5\n \"S3\" : 6\n \"S4\" : 7\n \"S5\" : 8\n \"S6\" : 9\n \"S7\" : 10\n \"S8\" : 11\n \"S9\" : 12\n"
+ },
+ {
+  "name": "palette-odd-values",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": 5, \"pie2\": null, \"pie3\": [\"red\"], \"pie4\": \" Grey \", \"pie5\": \"transparent\", \"pie6\": \"CurrentColor\", \"pie7\": \"darkgrey\", \"pie8\": \"\\tred\\n\"}}}%%\npie\n \"S0\" : 3\n \"S1\" : 4\n \"S2\" : 5\n \"S3\" : 6\n \"S4\" : 7\n \"S5\" : 8\n \"S6\" : 9\n \"S7\" : 10\n \"S8\" : 11\n \"S9\" : 12\n"
+ },
+ {
+  "name": "palette-spaces-inside",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"rgb( 1 ,\\t2 , 3 )\", \"pie2\": \"var( --pele-accent )\", \"pie3\": \"VAR(--pele-bg)\", \"pie4\": \"color-mix (in srgb, red, blue)\", \"pie5\": \"rgb(1 2 3 / 49%)\", \"pie6\": \"rgb(1 2 3 / 50%)\", \"pie7\": \"hsl(0 0% 18%)\", \"pie8\": \"hsl(0 0% 19%)\"}}}%%\npie\n \"S0\" : 3\n \"S1\" : 4\n \"S2\" : 5\n \"S3\" : 6\n \"S4\" : 7\n \"S5\" : 8\n \"S6\" : 9\n \"S7\" : 10\n \"S8\" : 11\n \"S9\" : 12\n"
+ },
+ {
+  "name": "palette-front-matter",
+  "source": "---\nconfig:\n  themeVariables:\n    pie1: '#123456'\n    pie3: \"hsl(10, 20%, 30%)\"\n    pie9: red\n    pie0: blue\n---\npie\n \"Alpha\" : 5\n \"Beta\" : 3\n \"Gamma\" : 2"
+ },
+ {
+  "name": "palette-not-a-record",
+  "source": "---\nconfig:\n  themeVariables: red\n---\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "palette-long-value",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"#ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\", \"pie2\": \"rgb(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)\"}}}%%\npie\n \"A\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "palette-on-outside-labels",
+  "source": "%%{init: {\"themeVariables\": {\"pie1\": \"navy\", \"pie2\": \"#ffeb3b\", \"pie3\": \"black\", \"pie4\": \"white\"}}}%%\npie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "title-front-matter",
+  "source": "---\ntitle: From front matter\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-and-own",
+  "source": "---\ntitle: From front matter\n---\npie title Own\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-number",
+  "source": "---\ntitle: 12.50\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-true",
+  "source": "---\ntitle: true\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-list",
+  "source": "---\ntitle: [a, b, [c, ~], {d: 1}]\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-object",
+  "source": "---\ntitle: {a: 1}\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-zero",
+  "source": "---\ntitle: 0\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-lines",
+  "source": "---\ntitle: \"two\\nlines \\u00e9\"\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-front-matter-html",
+  "source": "---\ntitle: '<i>Italic</i> and <code>mono</code> &amp; more'\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "title-html",
+  "source": "pie title A <i>slanted</i> <u>title</u> with x<sub>2</sub> and <b>bold</b>\n \"A\" : 1"
+ },
+ {
+  "name": "title-all-italic",
+  "source": "pie title <i>all italic</i>\n \"A\" : 1"
+ },
+ {
+  "name": "title-all-mono-italic",
+  "source": "pie title <code><em>mono and italic</em></code>\n \"A\" : 1"
+ },
+ {
+  "name": "title-break",
+  "source": "pie title first line<br>second line<br/><br>fourth\n \"A\" : 1"
+ },
+ {
+  "name": "title-entities",
+  "source": "pie title #35; of #quot;things#quot; &lt; #9731; &amp;\n \"A\" : 1"
+ },
+ {
+  "name": "title-very-long",
+  "source": "pie title wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping wrapping\n \"A\" : 1"
+ },
+ {
+  "name": "title-only",
+  "source": "pie title Only a title"
+ },
+ {
+  "name": "title-xml",
+  "source": "pie title a < b > c & d \" e ' f\n \"A\" : 1"
+ },
+ {
+  "name": "title-icons",
+  "source": "pie title fa:fa-user Users and fab:fa-github\n \"A\" : 1"
+ },
+ {
+  "name": "acc-title-and-descr",
+  "source": "pie title Shown\n accTitle: Accessible name\n accDescr: Accessible description\n \"A\" : 1"
+ },
+ {
+  "name": "acc-descr-block",
+  "source": "pie\n accDescr {\n   A description\n   over   several lines\n\n\n   with gaps\n }\n \"A\" : 1"
+ },
+ {
+  "name": "acc-entities-and-xml",
+  "source": "pie\n accTitle: a < b & c > d \"quoted\" #35; &amp; #lt;\n accDescr: <script>alert(1)</script>\n \"A\" : 1"
+ },
+ {
+  "name": "acc-empty",
+  "source": "pie\n accTitle:\n accDescr:\n \"A\" : 1"
+ },
+ {
+  "name": "acc-title-only",
+  "source": "pie\n accTitle: Just a name\n \"A\" : 1"
+ },
+ {
+  "name": "acc-descr-only",
+  "source": "pie\n accDescr: Just a description\n \"A\" : 1"
+ },
+ {
+  "name": "label-html",
+  "source": "pie\n \"<b>Bold</b> label\" : 3\n \"<i>all italic</i>\" : 2\n \"x<sub>2</sub> + y<sup>3</sup>\" : 2\n \"<code>mono</code> <u>under</u>\" : 1\n \"<strong><em>both</em></strong>\" : 1\n \"List<T> <span>span</span> <unknown>\" : 1"
+ },
+ {
+  "name": "label-html-show-data",
+  "source": "pie showData\n \"<b>Bold</b>\" : 3\n \"<i>italic</i>\" : 2"
+ },
+ {
+  "name": "label-break",
+  "source": "pie\n \"two<br>lines\" : 3\n \"three<br/>line<br>label\" : 2\n \"plain\" : 1"
+ },
+ {
+  "name": "label-entities",
+  "source": "pie\n \"Issue #35;\" : 1\n \"A #amp; B\" : 2\n \"#34; onload=#34;alert(1)\" : 3\n \"&lt;script&gt; &#60; &nope;\" : 4"
+ },
+ {
+  "name": "label-xml",
+  "source": "pie\n \"a < b\" : 1\n \"c > d & e\" : 2\n 'say \"hi\"' : 3\n \"it's\" : 4"
+ },
+ {
+  "name": "label-unicode",
+  "source": "pie\n \"日本語のラベル\" : 3\n \"emoji 😀👩‍💻\" : 2\n \"é combining\" : 1\n \"한국어\" : 1\n \"éèê ß œ\" : 1"
+ },
+ {
+  "name": "label-spaces",
+  "source": "pie\n \"  padded  \" : 1\n \"double  space\" : 2\n \"\ttab\" : 3"
+ },
+ {
+  "name": "label-empty",
+  "source": "pie\n \"\" : 5\n \"B\" : 2"
+ },
+ {
+  "name": "label-icons",
+  "source": "pie\n \"fa:fa-user Name\" : 1\n \"Name fa:fa-check\" : 2\n \"fa:fa-a fa:fa-b\" : 3"
+ },
+ {
+  "name": "label-escapes",
+  "source": "pie\n \"quote \\\" and backslash \\\\ and \\n newline\" : 1\n \"tab\\there\" : 2"
+ },
+ {
+  "name": "label-very-long",
+  "source": "pie\n \"longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword longword\" : 1\n \"B\" : 2"
+ },
+ {
+  "name": "label-control-characters",
+  "source": "pie\n \"bell \u0007 and delete  and ￾\" : 1"
+ },
+ {
+  "name": "label-markdown-marks",
+  "source": "pie\n \"*star* and _under_ and **bold**\" : 1\n \"a_b\" : 2"
+ },
+ {
+  "name": "label-many",
+  "source": "pie\n \"Section number 0\" : 1\n \"Section number 1\" : 2\n \"Section number 2\" : 3\n \"Section number 3\" : 4\n \"Section number 4\" : 5\n \"Section number 5\" : 6\n \"Section number 6\" : 7\n \"Section number 7\" : 1\n \"Section number 8\" : 2\n \"Section number 9\" : 3\n \"Section number 10\" : 4\n \"Section number 11\" : 5\n \"Section number 12\" : 6\n \"Section number 13\" : 7\n \"Section number 14\" : 1\n \"Section number 15\" : 2\n \"Section number 16\" : 3\n \"Section number 17\" : 4\n \"Section number 18\" : 5\n \"Section number 19\" : 6\n \"Section number 20\" : 7\n \"Section number 21\" : 1\n \"Section number 22\" : 2\n \"Section number 23\" : 3\n \"Section number 24\" : 4\n \"Section number 25\" : 5\n \"Section number 26\" : 6\n \"Section number 27\" : 7\n \"Section number 28\" : 1\n \"Section number 29\" : 2\n"
+ },
+ {
+  "name": "slice-under-one-percent",
+  "source": "pie\n \"Big\" : 1000\n \"Tiny\" : 1"
+ },
+ {
+  "name": "slice-exactly-one-percent",
+  "source": "pie\n \"Big\" : 99\n \"One\" : 1"
+ },
+ {
+  "name": "slice-rounds-to-zero",
+  "source": "pie\n \"Big\" : 199\n \"Half\" : 1"
+ },
+ {
+  "name": "slice-just-under-one",
+  "source": "pie\n \"Big\" : 9901\n \"Small\" : 99"
+ },
+ {
+  "name": "slice-ties-round-up",
+  "source": "pie\n \"Seven\" : 7\n \"One\" : 1"
+ },
+ {
+  "name": "slice-tie-2.5",
+  "source": "pie\n \"Most\" : 39\n \"Some\" : 1"
+ },
+ {
+  "name": "slice-halves",
+  "source": "pie\n \"A\" : 1\n \"B\" : 1"
+ },
+ {
+  "name": "slice-thirds",
+  "source": "pie\n \"A\" : 1\n \"B\" : 1\n \"C\" : 1"
+ },
+ {
+  "name": "slice-quarters",
+  "source": "pie\n \"A\" : 1\n \"B\" : 1\n \"C\" : 1\n \"D\" : 1"
+ },
+ {
+  "name": "slice-sixths",
+  "source": "pie\n \"S0\" : 1\n \"S1\" : 1\n \"S2\" : 1\n \"S3\" : 1\n \"S4\" : 1\n \"S5\" : 1\n"
+ },
+ {
+  "name": "slice-twelfths",
+  "source": "pie\n \"S0\" : 1\n \"S1\" : 1\n \"S2\" : 1\n \"S3\" : 1\n \"S4\" : 1\n \"S5\" : 1\n \"S6\" : 1\n \"S7\" : 1\n \"S8\" : 1\n \"S9\" : 1\n \"S10\" : 1\n \"S11\" : 1\n"
+ },
+ {
+  "name": "slice-single",
+  "source": "pie\n \"Only\" : 5"
+ },
+ {
+  "name": "slice-single-with-zeros",
+  "source": "pie\n \"None\" : 0\n \"Only\" : 5\n \"Nothing\" : 0"
+ },
+ {
+  "name": "slice-over-half",
+  "source": "pie\n \"Most\" : 3\n \"Rest\" : 1"
+ },
+ {
+  "name": "slice-all-zero",
+  "source": "pie\n \"Zero\" : 0"
+ },
+ {
+  "name": "slice-all-zero-several",
+  "source": "pie showData\n \"Zero\" : 0\n \"Nil\" : 0\n \"Minus zero\" : -0"
+ },
+ {
+  "name": "slice-none",
+  "source": "pie"
+ },
+ {
+  "name": "slice-infinite",
+  "source": "pie\n \"Huge\" : 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999\n \"One\" : 1"
+ },
+ {
+  "name": "slice-huge-values",
+  "source": "pie\n \"A\" : 123456789012345678901234567890\n \"B\" : 987654321098765432109876543210"
+ },
+ {
+  "name": "slice-tiny-values",
+  "source": "pie\n \"A\" : 0.0000000001\n \"B\" : 0.0000000003"
+ },
+ {
+  "name": "slice-duplicate-labels",
+  "source": "pie showData\n \"A\" : 1\n \"A\" : 2\n \"B\" : 3\n \"A\" : 4"
+ },
+ {
+  "name": "slice-thin-apart",
+  "source": "pie\n \"Calcium\" : 2\n \"Potassium\" : 2.4\n \"Magnesium\" : 46\n \"Test\" : 50"
+ },
+ {
+  "name": "slice-thin-many",
+  "source": "pie\n \"Big\" : 70\n \"T0\" : 1.5\n \"T1\" : 1.5\n \"T2\" : 1.5\n \"T3\" : 1.5\n \"T4\" : 1.5\n \"T5\" : 1.5\n \"T6\" : 1.5\n \"T7\" : 1.5\n \"T8\" : 1.5\n \"T9\" : 1.5\n \"T10\" : 1.5\n \"T11\" : 1.5\n \"T12\" : 1.5\n \"T13\" : 1.5\n \"T14\" : 1.5\n \"T15\" : 1.5\n \"T16\" : 1.5\n \"T17\" : 1.5\n \"T18\" : 1.5\n \"T19\" : 1.5\n"
+ },
+ {
+  "name": "slice-hundred-equal",
+  "source": "pie\n \"S0\" : 1\n \"S1\" : 1\n \"S2\" : 1\n \"S3\" : 1\n \"S4\" : 1\n \"S5\" : 1\n \"S6\" : 1\n \"S7\" : 1\n \"S8\" : 1\n \"S9\" : 1\n \"S10\" : 1\n \"S11\" : 1\n \"S12\" : 1\n \"S13\" : 1\n \"S14\" : 1\n \"S15\" : 1\n \"S16\" : 1\n \"S17\" : 1\n \"S18\" : 1\n \"S19\" : 1\n \"S20\" : 1\n \"S21\" : 1\n \"S22\" : 1\n \"S23\" : 1\n \"S24\" : 1\n \"S25\" : 1\n \"S26\" : 1\n \"S27\" : 1\n \"S28\" : 1\n \"S29\" : 1\n \"S30\" : 1\n \"S31\" : 1\n \"S32\" : 1\n \"S33\" : 1\n \"S34\" : 1\n \"S35\" : 1\n \"S36\" : 1\n \"S37\" : 1\n \"S38\" : 1\n \"S39\" : 1\n \"S40\" : 1\n \"S41\" : 1\n \"S42\" : 1\n \"S43\" : 1\n \"S44\" : 1\n \"S45\" : 1\n \"S46\" : 1\n \"S47\" : 1\n \"S48\" : 1\n \"S49\" : 1\n \"S50\" : 1\n \"S51\" : 1\n \"S52\" : 1\n \"S53\" : 1\n \"S54\" : 1\n \"S55\" : 1\n \"S56\" : 1\n \"S57\" : 1\n \"S58\" : 1\n \"S59\" : 1\n \"S60\" : 1\n \"S61\" : 1\n \"S62\" : 1\n \"S63\" : 1\n \"S64\" : 1\n \"S65\" : 1\n \"S66\" : 1\n \"S67\" : 1\n \"S68\" : 1\n \"S69\" : 1\n \"S70\" : 1\n \"S71\" : 1\n \"S72\" : 1\n \"S73\" : 1\n \"S74\" : 1\n \"S75\" : 1\n \"S76\" : 1\n \"S77\" : 1\n \"S78\" : 1\n \"S79\" : 1\n \"S80\" : 1\n \"S81\" : 1\n \"S82\" : 1\n \"S83\" : 1\n \"S84\" : 1\n \"S85\" : 1\n \"S86\" : 1\n \"S87\" : 1\n \"S88\" : 1\n \"S89\" : 1\n \"S90\" : 1\n \"S91\" : 1\n \"S92\" : 1\n \"S93\" : 1\n \"S94\" : 1\n \"S95\" : 1\n \"S96\" : 1\n \"S97\" : 1\n \"S98\" : 1\n \"S99\" : 1\n"
+ },
+ {
+  "name": "slice-hundred-and-one",
+  "source": "pie\n \"S0\" : 1\n \"S1\" : 1\n \"S2\" : 1\n \"S3\" : 1\n \"S4\" : 1\n \"S5\" : 1\n \"S6\" : 1\n \"S7\" : 1\n \"S8\" : 1\n \"S9\" : 1\n \"S10\" : 1\n \"S11\" : 1\n \"S12\" : 1\n \"S13\" : 1\n \"S14\" : 1\n \"S15\" : 1\n \"S16\" : 1\n \"S17\" : 1\n \"S18\" : 1\n \"S19\" : 1\n \"S20\" : 1\n \"S21\" : 1\n \"S22\" : 1\n \"S23\" : 1\n \"S24\" : 1\n \"S25\" : 1\n \"S26\" : 1\n \"S27\" : 1\n \"S28\" : 1\n \"S29\" : 1\n \"S30\" : 1\n \"S31\" : 1\n \"S32\" : 1\n \"S33\" : 1\n \"S34\" : 1\n \"S35\" : 1\n \"S36\" : 1\n \"S37\" : 1\n \"S38\" : 1\n \"S39\" : 1\n \"S40\" : 1\n \"S41\" : 1\n \"S42\" : 1\n \"S43\" : 1\n \"S44\" : 1\n \"S45\" : 1\n \"S46\" : 1\n \"S47\" : 1\n \"S48\" : 1\n \"S49\" : 1\n \"S50\" : 1\n \"S51\" : 1\n \"S52\" : 1\n \"S53\" : 1\n \"S54\" : 1\n \"S55\" : 1\n \"S56\" : 1\n \"S57\" : 1\n \"S58\" : 1\n \"S59\" : 1\n \"S60\" : 1\n \"S61\" : 1\n \"S62\" : 1\n \"S63\" : 1\n \"S64\" : 1\n \"S65\" : 1\n \"S66\" : 1\n \"S67\" : 1\n \"S68\" : 1\n \"S69\" : 1\n \"S70\" : 1\n \"S71\" : 1\n \"S72\" : 1\n \"S73\" : 1\n \"S74\" : 1\n \"S75\" : 1\n \"S76\" : 1\n \"S77\" : 1\n \"S78\" : 1\n \"S79\" : 1\n \"S80\" : 1\n \"S81\" : 1\n \"S82\" : 1\n \"S83\" : 1\n \"S84\" : 1\n \"S85\" : 1\n \"S86\" : 1\n \"S87\" : 1\n \"S88\" : 1\n \"S89\" : 1\n \"S90\" : 1\n \"S91\" : 1\n \"S92\" : 1\n \"S93\" : 1\n \"S94\" : 1\n \"S95\" : 1\n \"S96\" : 1\n \"S97\" : 1\n \"S98\" : 1\n \"S99\" : 1\n \"S100\" : 1\n"
+ },
+ {
+  "name": "slice-fifty-equal",
+  "source": "pie\n \"S0\" : 1\n \"S1\" : 1\n \"S2\" : 1\n \"S3\" : 1\n \"S4\" : 1\n \"S5\" : 1\n \"S6\" : 1\n \"S7\" : 1\n \"S8\" : 1\n \"S9\" : 1\n \"S10\" : 1\n \"S11\" : 1\n \"S12\" : 1\n \"S13\" : 1\n \"S14\" : 1\n \"S15\" : 1\n \"S16\" : 1\n \"S17\" : 1\n \"S18\" : 1\n \"S19\" : 1\n \"S20\" : 1\n \"S21\" : 1\n \"S22\" : 1\n \"S23\" : 1\n \"S24\" : 1\n \"S25\" : 1\n \"S26\" : 1\n \"S27\" : 1\n \"S28\" : 1\n \"S29\" : 1\n \"S30\" : 1\n \"S31\" : 1\n \"S32\" : 1\n \"S33\" : 1\n \"S34\" : 1\n \"S35\" : 1\n \"S36\" : 1\n \"S37\" : 1\n \"S38\" : 1\n \"S39\" : 1\n \"S40\" : 1\n \"S41\" : 1\n \"S42\" : 1\n \"S43\" : 1\n \"S44\" : 1\n \"S45\" : 1\n \"S46\" : 1\n \"S47\" : 1\n \"S48\" : 1\n \"S49\" : 1\n"
+ },
+ {
+  "name": "slice-forty-uneven",
+  "source": "pie\n \"S0\" : 1\n \"S1\" : 3\n \"S2\" : 5\n \"S3\" : 2\n \"S4\" : 4\n \"S5\" : 1\n \"S6\" : 3\n \"S7\" : 5\n \"S8\" : 2\n \"S9\" : 4\n \"S10\" : 1\n \"S11\" : 3\n \"S12\" : 5\n \"S13\" : 2\n \"S14\" : 4\n \"S15\" : 1\n \"S16\" : 3\n \"S17\" : 5\n \"S18\" : 2\n \"S19\" : 4\n \"S20\" : 1\n \"S21\" : 3\n \"S22\" : 5\n \"S23\" : 2\n \"S24\" : 4\n \"S25\" : 1\n \"S26\" : 3\n \"S27\" : 5\n \"S28\" : 2\n \"S29\" : 4\n \"S30\" : 1\n \"S31\" : 3\n \"S32\" : 5\n \"S33\" : 2\n \"S34\" : 4\n \"S35\" : 1\n \"S36\" : 3\n \"S37\" : 5\n \"S38\" : 2\n \"S39\" : 4\n"
+ },
+ {
+  "name": "slice-thin-first",
+  "source": "pie\n \"Thin\" : 1\n \"Fat\" : 60\n \"Thin too\" : 1.2\n \"Rest\" : 37.8"
+ },
+ {
+  "name": "slice-series-wrap",
+  "source": "pie\n \"S0\" : 20\n \"S1\" : 19\n \"S2\" : 18\n \"S3\" : 17\n \"S4\" : 16\n \"S5\" : 15\n \"S6\" : 14\n \"S7\" : 13\n \"S8\" : 12\n \"S9\" : 11\n \"S10\" : 10\n \"S11\" : 9\n \"S12\" : 8\n \"S13\" : 7\n \"S14\" : 6\n \"S15\" : 5\n \"S16\" : 4\n"
+ },
+ {
+  "name": "slice-skipped-keeps-series",
+  "source": "pie\n \"Tiny\" : 0.01\n \"A\" : 5\n \"Nothing\" : 0\n \"B\" : 5"
+ },
+ {
+  "name": "comments-and-directives",
+  "source": "%%{init: {\"pie\": {\"textPosition\": 0.3}}}%%\n%% a comment\npie title Commented %% trailing\n  %% inside\n \"A\" : 1 %% after a section\n \"B\" : 2\n"
+ },
+ {
+  "name": "carriage-returns",
+  "source": "pie title CRLF\r\n \"A\" : 1\r\n \"B\" : 2\r \"C\" : 3\r\n"
+ },
+ {
+  "name": "html-attributes",
+  "source": "pie title <span class=\"x\" id=\"y\">Quoted</span> attributes\n \"<font color=\"red\">red</font>\" : 1"
+ },
+ {
+  "name": "indented-front-matter",
+  "source": "  ---\n  title: Indented\n  config:\n    pie:\n      donutHole: 0.3\n  ---\n  pie\n   \"A\" : 1\n   \"B\" : 2"
+ },
+ {
+  "name": "wrap-directive",
+  "source": "%%{wrap}%%\npie title With wrap\n \"A\" : 1"
+ },
+ {
+  "name": "style-word-in-title",
+  "source": "pie title lifestyle: #1 choice; really\n \"A\" : 1"
+ },
+ {
+  "name": "rejected-negative",
+  "source": "pie\n \"dogs\" : -60.67"
+ },
+ {
+  "name": "rejected-negative-entity-label",
+  "source": "pie\n \"#35;x &amp;y\" : -1"
+ },
+ {
+  "name": "rejected-missing-colon",
+  "source": "pie\n \"a\" 1"
+ },
+ {
+  "name": "rejected-lexical",
+  "source": "pie\n \"a\" : 1\n oops"
+ },
+ {
+  "name": "rejected-bad-yaml",
+  "source": "---\ntitle: \"unclosed\n---\npie\n \"A\" : 1"
+ },
+ {
+  "name": "rejected-bad-yaml-escape",
+  "source": "---\ntitle: \"\\q\"\n---\npie"
+ },
+ {
+  "name": "rejected-not-a-diagram",
+  "source": "hello there"
+ },
+ {
+  "name": "rejected-empty",
+  "source": ""
+ },
+ {
+  "name": "rejected-error-after-front-matter-and-comments",
+  "source": "---\ntitle: x\n---\n%% comment\n%%{init: {}}%%\npie\n \"a\" : 1\n \"#35;b\" ; 2"
+ },
+ {
+  "name": "rejected-eof",
+  "source": "pie\n \"a\" :\n\n  %% nothing more\n"
+ }
+]

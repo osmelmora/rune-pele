@@ -49,10 +49,23 @@ impl PeleRender {
     }
 }
 
+/// A source as one JSON string on one line. The oracle reads requests line by line, and Node
+/// ends a line at U+2028 and U+2029 as well, which JSON leaves unescaped.
+fn json(source: &str) -> String {
+    serde_json::to_string(source).expect("string encodes").replace('\u{2028}', "\\u2028").replace('\u{2029}', "\\u2029")
+}
+
 /// Renders every source through Pele with the corpus test's pinned measurer and clock.
 pub fn render_all(sources: &[String]) -> Vec<PeleRender> {
+    let requests: Vec<String> = sources.iter().map(|s| format!("render\t{}", json(s))).collect();
+    ask(&requests).iter().map(|line| serde_json::from_str(line).expect("oracle answers JSON")).collect()
+}
+
+/// Renders each source through Pele with the JSON object of render options beside it laid over
+/// the pinned measurer and clock.
+pub fn render_all_with(cases: &[(String, String)]) -> Vec<PeleRender> {
     let requests: Vec<String> =
-        sources.iter().map(|s| format!("render\t{}", serde_json::to_string(s).expect("string encodes"))).collect();
+        cases.iter().map(|(source, options)| format!("render_with\t{}\t{options}", json(source))).collect();
     ask(&requests).iter().map(|line| serde_json::from_str(line).expect("oracle answers JSON")).collect()
 }
 

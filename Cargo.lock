@@ -59,6 +59,7 @@ dependencies = [
  "libm",
  "pele-oracle",
  "ryu-js",
+ "serde_json",
 ]
 
 [[package]]

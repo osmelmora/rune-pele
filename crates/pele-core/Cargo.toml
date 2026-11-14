@@ -13,6 +13,7 @@ ryu-js = "1"
 
 [dev-dependencies]
 pele-oracle = { path = "../pele-oracle" }
+serde_json = "1"
 
 [lints]
 workspace = true
