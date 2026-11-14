@@ -85,11 +85,14 @@ pub struct Limits {
     pub source_utf16: usize,
     /// The longest SVG, in UTF-16 code units.
     pub svg_utf16: usize,
+    /// The most edges a flowchart may have. `A & B --> C & D` multiplies, so a short source can
+    /// ask for very many.
+    pub max_edges: usize,
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { source_utf16: 50_000, svg_utf16: 4_000_000 }
+        Limits { source_utf16: 50_000, svg_utf16: 4_000_000, max_edges: 5_000 }
     }
 }
 
@@ -211,11 +214,19 @@ fn tagged(error: RenderError, found: catalog::Detected) -> RenderError {
     }
 }
 
-/// Pele's `parseSource`: limits, preprocessing, detection, the config merge and the detected
-/// kind's parser. A kind with no port is [`RenderError::NotPorted`].
-pub fn prepare(source: &str, options: ParseOptions) -> Result<Prepared, RenderError> {
-    let limits = options.limits;
-    let limit = limits.source_utf16;
+/// What every parser starts from: the detected kind, the text it reads, the title front matter
+/// sets and the effective config.
+struct Front {
+    found: catalog::Detected,
+    parsed: Vec<u16>,
+    title: Option<input::JsText>,
+    config: input::JsObject,
+}
+
+/// Pele's `parseSource` up to the detected kind's parser: limits, preprocessing, detection and
+/// the config merge.
+fn front(source: &str, options: &ParseOptions) -> Result<Front, RenderError> {
+    let limit = options.limits.source_utf16;
     if source.encode_utf16().count() > limit {
         let message = format!("Diagram source is longer than the limit of {limit} characters.");
         return Err(RenderError::Diagnostic(Diagnostic::new(ErrorCode::Limit, message)));
@@ -227,9 +238,40 @@ pub fn prepare(source: &str, options: ParseOptions) -> Result<Prepared, RenderEr
     };
     let mut parsed = input::encode_entities(&pre.text, None);
     parsed.push(10);
-    let cx = catalog::ParseContext { text: &parsed, title: pre.title.as_ref(), origin: &Origin { source } };
-    let model = catalog::parse(found.kind, &cx).map_err(|error| tagged(error, found))?;
-    Ok(Prepared { found, config: options.config.value.spread(&pre.config), model, limits })
+    Ok(Front { found, parsed, title: pre.title, config: options.config.value.spread(&pre.config) })
+}
+
+impl Front {
+    fn context<'a>(&'a self, origin: &'a Origin<'a>, limits: Limits) -> catalog::ParseContext<'a> {
+        catalog::ParseContext { text: &self.parsed, title: self.title.as_ref(), origin, config: &self.config, limits }
+    }
+}
+
+/// Pele's `parseSource`: limits, preprocessing, detection, the config merge and the detected
+/// kind's parser. A kind with no port is [`RenderError::NotPorted`].
+pub fn prepare(source: &str, options: ParseOptions) -> Result<Prepared, RenderError> {
+    let limits = options.limits;
+    let front = front(source, &options)?;
+    let origin = Origin { source };
+    let model = catalog::parse(front.found.kind, &front.context(&origin, limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(Prepared { found: front.found, config: front.config, model, limits })
+}
+
+/// The flowchart front end's model and flow graph as JSON, in the words of the oracle's
+/// `flow_front` op, for the differential test. A source of another type answers only that type.
+/// Flowcharts are not drawn yet, so `prepare` still reports them as not ported.
+#[doc(hidden)]
+pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Flowchart {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::flowchart::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    let graph = diagrams::flowchart::build_flow_graph(&model, diagrams::flowchart::default_curve(&front.config));
+    Ok(diagrams::flowchart::json::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
 impl Prepared {

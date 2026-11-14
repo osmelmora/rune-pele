@@ -4,7 +4,6 @@
 //! Pele's regular expressions are written out as scanners over UTF-16 code units. Each one names
 //! the pattern it answers for.
 
-#[allow(dead_code, reason = "the flowchart db is the first caller")]
 pub(crate) mod url;
 mod yaml;
 
@@ -12,6 +11,8 @@ use crate::js;
 use crate::{Diagnostic, ErrorCode, RenderError};
 use std::collections::HashMap;
 use std::sync::LazyLock;
+
+pub(crate) use yaml::parse_yaml;
 
 /// A JavaScript string: UTF-16 code units, which may hold a surrogate with no partner.
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
@@ -54,6 +55,12 @@ impl JsText {
 impl std::ops::Deref for JsText {
     type Target = [u16];
     fn deref(&self) -> &[u16] {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<[u16]> for JsText {
+    fn borrow(&self) -> &[u16] {
         &self.0
     }
 }
@@ -177,7 +184,6 @@ impl Units for [u16] {
     }
 }
 
-#[allow(dead_code, reason = "the flowchart db is the first caller")]
 /// `toLowerCase`: each run of well-formed text lowercased with its context, lone surrogates kept.
 pub(crate) fn to_lowercase(text: &[u16]) -> Vec<u16> {
     let mut out = Vec::with_capacity(text.len());
@@ -308,6 +314,21 @@ impl JsObject {
             None => self.entries.len(),
         };
         self.entries.insert(at, (key, value));
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&JsText, &JsValue)> {
+        self.entries.iter().map(|(key, value)| (key, value))
+    }
+
+    /// `Object.assign(self, source)`. A `__proto__` key reaches the prototype setter instead,
+    /// which ignores a string, unless the object already has its own `__proto__`.
+    pub(crate) fn assign(&mut self, source: &JsObject) {
+        for (key, value) in &source.entries {
+            if key.is_str("__proto__") && self.position(key).is_none() {
+                continue;
+            }
+            self.set(key.clone(), value.clone());
+        }
     }
 
     /// `{...self, ...over}`.
@@ -522,6 +543,74 @@ pub(crate) fn decimal(text: &[u16]) -> f64 {
     let whole = if whole.is_empty() { "0" } else { whole };
     let fraction = if fraction.is_empty() { "0" } else { fraction };
     format!("{sign}{whole}.{fraction}e{exponent}").parse().expect("a decimal literal parses")
+}
+
+/// `Number(text)`: JavaScript's `StringToNumber`.
+pub(crate) fn string_to_number(text: &[u16]) -> f64 {
+    let trimmed = text.trim_js();
+    if trimmed.is_empty() {
+        return 0.0;
+    }
+    let Ok(ascii) = String::from_utf16(trimmed) else {
+        return f64::NAN;
+    };
+    if !ascii.is_ascii() {
+        return f64::NAN;
+    }
+    let radix = match ascii.get(..2) {
+        Some("0x" | "0X") => 16,
+        Some("0o" | "0O") => 8,
+        Some("0b" | "0B") => 2,
+        _ => 10,
+    };
+    if radix != 10 {
+        return radix_value(&ascii[2..], radix);
+    }
+    let (sign, unsigned) = match ascii.as_bytes()[0] {
+        b'-' => (-1.0, &ascii[1..]),
+        b'+' => (1.0, &ascii[1..]),
+        _ => (1.0, ascii.as_str()),
+    };
+    if unsigned == "Infinity" {
+        return sign * f64::INFINITY;
+    }
+    let (mantissa, exponent) = match unsigned.split_once(['e', 'E']) {
+        Some((mantissa, exponent)) => (mantissa, Some(exponent)),
+        None => (unsigned, None),
+    };
+    let digits = |text: &str| text.bytes().all(|c| c.is_ascii_digit());
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let mantissa_ok = digits(whole) && digits(fraction) && !(whole.is_empty() && fraction.is_empty());
+    let exponent_ok = exponent.is_none_or(|exponent| {
+        let unsigned = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+        !unsigned.is_empty() && digits(unsigned)
+    });
+    if !mantissa_ok || !exponent_ok {
+        return f64::NAN;
+    }
+    sign * decimal(unsigned.as_bytes().iter().map(|&c| u16::from(c)).collect::<Vec<_>>().as_slice())
+}
+
+/// The value of digits in a power-of-two radix, rounded to the nearest double.
+fn radix_value(digits: &str, radix: u32) -> f64 {
+    if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
+        return f64::NAN;
+    }
+    let width = radix.trailing_zeros();
+    let mut bits = Vec::new();
+    for c in digits.chars() {
+        let value = c.to_digit(radix).expect("a digit of the radix");
+        bits.extend((0..width).rev().map(|bit| value >> bit & 1 == 1));
+    }
+    let first = bits.iter().position(|&bit| bit).unwrap_or(bits.len());
+    let bits = &bits[first..];
+    let top = bits.iter().take(64).fold(0u64, |acc, &bit| acc << 1 | u64::from(bit));
+    if bits.len() <= 64 {
+        return top as f64;
+    }
+    // Past 64 bits, a sticky low bit keeps the rounding of the whole value.
+    let sticky = u64::from(bits[64..].iter().any(|&bit| bit));
+    libm::ldexp((top | sticky) as f64, i32::try_from(bits.len() - 64).unwrap_or(i32::MAX))
 }
 
 /// The input range `from..to` replaced by `length` output units.

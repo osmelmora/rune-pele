@@ -2,7 +2,7 @@
 //! refuses becomes `about:blank`. An `http:` or `https:` URL is normalized by the WHATWG URL
 //! parser, as `new URL` does.
 
-use super::{JsText, Units, decode_entities, hex_digit, is_line_end, is_word, to_lowercase};
+use super::{JsText, Units, decode_entities, hex_digit, is_line_end, is_word, string_to_number, to_lowercase};
 
 const BLANK: &str = "about:blank";
 
@@ -40,51 +40,6 @@ fn strip_controls(text: &[u16]) -> Vec<u16> {
     out
 }
 
-/// `Number(word)` for a run of `\w`, as `String.fromCharCode` receives it from `&#(\w+)`.
-fn word_number(word: &[u16]) -> f64 {
-    let ascii: String = word.iter().map(|&c| char::from(c as u8)).collect();
-    if ascii == "Infinity" {
-        return f64::INFINITY;
-    }
-    let radix = match ascii.get(..2) {
-        Some("0x" | "0X") => 16,
-        Some("0o" | "0O") => 8,
-        Some("0b" | "0B") => 2,
-        _ => 10,
-    };
-    if radix != 10 {
-        return radix_value(&ascii[2..], radix);
-    }
-    let (mantissa, exponent) = ascii.split_once(['e', 'E']).unwrap_or((&ascii, "0"));
-    let digits = |text: &str| !text.is_empty() && text.bytes().all(|c| c.is_ascii_digit());
-    if !digits(mantissa) || !digits(exponent) {
-        return f64::NAN;
-    }
-    ascii.parse().unwrap_or(f64::NAN)
-}
-
-/// The value of digits in a power-of-two radix, rounded to the nearest double as `Number` does.
-fn radix_value(digits: &str, radix: u32) -> f64 {
-    if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
-        return f64::NAN;
-    }
-    let width = radix.trailing_zeros();
-    let mut bits = Vec::new();
-    for c in digits.chars() {
-        let value = c.to_digit(radix).expect("a digit of the radix");
-        bits.extend((0..width).rev().map(|bit| value >> bit & 1 == 1));
-    }
-    let first = bits.iter().position(|&bit| bit).unwrap_or(bits.len());
-    let bits = &bits[first..];
-    let top = bits.iter().take(64).fold(0u64, |acc, &bit| acc << 1 | u64::from(bit));
-    if bits.len() <= 64 {
-        return top as f64;
-    }
-    // Past 64 bits, a sticky low bit keeps the rounding of the whole value.
-    let sticky = u64::from(bits[64..].iter().any(|&bit| bit));
-    libm::ldexp((top | sticky) as f64, (bits.len() - 64) as i32)
-}
-
 /// `ToUint16`, as `String.fromCharCode` applies it.
 fn to_uint16(value: f64) -> u16 {
     if !value.is_finite() {
@@ -103,7 +58,7 @@ fn html_entity(text: &[u16], at: usize) -> Option<(usize, f64)> {
     if end == at + 2 {
         return None;
     }
-    let number = word_number(&text[at + 2..end]);
+    let number = string_to_number(&text[at + 2..end]);
     Some((end + usize::from(text.at(end) == Some(unit(b';'))), number))
 }
 

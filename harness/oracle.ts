@@ -107,6 +107,7 @@ const ops: Record<string, (args: string[]) => string> = {
 import { PeleError } from '../vendor/pele/src/index.ts';
 import type { FlowDb } from '../vendor/pele/src/diagrams/flowchart/db.ts';
 import { buildFlowGraph } from '../vendor/pele/src/diagrams/flowchart/graph.ts';
+import { canonicalShape, isValidShape } from '../vendor/pele/src/diagrams/flowchart/shapes.ts';
 import { safeUrl } from '../vendor/pele/src/util/url.ts';
 
 // Each record's fields in the order its TypeScript interface declares them. A field that is
@@ -176,6 +177,10 @@ function flowFront(text: string, options: { config?: Record<string, unknown> }):
 }
 
 ops.flow_front = ([source, options]) => flowFront(JSON.parse(source) as string, options ? JSON.parse(options) : {});
+ops.canonical_shape = ([name]) => {
+  const shape = JSON.parse(name) as string;
+  return JSON.stringify([canonicalShape(shape), isValidShape(shape)]);
+};
 ops.safe_url = ([url]) => JSON.stringify(safeUrl(JSON.parse(url) as string));
 
 const out: string[] = [];

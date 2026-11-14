@@ -100,6 +100,9 @@ pub(crate) struct ParseContext<'a> {
     /// The title front matter sets.
     pub(crate) title: Option<&'a JsText>,
     pub(crate) origin: &'a Origin<'a>,
+    /// The source's config laid over the host's.
+    pub(crate) config: &'a JsObject,
+    pub(crate) limits: Limits,
 }
 
 impl ParseContext<'_> {
