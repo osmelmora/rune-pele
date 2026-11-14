@@ -183,6 +183,188 @@ ops.canonical_shape = ([name]) => {
 };
 ops.safe_url = ([url]) => JSON.stringify(safeUrl(JSON.parse(url) as string));
 
+// compound layout
+// A layout call as JSON: `{ fn, in, out }`. Doubles are packed as 16 hex digits each, in the
+// field order of `NODE`, `EDGE`, `LNODE` and `LEDGE`. harness/build.mjs routes Pele's layout
+// functions through `globalThis.peleLayoutTap`, which is how a call made by a real render is seen.
+import { compoundLayout, inheritCrossedDirections, shiftLayout, type CEdge, type CNode, type Dir } from '../vendor/pele/src/layout/compound.ts';
+import { wrapComponents } from '../vendor/pele/src/layout/components.ts';
+import type { LEdge, LNode, LayeredOptions, LayeredResult } from '../vendor/pele/src/layout/layered.ts';
+type Json = Record<string, unknown>;
+type Tap = Record<string, (real: (...args: never[]) => unknown, args: never[]) => unknown>;
+const NODE = ['w', 'h', 'padX', 'padTop', 'padBottom', 'minW', 'seq', 'span', 'x', 'y'] as const;
+const EDGE = ['minlen', 'labelW', 'labelH', 'labelX', 'labelY'] as const;
+const LNODE = ['w', 'h', 'pin', 'hint', 'key', 'span', 'x', 'y', 'rank'] as const;
+const LEDGE = ['minlen', 'labelW', 'labelH', 'tailDx', 'headDx', 'labelX', 'labelY'] as const;
+const OPT = ['nodeSep', 'edgeSep', 'rankSep', 'portSep'] as const;
+
+const pack = (values: number[]): string => values.map(bits).join('');
+const unpack = (hex: string): number[] => (hex.match(/.{16}/g) ?? []).map(double);
+const fields = (item: object, names: readonly string[]): string => pack(names.map((name) => (item as Record<string, number>)[name]));
+function assign(item: object, names: readonly string[], hex: string): void {
+  unpack(hex).forEach((value, i) => ((item as Record<string, number>)[names[i]] = value));
+}
+
+const graphOut = (nodes: CNode[], edges: CEdge[]): Json => ({
+  nodes: nodes.map((c) => ({ parent: c.parent, group: c.isGroup, dir: c.dir ?? null, n: fields(c, NODE) })),
+  edges: edges.map((e) => ({
+    src: e.src,
+    dst: e.dst,
+    n: fields(e, EDGE),
+    route: pack(e.route.filter((_, i) => i % 3 !== 2)),
+    axes: e.route.filter((_, i) => i % 3 === 2).join(''),
+  })),
+});
+function graphIn(graph: Json): { nodes: CNode[]; edges: CEdge[] } {
+  const nodes = (graph.nodes as Json[]).map((c) => {
+    const node = { parent: c.parent, isGroup: c.group, dir: c.dir ?? undefined } as CNode;
+    assign(node, NODE, c.n as string);
+    return node;
+  });
+  const edges = ((graph.edges ?? []) as Json[]).map((e) => {
+    const points = unpack(e.route as string);
+    const edge = { src: e.src, dst: e.dst, route: [...(e.axes as string)].flatMap((axis, i) => [points[2 * i], points[2 * i + 1], Number(axis)]) } as CEdge;
+    assign(edge, EDGE, e.n as string);
+    return edge;
+  });
+  return { nodes, edges };
+}
+const optOut = (opt: LayeredOptions): Json => ({
+  n: fields(opt, OPT),
+  headRoom: opt.headRoom === undefined ? null : bits(opt.headRoom),
+  tracks: !!opt.tracks,
+  straight: !!opt.straight,
+  apart: !!opt.apart,
+  orderOnly: !!opt.orderOnly,
+  groups: opt.groups ? { of: [...opt.groups.of], parent: [...opt.groups.parent] } : null,
+});
+function optIn(opt: Json): LayeredOptions {
+  const groups = opt.groups as { of: number[]; parent: number[] } | null;
+  const out = { tracks: opt.tracks, straight: opt.straight, apart: opt.apart, orderOnly: opt.orderOnly } as LayeredOptions;
+  assign(out, OPT, opt.n as string);
+  if (opt.headRoom !== null) out.headRoom = double(opt.headRoom as string);
+  if (groups) out.groups = { of: Int32Array.from(groups.of), parent: Int32Array.from(groups.parent) };
+  return out;
+}
+const layeredOut = (nodes: LNode[], edges: LEdge[]): Json => ({
+  nodes: nodes.map((v) => ({ kind: v.kind, n: fields(v, LNODE) })),
+  edges: edges.map((e) => ({
+    tail: e.tail,
+    head: e.head,
+    reversed: e.reversed,
+    tailFixed: e.tailFixed,
+    headFixed: e.headFixed,
+    n: fields(e, LEDGE),
+    points: pack(e.points),
+  })),
+});
+const sizeOut = (size: { width: number; height: number } | undefined): string | null => (size ? pack([size.width, size.height]) : null);
+
+// What each tapped function is given and what it leaves behind, as JSON.
+const CALLS: Record<string, { input(args: never[]): Json; output(args: never[], result: unknown): Json }> = {
+  compoundLayout: {
+    input: ([nodes, edges, dir, opt]: [CNode[], CEdge[], Dir, LayeredOptions]) => ({ ...graphOut(nodes, edges), dir, opt: optOut(opt) }),
+    output: ([nodes, edges]: [CNode[], CEdge[]], result) => ({ ...graphOut(nodes, edges), size: sizeOut(result as { width: number; height: number }) }),
+  },
+  shiftLayout: {
+    input: ([nodes, edges, ox, oy]: [CNode[], CEdge[], number, number]) => ({ ...graphOut(nodes, edges), by: pack([ox, oy]) }),
+    output: ([nodes, edges]: [CNode[], CEdge[]]) => graphOut(nodes, edges),
+  },
+  inheritCrossedDirections: {
+    input: ([nodes, ends]: [CNode[], [number, number][]]) => ({ ...graphOut(nodes, []), ends }),
+    output: ([nodes]: [CNode[]]) => graphOut(nodes, []),
+  },
+  wrapComponents: {
+    input: ([nodes, edges, width, gap]: [CNode[], CEdge[], number, number]) => ({ ...graphOut(nodes, edges), by: pack([width, gap]) }),
+    output: ([nodes, edges]: [CNode[], CEdge[]], result) => ({ ...graphOut(nodes, edges), size: sizeOut(result as { width: number; height: number } | undefined) }),
+  },
+  layered: {
+    input: ([nodes, edges, opt]: [LNode[], LEdge[], LayeredOptions]) => ({ ...layeredOut(nodes, edges), opt: optOut(opt) }),
+    output: ([nodes, edges]: [LNode[], LEdge[]], result) => {
+      const { width, height, crossings, declared } = result as LayeredResult;
+      return { ...layeredOut(nodes, edges), size: pack([width, height]), crossings: crossings ?? null, declared: declared ?? null };
+    },
+  },
+};
+
+// Runs `work` and returns the calls it made to the functions in `names`.
+function tapped(names: string[], work: () => void): Json[] {
+  const calls: Json[] = [];
+  const tap: Tap = {};
+  for (const name of names) {
+    tap[name] = (real, args) => {
+      // A caller may pass a one-shot iterable, and the record must hold what the function saw.
+      if (name === 'inheritCrossedDirections') (args as unknown[])[1] = [...(args[1] as Iterable<unknown>)];
+      const call: Json = { fn: name, in: CALLS[name].input(args) };
+      calls.push(call);
+      const result = real(...args);
+      call.out = CALLS[name].output(args, result);
+      return result;
+    };
+  }
+  (globalThis as { peleLayoutTap?: Tap }).peleLayoutTap = tap;
+  try {
+    work();
+  } finally {
+    (globalThis as { peleLayoutTap?: Tap }).peleLayoutTap = undefined;
+  }
+  return calls;
+}
+
+// The arguments of one recorded call, rebuilt for Pele's own function.
+function replayArgs(fn: string, input: Json): { run(): unknown; args: never[] } {
+  const { nodes, edges } = graphIn(input);
+  const by = typeof input.by === 'string' ? unpack(input.by) : [];
+  const calls: Record<string, () => { run(): unknown; args: unknown[] }> = {
+    compoundLayout: () => {
+      const opt = optIn(input.opt as Json);
+      return { args: [nodes, edges, input.dir, opt], run: () => compoundLayout(nodes, edges, input.dir as Dir, opt) };
+    },
+    shiftLayout: () => ({ args: [nodes, edges, by[0], by[1]], run: () => shiftLayout(nodes, edges, by[0], by[1]) }),
+    inheritCrossedDirections: () => ({ args: [nodes, input.ends], run: () => inheritCrossedDirections(nodes, input.ends as [number, number][]) }),
+    wrapComponents: () => ({ args: [nodes, edges, by[0], by[1]], run: () => wrapComponents(nodes, edges, by[0], by[1]) }),
+  };
+  if (!calls[fn]) throw new Error(`no layout function ${fn}`);
+  return calls[fn]() as { run(): unknown; args: never[] };
+}
+
+const layoutOps: Record<string, (args: string[]) => string> = {
+  // Renders a source and answers every layout call the render made.
+  layout_record: ([source, options]) => {
+    let result: Json = {};
+    const calls = tapped(['compoundLayout', 'shiftLayout', 'inheritCrossedDirections', 'wrapComponents'], () => {
+      result = JSON.parse(rendered(JSON.parse(source) as string, JSON.parse(options) as object)) as Json;
+    });
+    return JSON.stringify({ type: result.type, error: result.error ?? null, calls });
+  },
+  // Runs Pele's own function on the input of a call, and answers what it left behind. With
+  // `trace`, also every `layered` call made on the way.
+  layout_run: ([call]) => {
+    const { fn, in: input, trace } = JSON.parse(call) as { fn: string; in: Json; trace?: boolean };
+    const { run, args } = replayArgs(fn, input);
+    let out: Json = {};
+    const layered = tapped(trace ? ['layered'] : [], () => {
+      out = CALLS[fn].output(args, run());
+    });
+    return JSON.stringify(trace ? { out, layered } : { out });
+  },
+  // Times Pele's own function on the input of a call: nanoseconds per run, the input rebuilt
+  // outside the clock each time.
+  layout_time: ([call, runs]) => {
+    const { fn, in: input } = JSON.parse(call) as { fn: string; in: Json };
+    const ns: number[] = [];
+    for (let i = 0; i < Number(runs); i++) {
+      const { run } = replayArgs(fn, input);
+      const start = process.hrtime.bigint();
+      run();
+      ns.push(Number(process.hrtime.bigint() - start));
+    }
+    return JSON.stringify({ ns });
+  },
+  hypot: ([x, y]) => bits(Math.hypot(double(x), double(y))),
+};
+Object.assign(ops, layoutOps);
+
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
