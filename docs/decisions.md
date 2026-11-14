@@ -26,3 +26,11 @@ The question is whether this Rust code matches JavaScript for every double, whic
 ## 2026-11-14 Tools pinned in mise.toml at the latest releases
 
 The pins are Rust 1.100.0, Node 26.13.1, Kani 0.68.0, and esbuild 0.28.2 through `harness/package-lock.json`. These were the latest versions `mise latest` reported on 2026-11-14.
+
+## 2026-11-14 Design the Scene before porting pie
+
+The renderer-neutral Scene is the one-way-door decision. All 33 types will emit it, and both the SVG writer and the Rune adapter will consume it. It is designed with the architect workflow before any diagram is ported.
+
+- Three read-only explorers produced the grounding in `docs/grounding/`: Pele's pipeline, Pele's drawing vocabulary, and Rune's drawing surface. Rune was read at commit 165f87a.
+- The how explainer pass was skipped. The three angles barely overlap, and the design runners read the raw findings directly.
+- Two architect runners on different models design the Scene independently. A cross-judge on a third model scores them, then synthesis picks a base and grafts from the other.
