@@ -2,3 +2,4 @@
 
 pub mod capture;
 pub mod lower;
+pub mod text;
