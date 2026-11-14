@@ -1,0 +1,16 @@
+[package]
+name = "pele-core"
+description = "Rune-free Mermaid parse, layout and scene core, ported from Pele"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ryu-js = "1"
+
+[dev-dependencies]
+pele-oracle = { path = "../pele-oracle" }
+
+[lints]
+workspace = true

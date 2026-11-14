@@ -1,0 +1,19 @@
+[tools]
+rust = { version = "1.100.0", components = "rustfmt,clippy" }
+node = "26.13.1"
+"cargo:kani-verifier" = "0.68.0"
+
+[env]
+TZ = "UTC"
+
+[tasks.setup]
+description = "Fetch Pele at the pinned commit and build the Node oracle"
+run = "scripts/setup.sh"
+
+[tasks.check]
+description = "fmt, clippy, unit tests and the differential tests against Pele"
+run = "scripts/check.sh"
+
+[tasks.prove]
+description = "Run the Kani proofs for the JS numerics"
+run = "cargo kani -p pele-core -j --output-format terse"

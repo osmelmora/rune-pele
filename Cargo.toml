@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+members = ["crates/pele-core", "crates/pele-oracle", "crates/pele-cli"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.0.0"
+rust-version = "1.100"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }

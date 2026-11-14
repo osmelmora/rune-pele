@@ -1,0 +1,20 @@
+[package]
+name = "pele-cli"
+description = "Render Mermaid with rune-pele and measure parity against Pele"
+publish = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "pele"
+path = "src/main.rs"
+
+[dependencies]
+pele-core = { path = "../pele-core" }
+pele-oracle = { path = "../pele-oracle" }
+serde_json = "1"
+
+[lints]
+workspace = true
