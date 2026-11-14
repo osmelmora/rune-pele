@@ -5,11 +5,16 @@ use super::tokens::{
     TITLE, TokenType, WHITESPACE, YAML, acc_descr_value, acc_title_value, keyword, string_value, title_value, token,
     tokenize,
 };
-use crate::RenderError;
-use crate::catalog::{Diagram, ParseContext};
-use crate::input::{JsText, Units, decimal, is_digit, is_space};
-use crate::js;
+use crate::catalog::{Diagram, DrawContext, ParseContext};
+use crate::input::{JsText, JsValue, Units, decimal, is_digit, is_space};
+use crate::measure::{Emphasis, Label, layout_label, width};
+use crate::scene::{
+    Accessible, AnchorKind, Entity, Facet, LabelLook, LayerSpec, LineJoin, Number, Paint, Point, Role, Scene,
+    SceneBuilder, SeriesSlot, Size, TitleLayout, paths,
+};
+use crate::{RenderError, fit, js};
 use indexmap::IndexMap;
+use std::f64::consts::PI;
 
 const SHOW_DATA: usize = 0;
 const PIE: usize = 1;
@@ -132,14 +137,12 @@ fn parse_pie(src: &[u16]) -> Result<PieAst, SyntaxError> {
     Ok(ast)
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "the draw step in the following commit reads the model"))]
 pub(crate) struct PieModel {
     /// Slices in source order. Of two sections with one label, the first is kept.
     sections: IndexMap<JsText, f64>,
     show_data: bool,
     title: Option<JsText>,
-    acc_title: Option<JsText>,
-    acc_descr: Option<JsText>,
+    accessible: Accessible,
 }
 
 /// Pele's `buildPie`. The error is its message for a negative value.
@@ -171,9 +174,340 @@ fn build_pie(ast: PieAst, front_title: Option<&JsText>) -> Result<PieModel, Stri
         sections,
         show_data: ast.show_data,
         title: filled(ast.title).map(JsText::from).or_else(|| front_title.cloned()),
-        acc_title: filled(ast.acc_title).map(|text| text.trim_start_js().into()),
-        acc_descr: filled(ast.acc_descr).map(|text| unindent(text).into()),
+        accessible: Accessible {
+            title: filled(ast.acc_title).map(|text| text.trim_start_js().into()),
+            description: filled(ast.acc_descr).map(|text| unindent(text).into()),
+        },
     })
+}
+
+const RADIUS: f64 = 120.0;
+const SWATCH: f64 = 12.0;
+const ROW: f64 = 26.0;
+const GAP: f64 = 32.0;
+const OUTSIDE: f64 = 28.0;
+
+/// One draw of the chart: the plot's diameter, and whether the chart did not fit the width it
+/// has with its legend beside it.
+#[derive(Clone, Copy)]
+struct PieAttempt {
+    diameter: f64,
+    narrow: bool,
+}
+
+/// Where `pie.legendPosition` puts the legend. Any other value draws it under the plot without
+/// making room for it, as Pele does.
+#[derive(Clone, Copy, PartialEq)]
+enum LegendPosition {
+    Left,
+    Right,
+    Center,
+    Top,
+    Bottom,
+    Unknown,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum SliceLabelPlacement {
+    Inside,
+    /// Outside the rim, for a slice too thin for its percentage.
+    Outside,
+}
+
+struct SliceLayout {
+    section: JsText,
+    series: usize,
+    start: f64,
+    end: f64,
+    percent: Label,
+    /// The baseline point of the percentage, relative to the centre.
+    label_at: Point,
+    placement: SliceLabelPlacement,
+}
+
+struct LegendLayout {
+    section: JsText,
+    series: usize,
+    label: Label,
+    swatch: Point,
+    /// The centre of the label.
+    at: Point,
+}
+
+struct PieLayout {
+    size: Size,
+    centre: Point,
+    radius: f64,
+    inner_radius: f64,
+    /// The font size of percentages and legend labels.
+    small: f64,
+    title: TitleLayout,
+    slices: Vec<SliceLayout>,
+    legend: Vec<LegendLayout>,
+}
+
+/// The geometry of one attempt. Pele's `draw` up to where it starts writing.
+fn layout(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> PieLayout {
+    let radius = attempt.diameter / 2.0;
+    let size = cx.options.typography.normal.size;
+    let small = js::round(size * 0.875);
+    let pad = cx.options.padding;
+    let plain = Emphasis::default();
+
+    let option = |key: &str| cx.config.get("pie")?.as_record()?.get(key);
+    let number = |key: &str| option(key).and_then(JsValue::as_number);
+    let text_position = number("textPosition").filter(|&position| (0.0..=1.0).contains(&position)).unwrap_or(0.75);
+    let inner_radius = number("donutHole").filter(|&hole| hole > 0.0 && hole <= 0.9).map_or(0.0, |hole| hole * radius);
+    let placed = match option("legendPosition") {
+        None | Some(JsValue::Null) => JsText::from("right"),
+        Some(value) => value.to_js_string(),
+    };
+    let position = match placed.to_display().as_str() {
+        "left" | "right" if attempt.narrow => LegendPosition::Bottom,
+        "left" => LegendPosition::Left,
+        "right" => LegendPosition::Right,
+        "center" => LegendPosition::Center,
+        "top" => LegendPosition::Top,
+        "bottom" => LegendPosition::Bottom,
+        _ => LegendPosition::Unknown,
+    };
+
+    let mut sum = 0.0;
+    for value in model.sections.values() {
+        sum += value;
+    }
+
+    let labels: Vec<Label> = model
+        .sections
+        .iter()
+        .map(|(label, &value)| {
+            let mut text = label.clone();
+            if model.show_data {
+                text.push_str(&format!(" [{}]", js::to_string(value)));
+            }
+            layout_label(&text, cx.measure, small, 4000.0, plain)
+        })
+        .collect();
+    let mut legend_width = 0.0;
+    for label in &labels {
+        legend_width = js::max(legend_width, label.width);
+    }
+    legend_width += if labels.is_empty() { 0.0 } else { SWATCH + 8.0 };
+    let legend_height = labels.len() as f64 * ROW;
+
+    let title_text = model.title.as_deref().unwrap_or_default();
+    let title = layout_label(title_text, cx.measure, size, fit::title_room(cx.options), Emphasis::BOLD);
+    let title_height = if title.height > 0.0 { title.height + 16.0 } else { 0.0 };
+
+    let percent = |share: f64| -> JsText {
+        let mut text = String::new();
+        Number::fixed(share * 100.0, 0).write(&mut text);
+        (text + "%").as_str().into()
+    };
+    // A slice under one percent is not drawn, though it keeps its series colour.
+    let shares: Vec<f64> = model
+        .sections
+        .values()
+        .map(|&value| {
+            let share = if sum > 0.0 { value / sum } else { 0.0 };
+            if share * 100.0 >= 1.0 && !percent(share).is_str("0%") { share } else { 0.0 }
+        })
+        .collect();
+    // A slice too thin for its percentage gets the label outside the rim, which needs a margin.
+    let narrow: Vec<bool> = shares
+        .iter()
+        .map(|&share| {
+            if share == 0.0 || share >= 0.5 {
+                return false;
+            }
+            let chord = 2.0 * radius * text_position * js::sin(share * PI);
+            chord < width(cx.measure, &percent(share), small, plain) + 6.0
+        })
+        .collect();
+    let margin = if narrow.contains(&true) { OUTSIDE } else { 0.0 };
+
+    let diameter = (radius + margin) * 2.0;
+    let mut plot_width = diameter;
+    let mut height = diameter;
+    match position {
+        LegendPosition::Left | LegendPosition::Right => {
+            plot_width += if legend_width > 0.0 { GAP + legend_width } else { 0.0 };
+            height = js::max(height, legend_height);
+        }
+        LegendPosition::Top | LegendPosition::Bottom => {
+            plot_width = js::max(plot_width, legend_width);
+            height += if legend_height > 0.0 { 20.0 + legend_height } else { 0.0 };
+        }
+        LegendPosition::Center | LegendPosition::Unknown => {}
+    }
+    let plot_width = js::max(plot_width, title.width);
+
+    let centre_x = pad
+        + match position {
+            LegendPosition::Left => legend_width + GAP + diameter / 2.0,
+            LegendPosition::Right => diameter / 2.0,
+            _ => plot_width / 2.0,
+        };
+    let body_top = pad + title_height;
+    let centre_y = body_top
+        + match position {
+            LegendPosition::Top => legend_height + 20.0 + diameter / 2.0,
+            LegendPosition::Bottom => diameter / 2.0,
+            _ => height / 2.0,
+        };
+
+    let mut slices = Vec::new();
+    let mut angle = 0.0;
+    let rim = radius + OUTSIDE / 2.0;
+    let mut placed_outside: Vec<(Point, f64)> = Vec::new();
+    for (index, label) in model.sections.keys().enumerate() {
+        let share = shares[index];
+        if share == 0.0 {
+            continue;
+        }
+        let end = angle + share * PI * 2.0;
+        let mid = (angle + end) / 2.0;
+        let text = percent(share);
+        let text_width = width(cx.measure, &text, small, plain);
+        let on_rim = |at: f64| Point { x: js::sin(at) * rim, y: -js::cos(at) * rim };
+        let (label_at, placement) = if narrow[index] {
+            let clear = |point: Point| {
+                placed_outside.iter().all(|(other, other_width)| {
+                    (point.x - other.x).abs() >= (text_width + other_width) / 2.0 + 2.0
+                        || (point.y - other.y).abs() >= small + 2.0
+                })
+            };
+            let mut at = mid;
+            let mut step = 0;
+            while step < 360 && !clear(on_rim(at)) {
+                at += 2.0 / rim;
+                step += 1;
+            }
+            let point = on_rim(at);
+            placed_outside.push((point, text_width));
+            (Point { x: point.x, y: point.y + small * 0.35 }, SliceLabelPlacement::Outside)
+        } else {
+            let r = radius * text_position;
+            (Point { x: js::sin(mid) * r, y: -js::cos(mid) * r + small * 0.35 }, SliceLabelPlacement::Inside)
+        };
+        slices.push(SliceLayout {
+            section: label.clone(),
+            series: index,
+            start: angle,
+            end,
+            percent: Label::single(&text, plain, text_width, small, js::round(small * 1.5)),
+            label_at,
+            placement,
+        });
+        angle = end;
+    }
+
+    let centred = pad + (plot_width - legend_width) / 2.0;
+    let (legend_x, legend_y) = match position {
+        LegendPosition::Right => (centre_x + diameter / 2.0 + GAP, body_top + (height - legend_height) / 2.0),
+        LegendPosition::Left => (pad, body_top + (height - legend_height) / 2.0),
+        LegendPosition::Center => (centre_x - legend_width / 2.0, centre_y - legend_height / 2.0),
+        LegendPosition::Top => (centred, body_top),
+        LegendPosition::Bottom | LegendPosition::Unknown => (centred, body_top + diameter + 20.0),
+    };
+    let legend = model
+        .sections
+        .keys()
+        .zip(labels)
+        .enumerate()
+        .map(|(index, (section, label))| {
+            let y = legend_y + index as f64 * ROW + ROW / 2.0;
+            LegendLayout {
+                section: section.clone(),
+                series: index,
+                swatch: Point { x: legend_x, y: y - SWATCH / 2.0 },
+                at: Point { x: legend_x + SWATCH + 8.0 + label.width / 2.0, y },
+                label,
+            }
+        })
+        .collect();
+
+    let total_width = (plot_width + 2.0 * pad).ceil();
+    let total_height = (height + title_height + 2.0 * pad).ceil();
+    PieLayout {
+        size: Size { width: total_width, height: total_height },
+        centre: Point { x: centre_x, y: centre_y },
+        radius,
+        inner_radius,
+        small,
+        title: TitleLayout { at: Point { x: total_width / 2.0, y: pad + title.height / 2.0 }, label: title },
+        slices,
+        legend,
+    }
+}
+
+/// One attempt as a Scene: the title, the slices, the percentages inside and outside, the legend.
+fn draw(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> Result<Scene, RenderError> {
+    let layout = layout(model, cx, attempt);
+    let mut out = SceneBuilder::new(cx, layout.size, model.accessible.clone());
+    out.title(&layout.title);
+
+    let slices = LayerSpec::class("pele-slices")
+        .translate(layout.centre)
+        .stroke(Paint::Role(Role::Background))
+        .stroke_width(Number::raw(1.0))
+        .join(LineJoin::Round);
+    out.layer(slices, |out| {
+        for slice in &layout.slices {
+            let part = out.part(Entity::pie_section(&slice.section));
+            out.element(part, Facet::Shape)
+                .class("pele-slice")
+                .data_id()
+                .path(paths::pie_slice(slice.start, slice.end, layout.radius, layout.inner_radius))
+                .fill(Paint::Series(SeriesSlot::new(slice.series)))
+                .finish();
+        }
+        if layout.slices.is_empty() {
+            out.decoration()
+                .class("pele-slice")
+                .circle(Number::raw(layout.radius))
+                .fill(Paint::None)
+                .stroke(Paint::Role(Role::Border))
+                .finish();
+        }
+    });
+
+    let percentages = |out: &mut SceneBuilder, placement: SliceLabelPlacement| {
+        let layer = LayerSpec::class("pele-slice-labels")
+            .translate(layout.centre)
+            .font_size(Number::raw(layout.small))
+            .anchor(AnchorKind::Middle);
+        let inside = placement == SliceLabelPlacement::Inside;
+        let layer = if inside { layer.fill(Paint::Role(Role::Background)) } else { layer };
+        out.layer(layer, |out| {
+            for slice in layout.slices.iter().filter(|slice| slice.placement == placement) {
+                let part = out.part(Entity::pie_section(&slice.section));
+                let at = [Number::num(slice.label_at.x), Number::num(slice.label_at.y)];
+                let ink = inside.then(|| Paint::OnSeries(SeriesSlot::new(slice.series)));
+                out.baseline_text(part, slice.percent.clone(), at, ink);
+            }
+        });
+    };
+    percentages(&mut out, SliceLabelPlacement::Inside);
+    percentages(&mut out, SliceLabelPlacement::Outside);
+
+    out.layer(LayerSpec::class("pele-legend").font_size(Number::raw(layout.small)), |out| {
+        for item in &layout.legend {
+            let part = out.part(Entity::pie_section(&item.section));
+            out.layer(LayerSpec::class("pele-legend-item").part(part, Facet::Legend).data_id(), |out| {
+                out.element(part, Facet::Legend)
+                    .rect(
+                        [Number::num(item.swatch.x), Number::num(item.swatch.y)],
+                        [Number::raw(SWATCH), Number::raw(SWATCH)],
+                        Number::raw(2.0),
+                    )
+                    .fill(Paint::Series(SeriesSlot::new(item.series)))
+                    .finish();
+                out.label(Some(part), Facet::Legend, &item.label, item.at, LabelLook::default());
+            });
+        }
+    });
+    out.finish()
 }
 
 pub(crate) struct Pie;
@@ -184,6 +518,13 @@ impl Diagram for Pie {
     fn parse(cx: &ParseContext<'_>) -> Result<PieModel, RenderError> {
         let ast = parse_pie(cx.text).map_err(|error| cx.syntax(error))?;
         build_pie(ast, cx.title).map_err(|message| cx.semantic(message))
+    }
+
+    /// Pele's `renderPie`: at its own size, then with the legend below, then with a smaller plot.
+    fn scene(model: &PieModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError> {
+        fit::fit_width(cx.options, RADIUS * 2.0, 140.0, |diameter, narrow| {
+            draw(model, cx, PieAttempt { diameter, narrow })
+        })
     }
 }
 
@@ -209,8 +550,8 @@ mod tests {
                 format!(
                     "title {} accTitle {} accDescr {} showData {} sections {}",
                     text(model.title.as_ref()),
-                    text(model.acc_title.as_ref()),
-                    text(model.acc_descr.as_ref()),
+                    text(model.accessible.title.as_ref()),
+                    text(model.accessible.description.as_ref()),
                     model.show_data,
                     sections.join(",")
                 )

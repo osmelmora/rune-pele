@@ -5,8 +5,10 @@
 
 use crate::diagrams::tokens::SyntaxError;
 use crate::diagrams::{self};
-use crate::input::{JsText, Units, is_space, is_word};
-use crate::{Diagnostic, ErrorCode, Origin, RenderError};
+use crate::input::{JsObject, JsText, Units, is_space, is_word};
+use crate::measure::TextMeasurer;
+use crate::scene::{PaletteRule, Scene, SourcePalette};
+use crate::{Diagnostic, ErrorCode, LayoutOptions, Limits, Origin, RenderError};
 use std::sync::LazyLock;
 
 /// What must follow a detector's word.
@@ -117,18 +119,43 @@ impl ParseContext<'_> {
     }
 }
 
+/// What a diagram's draw step is given. It holds no drawing state: each attempt builds its own.
+pub(crate) struct DrawContext<'a> {
+    pub(crate) kind: DiagramKind,
+    pub(crate) measure: &'a dyn TextMeasurer,
+    pub(crate) options: &'a LayoutOptions,
+    /// The source's config laid over the host's.
+    pub(crate) config: &'a JsObject,
+    pub(crate) palette: &'a SourcePalette,
+    /// Whether the drawing scales down with its container.
+    pub(crate) responsive: bool,
+    pub(crate) limits: Limits,
+}
+
+/// What Pele's pipeline needs to know about a ported kind besides its parser and draw step.
+#[derive(Clone, Copy)]
+pub(crate) struct PortPolicy {
+    /// The kind's section of Mermaid's config.
+    pub(crate) section: &'static str,
+    pub(crate) palette: PaletteRule,
+}
+
 /// One diagram type's whole pipeline. A module that implements it is a port.
 pub(crate) trait Diagram {
     type Model;
     fn parse(cx: &ParseContext<'_>) -> Result<Self::Model, RenderError>;
+    /// Draws the model. A type that adapts to the width owns its sequence of attempts, and the
+    /// model is the same for each.
+    fn scene(model: &Self::Model, cx: &DrawContext<'_>) -> Result<Scene, RenderError>;
 }
 
 /// One registration per kind. `rank` is the detector's position in Mermaid's order, where the
-/// first match wins. `port` names the module that renders the kind, once there is one.
+/// first match wins. `port` names the module that renders the kind, once there is one, with
+/// the kind's config section and palette variables.
 macro_rules! diagram_catalog {
     ($($kind:ident => {
         name: $name:literal,
-        $(port: $port:ty,)?
+        $(port: { diagram: $port:ty, section: $section:literal, palette: $palette:expr },)?
         detectors: [$(($rank:literal, $mermaid:literal, $pattern:expr)),+ $(,)?] $(,)?
     }),+ $(,)?) => {
         /// A diagram type, named as Pele names it.
@@ -148,8 +175,17 @@ macro_rules! diagram_catalog {
             }
         }
 
+        impl DiagramKind {
+            /// The policy of the kind's port, if it has one.
+            pub(crate) fn port(self) -> Option<PortPolicy> {
+                match self {
+                    $($(DiagramKind::$kind => Some(PortPolicy { section: $section, palette: $palette }),)?)+
+                    _ => None,
+                }
+            }
+        }
+
         /// What a ported kind's parser made of a source.
-        #[cfg_attr(not(test), expect(dead_code, reason = "the draw step in the following commit reads the model"))]
         pub(crate) enum PreparedModel {
             $($($kind(<$port as Diagram>::Model),)?)+
         }
@@ -159,6 +195,13 @@ macro_rules! diagram_catalog {
             match kind {
                 $($(DiagramKind::$kind => <$port as Diagram>::parse(cx).map(PreparedModel::$kind),)?)+
                 _ => Err(RenderError::NotPorted),
+            }
+        }
+
+        /// Draws with the port that parsed the model.
+        pub(crate) fn scene(model: &PreparedModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError> {
+            match model {
+                $($(PreparedModel::$kind(model) => <$port as Diagram>::scene(model, cx),)?)+
             }
         }
 
@@ -190,7 +233,11 @@ diagram_catalog! {
     Er => { name: "er", detectors: [(7, "er", starts(&["erDiagram"]))] },
     Gantt => { name: "gantt", detectors: [(8, "gantt", starts(&["gantt"]))] },
     Info => { name: "info", detectors: [(9, "info", starts(&["info"]))] },
-    Pie => { name: "pie", port: diagrams::pie::Pie, detectors: [(10, "pie", starts(&["pie"]))] },
+    Pie => {
+        name: "pie",
+        port: { diagram: diagrams::pie::Pie, section: "pie", palette: PaletteRule::Slots("pie", 1) },
+        detectors: [(10, "pie", starts(&["pie"]))],
+    },
     Requirement => { name: "requirement", detectors: [(11, "requirement", starts(&["requirement"]))] },
     Sequence => { name: "sequence", detectors: [(12, "sequence", starts(&["sequenceDiagram"]))] },
     Swimlane => { name: "swimlane", detectors: [

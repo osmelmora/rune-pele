@@ -3,7 +3,6 @@
 //!
 //! Pele's regular expressions are written out as scanners over UTF-16 code units. Each one names
 //! the pattern it answers for.
-#![expect(dead_code, reason = "the label and pie ports in the following commits use the rest")]
 
 mod yaml;
 
@@ -142,11 +141,6 @@ pub(crate) trait Units {
     /// `indexOf(needle, from)`.
     fn find_str(&self, needle: &str, from: usize) -> Option<usize> {
         (from..=self.units().len()).find(|&at| self.starts_at(at, needle))
-    }
-
-    /// `lastIndexOf(needle, from)`.
-    fn rfind_str(&self, needle: &str, from: usize) -> Option<usize> {
-        (0..=from.min(self.units().len())).rev().find(|&at| self.starts_at(at, needle))
     }
 
     fn has(&self, needle: &str) -> bool {

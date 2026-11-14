@@ -2,7 +2,6 @@
 //!
 //! A label is laid out once into lines of styled runs with measured widths. Everything that
 //! places or writes text reads that layout, and nothing lays text out a second time.
-#![expect(dead_code, reason = "the scene and the pie port in the following commits use these")]
 
 use crate::input::{JsText, Units, decode_entities, is_space, is_word};
 use crate::js;
