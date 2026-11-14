@@ -1069,19 +1069,12 @@ mod tests {
 
     /// The oracle's JSON, read by this module's own parser so that a lone surrogate survives.
     fn oracle(op: &str, sources: &[String]) -> Vec<JsValue> {
-        let requests: Vec<String> = sources.iter().map(|source| format!("{op}\t{}", json_string(source))).collect();
+        let requests: Vec<String> =
+            sources.iter().map(|source| format!("{op}\t{}", crate::json_string(source))).collect();
         pele_oracle::ask(&requests)
             .iter()
             .map(|answer| parse_json(&units(answer)).ok().expect("the oracle answers JSON"))
             .collect()
-    }
-
-    fn json_string(text: &str) -> String {
-        let mut out = String::from("\"");
-        for unit in text.encode_utf16() {
-            out.push_str(&format!("\\u{unit:04x}"));
-        }
-        out + "\""
     }
 
     /// Whether our value is the oracle's, where the oracle writes a non-finite number as `{"$number": "NaN"}`.
