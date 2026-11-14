@@ -69,3 +69,18 @@ Findings that change the Scene design:
 - **Flatten curves in `lower` and pass points.** For zoom-adaptive curves, `lower` flattens them itself and passes points to `Shape::fill` / `stroke_with`. Rune's `Path` flattens at a fixed 0.1 pt before scaling.
 - **Anchor advance must come from the same device-scale layout as the baseline.** `rune::text::measure` rounds widths to 1/64 pt.
 - **Capturing with app fonts needs `Runtime::with_text`.**
+
+## 2026-11-14 Pie merged at byte parity; trig stays on libm
+
+`pie-parity` was merged at `e80f691`. The parent reran the done check before merging.
+
+- Corpus: pie identical on 2 of 2.
+- Differential test: 8,368 inputs (harvested, hand-written cases, Pele's mutation runs and seeded random pies), with 0 differences and 3,198 rejected with Pele's exact message.
+- After the merge, `mise run check` passes, 38 of 38 workspace tests pass, and the doctor reports ok.
+- The worktree evidence was copied to `out/verify/pie-parity/` before the worktree was removed.
+
+**Decision: keep `js::sin`/`cos`/`pow` on the `libm` crate.**
+
+- On darwin arm64, Node's V8 fdlibm uses fused multiply-adds and `Math.pow` uses the platform `pow`. So libm is within one ulp of the pinned Node, not bit-equal (measured: 300,834 of 304,334 `sin` samples are exact).
+- That gap reached no SVG output in 31.4 million pie coordinates printed through `num()` (measured). Matching V8 bit for bit would tie the port to one CPU and build of Node.
+- Revisit if a parity diff ever traces to a trig ulp. The oracle tests already print the exact-match counts that would show such a drift.
