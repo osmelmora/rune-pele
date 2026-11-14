@@ -269,6 +269,11 @@ impl Diagram {
         }
         let measure = &session.measure.as_ref().expect("made above").measure;
         let prepared = pele_core::prepare(source, ParseOptions::default()).map_err(ViewError::Core)?;
+        // pele-core draws more kinds than this crate lowers. Until a kind's Scene is drawn
+        // natively here, the view treats it as it treats a kind with no port.
+        if prepared.kind() != pele_core::DiagramKind::Pie {
+            return Err(ViewError::Core(RenderError::NotPorted));
+        }
         let scene = prepared.scene(NativeInputs { measure, options }).map_err(ViewError::Core)?;
         let drawing = Drawing::new(&scene, &mut measure.baselines(), scale).map_err(ViewError::Geometry)?;
         session.stats.layouts += 1;
