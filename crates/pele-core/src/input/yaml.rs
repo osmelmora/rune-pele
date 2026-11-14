@@ -748,7 +748,7 @@ fn block(r: &mut Reader, min_indent: usize, depth: usize) -> Result<JsValue, Yam
 }
 
 /// Pele's `parseYaml`. The error is the message Pele's reader throws.
-pub(super) fn parse_yaml(src: &[u16]) -> Result<JsValue, String> {
+pub(crate) fn parse_yaml(src: &[u16]) -> Result<JsValue, String> {
     let trimmed = src.trim_js();
     if is(trimmed.at(0), b'{') || is(trimmed.at(0), b'[') {
         let (value, end) = flow(trimmed, 0, b"", 0).map_err(YamlError::message)?;

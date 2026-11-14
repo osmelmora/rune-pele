@@ -4,6 +4,8 @@
 //! Pele's regular expressions are written out as scanners over UTF-16 code units. Each one names
 //! the pattern it answers for.
 
+#[allow(dead_code, reason = "the flowchart db is the first caller")]
+pub(crate) mod url;
 mod yaml;
 
 use crate::js;
@@ -173,6 +175,25 @@ impl Units for [u16] {
     fn units(&self) -> &[u16] {
         self
     }
+}
+
+#[allow(dead_code, reason = "the flowchart db is the first caller")]
+/// `toLowerCase`: each run of well-formed text lowercased with its context, lone surrogates kept.
+pub(crate) fn to_lowercase(text: &[u16]) -> Vec<u16> {
+    let mut out = Vec::with_capacity(text.len());
+    let mut run = String::new();
+    for item in char::decode_utf16(text.iter().copied()) {
+        match item {
+            Ok(c) => run.push(c),
+            Err(lone) => {
+                out.extend(run.to_lowercase().encode_utf16());
+                run.clear();
+                out.push(lone.unpaired_surrogate());
+            }
+        }
+    }
+    out.extend(run.to_lowercase().encode_utf16());
+    out
 }
 
 /// `text.split(separator)` for a one-unit separator.
