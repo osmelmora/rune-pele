@@ -116,3 +116,19 @@ When wave 1 merges, the porting cost (lines, hours and findings) is re-estimated
 - **Measured.** 14,323 inputs (harvested, Pele's mutation runs, seeded random, hand-written, and edge limits) gave 0 differences in model JSON. Every rejection matches Pele's message, code, line, column and snippet. 278 harvested inputs with lone surrogates are out of reach of `&str`.
 - **Size measured.** Pele's front end is 2,661 TS lines, and the Rust port is 3,402 lines plus 726 lines of JSON view and URL policy.
 - **Decision.** Keep the `url` crate (WHATWG) for Pele's `new URL`. 91 of 91 URLs in the unit test match Node, and so does every click URL in the corpus. Unusual hostnames could still differ (inferred). Add any such case to the URL test when one is found.
+
+## 2026-11-14 Compound layout merged, bit-identical to Pele
+
+`flow-layout` was fast-forwarded at `b4e956c`. The parent reran `layout_replay`, `flowchart_front`, `mise run check` and the doctor, all green.
+
+- **Recorded calls (measured).** The oracle recorded every real layout call Pele makes over 13,301 sources (each once as written and once at `maxWidth` 320). After dedupe that is 1,810 distinct calls across agentflow, class, er, flowchart, requirement, state, swimlane and usecase. 1,810 of 1,810 replay double for double.
+- **Live random graphs (measured).** 1,872 random graphs in the default run and 31,200 in the long run, plus 12 edge-case graphs and 400 `wrapComponents` calls, all identical. Mantissa-filling sizes were needed for the tests to catch reordered sums.
+- **No trig in layout.** `Math.hypot` follows V8's algorithm (`layout/num.rs`), not libm's.
+- **Speed (measured, release).** On the largest recorded graph, 41 µs in Rust against 53 µs in Node.
+- **Known detection gap (inferred).** Reordering `shift[w] + otherDx - ownDx` is not caught by any current test. Catching it needs aligned chains of three or more nodes with fractional offsets.
+
+Decisions on the worker's questions:
+
+- `pele_core::layout` is `#[doc(hidden)] pub` so integration tests can reach it, the same convention as `flowchart_front_json`. Accepted.
+- The esbuild tap in `harness/build.mjs` routes Pele's layout functions through a recorder in the oracle bundle only. Accepted. The cost is one global check per call, in the oracle only.
+- The worker's rebase resolution of `harness/oracle.ts` (both blocks kept) was checked by rerunning both tests.
