@@ -3,8 +3,10 @@
 mod catalog;
 mod input;
 pub mod js;
+mod measure;
 
 pub use catalog::{DiagramKind, MermaidType};
+pub use measure::{Font, FontFamily, FontWeight, TextMeasure, TextMeasurer, TextRef, Typography};
 
 /// A diagram rendered to SVG.
 #[derive(Debug, Clone, PartialEq)]
