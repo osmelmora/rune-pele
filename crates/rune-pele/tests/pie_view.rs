@@ -447,14 +447,34 @@ fn as_a_page_reads(svg: &str) -> String {
     out
 }
 
-fn rasterise(svg: &str, scale: f32) -> Pixels {
-    let mut options = resvg::usvg::Options { font_family: "Arial".to_owned(), ..Default::default() };
-    let fonts = options.fontdb_mut();
-    for face in ["Arial.ttf", "Arial Bold.ttf"] {
-        let path = format!("/System/Library/Fonts/Supplemental/{face}");
-        fonts.load_font_data(std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}")));
+/// Arial, whose metrics Pele lays out with, or a font with the same metrics: the regular and
+/// bold faces. `RUNE_PELE_RESVG_FONT` names another regular face, which then draws bold too.
+fn arial() -> Vec<String> {
+    if let Some(path) = std::env::var_os("RUNE_PELE_RESVG_FONT") {
+        return vec![path.to_string_lossy().into_owned()];
     }
-    fonts.set_sans_serif_family("Arial");
+    let candidates = [
+        ["/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf"],
+        ["C:\\Windows\\Fonts\\arial.ttf", "C:\\Windows\\Fonts\\arialbd.ttf"],
+        [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ],
+    ];
+    let found = candidates.iter().find(|faces| faces.iter().all(|face| std::path::Path::new(face).exists()));
+    let faces = found.expect("an Arial-compatible font, or RUNE_PELE_RESVG_FONT naming one, such as Rune's Inter");
+    faces.iter().map(|face| (*face).to_owned()).collect()
+}
+
+fn rasterise(svg: &str, scale: f32) -> Pixels {
+    let mut options = resvg::usvg::Options::default();
+    let fonts = options.fontdb_mut();
+    for face in arial() {
+        fonts.load_font_data(std::fs::read(&face).unwrap_or_else(|e| panic!("{face}: {e}")));
+    }
+    let family = fonts.faces().next().expect("a face").families[0].0.clone();
+    fonts.set_sans_serif_family(&family);
+    options.font_family = family;
     let tree = resvg::usvg::Tree::from_str(svg, &options).expect("Pele's SVG parses");
     let size = tree.size();
     let (width, height) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
@@ -486,10 +506,11 @@ fn pele_svg_through_resvg_draws_the_same_slice_areas() {
     let parity = parity.scene();
     let paints = parity.resolve_paints(Palette::pele().core(), false);
     let capturer = Capturer::new();
-    let mut report = String::from(
-        "Pele's SVG through resvg 0.45 with Arial, CSS variables resolved as a page without CSS of its own does;\n\
-         rune-pele through Rune with Inter. Palette: Pele's own.\n\
+    let mut report = format!(
+        "Pele's SVG through resvg 0.45 in {:?}, with CSS variables resolved as a page without CSS of its own does;\n\
+         rune-pele through Rune in Inter. Palette: Pele's own.\n\
          scale slice  rune_px  resvg_px  shown_px  rune-resvg\n",
+        arial()
     );
     for scale in [1.0f64, 2.0] {
         let theirs = rasterise(&as_a_page_reads(svg), scale as f32);
