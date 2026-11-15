@@ -13,9 +13,12 @@ use crate::{DiagramKind, RenderError, js};
 use indexmap::IndexMap;
 use std::sync::LazyLock;
 
+mod glyph;
 mod palette;
 mod style;
 mod walk;
+
+pub use glyph::IconGlyph;
 
 pub(crate) use palette::PELE_SERIES;
 pub use palette::{Palette, ResolvedPaints, Rgba};
@@ -667,6 +670,13 @@ pub(crate) enum PathStep {
     VerticalBy(Number),
     /// Pele's lowercase `z`, which closes the subpath as `Z` does.
     CloseBy,
+    /// [`PathStep::Arc`] with its two flags written as one pair, `0 1,1`, as cynefin's ellipse is.
+    PairedArc {
+        radii: [Number; 2],
+        large: bool,
+        sweep: bool,
+        end: [Number; 2],
+    },
 }
 
 impl PathProgram {
@@ -723,6 +733,11 @@ impl PathProgram {
 
     pub(crate) fn t_by(self, x: Number, y: Number) -> Self {
         self.then(PathStep::SmoothQuadBy([x, y]))
+    }
+
+    /// An arc whose flags are written as one pair.
+    pub(crate) fn a_paired(self, radii: [Number; 2], large: bool, sweep: bool, end: [Number; 2]) -> Self {
+        self.then(PathStep::PairedArc { radii, large, sweep, end })
     }
 
     /// An arc that ends `end` away from where it starts.
@@ -873,12 +888,14 @@ pub(crate) enum NodeContent {
         height: Number,
         aspect: Aspect,
     },
-    /// The box of an icon the host draws. In parity mode no host does, so the box is empty.
+    /// The box of an icon the host draws. In parity mode no host does, so the box is empty, or
+    /// holds the glyph Pele draws for the name itself.
     Icon {
         name: JsText,
         x: Number,
         y: Number,
         size: Number,
+        glyph: Option<IconGlyph>,
     },
     /// The tooltip of the node's entity, at the place Pele writes it.
     Tooltip,
@@ -909,6 +926,8 @@ pub(crate) struct Properties {
     pub(crate) join: Option<LineJoin>,
     /// Whether the pointer passes through to what is underneath.
     pub(crate) untouchable: bool,
+    /// Whether the node draws its stroke solid, though the group around it dashes it.
+    pub(crate) undashed: bool,
     /// How opaque a group is as a whole, written as an attribute.
     pub(crate) opacity: Option<Number>,
     pub(crate) font_size: Option<Number>,
@@ -1697,7 +1716,28 @@ impl SceneBuilder {
         let attributes = Attributes::of(part, Facet::Shape)
             .set(Field::Class, |p| p.class = Some("pele-icon".to_owned()))
             .geometry(&[Icon, X, Y, Width, Height]);
-        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size });
+        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size, glyph: None });
+    }
+
+    /// [`SceneBuilder::icon`] with the glyph Pele draws in the box where no host draws the icon.
+    pub(crate) fn icon_with(
+        &mut self,
+        part: PartId,
+        name: &JsText,
+        origin: [Number; 2],
+        size: Number,
+        glyph: Option<IconGlyph>,
+    ) {
+        self.icon(part, name, origin, size);
+        if let Some(Node { content: NodeContent::Icon { glyph: slot, .. }, .. }) = self.arena.last_mut() {
+            *slot = glyph;
+        }
+    }
+
+    /// The root's font size, for a type whose config can set its own in place of the host's.
+    pub(crate) fn root_font_size(mut self, size: f64) -> Self {
+        self.document.font_size = size;
+        self
     }
 
     /// A picture from an address the host's policy has passed.
@@ -1751,7 +1791,7 @@ impl SceneBuilder {
         if shared.bold && attributes.properties.weight.is_none() {
             attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
         }
-        if shared.italic {
+        if shared.italic && !attributes.emission.contains(&Field::FontStyle) {
             attributes.emission.push(Field::FontStyle);
         }
         if shared.mono {
@@ -1991,6 +2031,13 @@ impl<'a> ElementStart<'a> {
         self.shape(content, fields)
     }
 
+    /// A rectangle whose top is its group's origin, written without a `y`.
+    pub(crate) fn rect_from_top(self, x: Number, size: [Number; 2]) -> ShapeElement<'a> {
+        let content = NodeContent::Rect { x, y: Number::raw(0.0), width: size[0], height: size[1], rx: None };
+        use GeometryField::{Height, Width, X};
+        self.shape(content, &[X, Width, Height])
+    }
+
     /// A rectangle whose attributes are written x, width, y, height, as a row of an ER entity's
     /// table is.
     pub(crate) fn row_rect(self, origin: [Number; 2], size: [Number; 2]) -> ShapeElement<'a> {
@@ -2181,6 +2228,15 @@ impl ShapeElement<'_> {
     /// Dashes and the gaps between them, in turn.
     pub(crate) fn dash(self, pattern: &[Number]) -> Self {
         self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
+    }
+
+    /// A solid stroke inside a group that dashes its strokes: `stroke-dasharray="none"`.
+    pub(crate) fn undashed(self) -> Self {
+        self.with(Field::DashArray, |p| p.undashed = true)
+    }
+
+    pub(crate) fn cap(self, cap: LineCap) -> Self {
+        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
     }
 
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {

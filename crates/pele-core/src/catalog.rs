@@ -231,7 +231,11 @@ diagram_catalog! {
         ],
     },
     Mindmap => { name: "mindmap", detectors: [(1, "mindmap", starts(&["mindmap"]))] },
-    Architecture => { name: "architecture", detectors: [(2, "architecture", starts(&["architecture"]))] },
+    Architecture => {
+        name: "architecture",
+        port: { diagram: diagrams::architecture::Architecture, section: "architecture", palette: PaletteRule::None },
+        detectors: [(2, "architecture", starts(&["architecture"]))],
+    },
     Agentflow => {
         name: "agentflow",
         port: { diagram: diagrams::agentflow::Agentflow, section: "agentflow", palette: PaletteRule::None },
@@ -319,7 +323,11 @@ diagram_catalog! {
     },
     Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
-    Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },
+    Cynefin => {
+        name: "cynefin",
+        port: { diagram: diagrams::cynefin::Cynefin, section: "cynefin", palette: PaletteRule::None },
+        detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))],
+    },
     Usecase => {
         name: "usecase",
         port: { diagram: diagrams::usecase::Usecase, section: "usecase", palette: PaletteRule::None },

@@ -25,6 +25,8 @@ pub mod svg;
 
 pub use catalog::{DiagramKind, MermaidType};
 #[doc(hidden)]
+pub use diagrams::architecture::probe as architecture_probe;
+#[doc(hidden)]
 pub use diagrams::c4::probe as c4_probe;
 #[doc(hidden)]
 pub use diagrams::info::front_json as info_front_json;
@@ -561,6 +563,34 @@ pub fn gantt_front_json(source: &str, options: ParseOptions, now: f64) -> Result
     let model =
         diagrams::gantt::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::gantt::json::front_json(&model, now))
+}
+
+/// The architecture front end's model as JSON, in the words of the oracle's `architecture_front`
+/// op, for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn architecture_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Architecture {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::architecture::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::architecture::json::front_json(&model))
+}
+
+/// The cynefin front end's model as JSON, in the words of the oracle's `cynefin_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn cynefin_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Cynefin {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::cynefin::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::cynefin::json::front_json(&model))
 }
 
 impl Prepared {

@@ -8,9 +8,9 @@
 
 use super::style::{Meaning, Radius, Style};
 use super::{
-    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, LineCap, LineJoin, Node, NodeContent,
-    NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene, Size,
-    TextEmission, TextWeight, Transform,
+    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, IconGlyph, LineCap, LineJoin, Node,
+    NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene,
+    Size, TextEmission, TextWeight, Transform,
 };
 use crate::measure::{Emphasis, Font, FontFamily, FontWeight, Label, SMALLER, Script};
 use std::collections::HashMap;
@@ -131,6 +131,8 @@ pub enum Geometry {
         name: String,
         origin: Point,
         size: Size,
+        /// What Pele draws in the box itself where no host draws the icon.
+        glyph: Option<IconGlyph>,
     },
 }
 
@@ -355,6 +357,8 @@ impl Inherited {
         self.stroke_opacity = styled.stroke_opacity.unwrap_or(self.stroke_opacity);
         if let Some(dash) = &styled.dash {
             self.dash = dash.clone();
+        } else if properties.undashed {
+            self.dash = Vec::new();
         } else if !properties.dash.is_empty() {
             self.dash = properties.dash.iter().map(Number::effective).collect();
         }
@@ -460,13 +464,15 @@ impl PathProgram {
                     mirrored = Some(at(control));
                     PathCommand::Quad { control: at(control), end: at(end) }
                 }
-                PathStep::Arc { radii, large, sweep, end } => PathCommand::Arc {
-                    rx: radii[0].effective(),
-                    ry: radii[1].effective(),
-                    large: *large,
-                    sweep: *sweep,
-                    end: at(end),
-                },
+                PathStep::Arc { radii, large, sweep, end } | PathStep::PairedArc { radii, large, sweep, end } => {
+                    PathCommand::Arc {
+                        rx: radii[0].effective(),
+                        ry: radii[1].effective(),
+                        large: *large,
+                        sweep: *sweep,
+                        end: at(end),
+                    }
+                }
                 PathStep::Close => PathCommand::Close,
                 PathStep::LineBy(to) => PathCommand::Line(by(here, to)),
                 PathStep::HorizontalBy(x) => PathCommand::Line(Point { x: here.x + x.effective(), y: here.y }),
@@ -633,11 +639,12 @@ impl Scene {
                 };
                 shape(out, geometry);
             }
-            NodeContent::Icon { name, x, y, size } => {
+            NodeContent::Icon { name, x, y, size, glyph } => {
                 let geometry = Geometry::Icon {
                     name: drawable(&crate::input::decode_entities(name)),
                     origin: Point { x: x.effective(), y: y.effective() },
                     size: Size { width: size.effective(), height: size.effective() },
+                    glyph: *glyph,
                 };
                 shape(out, geometry);
             }

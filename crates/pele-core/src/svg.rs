@@ -141,6 +141,13 @@ pub(crate) fn write_path(path: &PathProgram, out: &mut String) {
                 y.write(out);
             }
             PathStep::CloseBy => out.push('z'),
+            PathStep::PairedArc { radii, large, sweep, end } => {
+                out.push('A');
+                write_pair(radii, out);
+                out.push_str(if *large { " 0 1," } else { " 0 0," });
+                out.push_str(if *sweep { "1 " } else { "0 " });
+                write_pair(end, out);
+            }
         }
     }
 }
@@ -263,6 +270,7 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
         Field::FillOpacity => number("fill-opacity", properties.fill_opacity.as_ref(), out),
         Field::Opacity => number("opacity", properties.opacity.as_ref(), out),
         Field::StrokeWidth => number("stroke-width", properties.stroke_width.as_ref(), out),
+        Field::DashArray if properties.undashed => out.push_str(" stroke-dasharray=\"none\""),
         Field::DashArray => write_attribute("stroke-dasharray", out, |out| {
             for (index, length) in properties.dash.iter().enumerate() {
                 if index > 0 {
@@ -466,9 +474,15 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
             out.push('>');
         }
         NodeContent::Text(text) => write_text(scene, text, out),
-        NodeContent::Icon { .. } => {
+        NodeContent::Icon { glyph, .. } => {
             out.push_str(ICON_FRAME);
-            out.push_str("></svg>");
+            out.push('>');
+            if let Some(glyph) = glyph {
+                out.push_str("<path d=\"");
+                out.push_str(glyph.path_data());
+                out.push_str("\" stroke=\"var(--_fg)\" stroke-width=\"1.5\"/>");
+            }
+            out.push_str("</svg>");
         }
         NodeContent::Tooltip => {
             out.push('>');
