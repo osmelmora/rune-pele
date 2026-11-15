@@ -16,7 +16,7 @@ use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewError, ViewOpti
 
 const RUN: &str = "pie-rune";
 const PETS: &str = include_str!("../../../tests/fixtures/pie-pets.mmd");
-const SEQUENCE: &str = include_str!("../../../tests/fixtures/sequence.mmd");
+const NOT_PORTED: &str = include_str!("../../../tests/fixtures/not-ported.mmd");
 const VIEWPORT: (f32, f32) = (480.0, 400.0);
 
 struct Viewer {
@@ -407,11 +407,11 @@ fn keys_follow_what_is_drawn_not_the_id_prefix_or_the_values() {
 #[test]
 fn only_a_type_pele_core_has_not_ported_falls_back_to_rune_mermaid() {
     let capturer = Capturer::new();
-    let mut sequence = window(&capturer, SEQUENCE, Palette::pele(), 1.0);
-    sequence.capture();
-    assert_eq!(*sequence.state().error.borrow(), None);
-    assert_eq!(sequence.state().diagram.status(), RenderStatus::RuneMermaid);
-    assert_eq!(sequence.state().diagram.fallback(), Some(rune_pele::Fallback::NotPorted));
+    let mut unported = window(&capturer, NOT_PORTED, Palette::pele(), 1.0);
+    unported.capture();
+    assert_eq!(*unported.state().error.borrow(), None);
+    assert_eq!(unported.state().diagram.status(), RenderStatus::RuneMermaid);
+    assert_eq!(unported.state().diagram.fallback(), Some(rune_pele::Fallback::NotPorted));
 
     let mut bad = window(&capturer, "pie\n \"a\" 1", Palette::pele(), 1.0);
     bad.capture();

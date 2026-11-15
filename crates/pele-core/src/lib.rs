@@ -480,6 +480,20 @@ pub fn er_front_json(source: &str, options: ParseOptions) -> Result<String, Rend
     Ok(diagrams::er::json::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
+/// The sequence front end's model as JSON, in the words of the oracle's `sequence_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn sequence_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Sequence {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::sequence::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::sequence::json::front_json(&model, front.found.mermaid.name()))
+}
+
 /// The agentflow front end's model, graph and semantic model as JSON, in the words of the
 /// oracle's `agentflow_front` op, for the differential test. A source of another type answers
 /// only that type.

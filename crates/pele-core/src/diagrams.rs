@@ -10,6 +10,7 @@ pub(crate) mod outline;
 pub(crate) mod pie;
 pub(crate) mod requirement;
 pub(crate) mod scan;
+pub(crate) mod sequence;
 pub(crate) mod state;
 pub(crate) mod swimlane;
 pub(crate) mod tokens;
