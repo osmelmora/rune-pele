@@ -6,6 +6,7 @@ pub(crate) mod c4;
 pub(crate) mod class;
 pub(crate) mod er;
 pub(crate) mod flowchart;
+pub(crate) mod info;
 pub(crate) mod outline;
 pub(crate) mod pie;
 pub(crate) mod railroad;

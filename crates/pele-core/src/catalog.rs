@@ -254,7 +254,11 @@ diagram_catalog! {
         detectors: [(7, "er", starts(&["erDiagram"]))],
     },
     Gantt => { name: "gantt", detectors: [(8, "gantt", starts(&["gantt"]))] },
-    Info => { name: "info", detectors: [(9, "info", starts(&["info"]))] },
+    Info => {
+        name: "info",
+        port: { diagram: diagrams::info::Info, section: "info", palette: PaletteRule::None },
+        detectors: [(9, "info", starts(&["info"]))],
+    },
     Pie => {
         name: "pie",
         port: { diagram: diagrams::pie::Pie, section: "pie", palette: PaletteRule::Slots("pie", 1) },
