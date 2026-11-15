@@ -160,15 +160,18 @@ struct Bar {
     inside: bool,
 }
 
-/// Each task's entity, ranked among the tasks with the same id.
+/// Each task's entity: the id the author gave it, or else its trimmed label, which unlike the number
+/// Pele gives it stays put when a task is added before it. A task is ranked among those keyed
+/// by the same text, whichever way, so no two share a key.
 fn task_parts(out: &mut SceneBuilder, model: &GanttModel) -> Vec<PartId> {
-    let mut seen: HashMap<&JsText, u32> = HashMap::new();
+    let mut seen: HashMap<JsText, u32> = HashMap::new();
     model
         .tasks
         .iter()
         .map(|task| {
-            let rank = seen.entry(&task.id).or_default();
-            let part = out.part(Entity::node(&task.id).ranked(*rank));
+            let name: JsText = if task.own_id { task.id.clone() } else { task.task.trim_js().into() };
+            let rank = seen.entry(name.clone()).or_default();
+            let part = out.part(Entity::node_written_as(&name, &task.id).ranked(*rank));
             *rank += 1;
             part
         })

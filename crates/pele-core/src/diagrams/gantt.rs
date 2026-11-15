@@ -44,6 +44,8 @@ pub(crate) struct Raw {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Task {
     pub(crate) id: JsText,
+    /// Whether the author gave the id. Otherwise Pele numbers the task.
+    pub(crate) own_id: bool,
     /// The task's label, under the name Mermaid gives it.
     pub(crate) task: JsText,
     pub(crate) section: JsText,

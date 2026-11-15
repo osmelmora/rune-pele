@@ -165,6 +165,7 @@ impl GanttDb {
         });
         let task = Task {
             id: id.clone(),
+            own_id: data.len() == 3,
             task: descr.into(),
             section: self.current_section.clone(),
             tags,
