@@ -1,0 +1,14 @@
+usecase-beta
+direction LR
+actor Customer
+actor Clerk <<staff>>
+systemBoundary Shop[The shop]
+  Browse(Browse the catalogue)
+  Order(Place an order)
+  Pay(Pay)
+end
+Customer --> Browse
+Customer --> Order
+Order ..> : include Pay
+Clerk --> Order
+note for Pay "Cards only"

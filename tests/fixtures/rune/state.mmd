@@ -1,0 +1,21 @@
+stateDiagram-v2
+    direction TB
+    [*] --> Idle
+    Idle --> Running : start
+    state Running {
+        [*] --> Loading
+        Loading --> Ready : loaded
+        Ready --> Loading : reload
+        --
+        [*] --> Listening
+        Listening --> Listening : event
+    }
+    Running --> Failed : error
+    Running --> [*] : stop
+    state check <<choice>>
+    Failed --> check
+    check --> Idle : retry
+    check --> [*] : give up
+    note right of Failed : Keeps the last error
+    classDef bad fill:#fde,stroke:#c00
+    class Failed bad

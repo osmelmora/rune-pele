@@ -2247,6 +2247,7 @@ dependencies = [
  "resvg",
  "rune",
  "rune-mermaid",
+ "serde_json",
 ]
 
 [[package]]

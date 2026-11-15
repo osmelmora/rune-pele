@@ -1,0 +1,20 @@
+requirementDiagram
+    requirement uptime {
+        id: 1
+        text: The service answers 99.9% of requests
+        risk: high
+        verifymethod: test
+    }
+    functionalRequirement failover {
+        id: 1.1
+        text: A standby takes over within a minute
+        risk: medium
+        verifymethod: demonstration
+    }
+    element monitor {
+        type: service
+        docref: ops/monitor.md
+    }
+    uptime - contains -> failover
+    monitor - verifies -> uptime
+    monitor - satisfies -> failover

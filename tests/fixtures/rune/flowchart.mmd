@@ -1,0 +1,16 @@
+flowchart TD
+    subgraph Build [Build and test]
+        A[Checkout] --> B{Cached?}
+        B -->|yes| C([Restore])
+        B -.->|no| D[(Install)]
+        C --> E[[Compile]]
+        D ==> E
+    end
+    E --> F((Test))
+    F -- fails --x G>Report]
+    F --> H[/Package/]
+    H --> I{{Publish}}
+    click A "https://example.com/checkout" "Fetch the sources" _blank
+    click I "https://example.com/releases" "Where releases go"
+    style F fill:#036,stroke:#f96,stroke-width:2px
+    linkStyle 2 stroke:#c00
