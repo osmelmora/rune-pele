@@ -2,16 +2,20 @@
 //! statements, the db builds them into a tree of blocks, `layout` places that tree on nested
 //! grids, and `render` draws it with its edges and block arrows.
 
+mod arrows;
 mod db;
 pub(crate) mod json;
 pub mod layout;
 mod lexer;
 mod parser;
+mod render;
 
 use crate::RenderError;
 use crate::catalog::ParseContext;
 use crate::input::JsText;
 use indexmap::IndexMap;
+
+pub(crate) use render::Block;
 
 /// Pele's `typeStr2Type`, and the kinds a statement list holds besides nodes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

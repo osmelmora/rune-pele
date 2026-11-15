@@ -281,7 +281,11 @@ diagram_catalog! {
     Sankey => { name: "sankey", detectors: [(20, "sankey", starts(&["sankey"]))] },
     Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },
     Xychart => { name: "xychart", detectors: [(22, "xychart", starts(&["xychart"]))] },
-    Block => { name: "block", detectors: [(23, "block", starts(&["block"]))] },
+    Block => {
+        name: "block",
+        port: { diagram: diagrams::block::Block, section: "block", palette: PaletteRule::None },
+        detectors: [(23, "block", starts(&["block"]))],
+    },
     Eventmodeling => { name: "eventmodeling", detectors: [(24, "eventmodeling", starts(&["eventmodeling"]))] },
     TreeView => { name: "treeView", detectors: [(25, "treeView", starts(&["treeView-beta"]))] },
     Radar => { name: "radar", detectors: [(26, "radar", starts(&["radar-beta"]))] },

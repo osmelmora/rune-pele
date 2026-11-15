@@ -511,6 +511,12 @@ fn sample(path: &PathProgram) -> Vec<f64> {
             }
             PathStep::Quad([handle, end]) => (at(handle), None, at(end)),
             PathStep::Cubic([first, second, end]) => (at(first), Some(at(second)), at(end)),
+            PathStep::Arc { radii, large, sweep, end } => {
+                let [x2, y2] = at(end);
+                arc(&mut out, [x, y], [radii[0].effective(), radii[1].effective()], *large == *sweep, *sweep, [x2, y2]);
+                (x, y) = (x2, y2);
+                continue;
+            }
             other => unreachable!("an edge's path holds no {other:?}"),
         };
         let cubic = second.is_some();
@@ -538,6 +544,42 @@ fn sample(path: &PathProgram) -> Vec<f64> {
         (x, y) = (x3, y3);
     }
     out
+}
+
+/// Pele's `arc`: an unrotated arc from `from` to `to` as eight straight pieces, after SVG's
+/// conversion from end points to a centre. `same` is whether its large-arc and sweep flags agree.
+/// `Math.atan2` comes from libm, as `js::sin` and `js::cos` do.
+fn arc(out: &mut Vec<f64>, from: [f64; 2], radii: [f64; 2], same: bool, sweep: bool, to: [f64; 2]) {
+    let [x1, y1] = from;
+    let [mut rx, mut ry] = radii;
+    let [x2, y2] = to;
+    let hx = (x1 - x2) / 2.0;
+    let hy = (y1 - y2) / 2.0;
+    if rx == 0.0 || ry == 0.0 || (hx == 0.0 && hy == 0.0) {
+        out.extend([x2, y2]);
+        return;
+    }
+    let scale = js::max(1.0, ((hx * hx) / (rx * rx) + (hy * hy) / (ry * ry)).sqrt());
+    rx *= scale;
+    ry *= scale;
+    let root = js::max(
+        0.0,
+        (rx * rx * ry * ry - rx * rx * hy * hy - ry * ry * hx * hx) / (rx * rx * hy * hy + ry * ry * hx * hx),
+    );
+    let k = (if same { -1.0 } else { 1.0 }) * root.sqrt();
+    let cx = (k * rx * hy) / ry + (x1 + x2) / 2.0;
+    let cy = (-k * ry * hx) / rx + (y1 + y2) / 2.0;
+    let start = libm::atan2((y1 - cy) / ry, (x1 - cx) / rx);
+    let mut turn = libm::atan2((y2 - cy) / ry, (x2 - cx) / rx) - start;
+    if sweep && turn < 0.0 {
+        turn += 2.0 * std::f64::consts::PI;
+    } else if !sweep && turn > 0.0 {
+        turn -= 2.0 * std::f64::consts::PI;
+    }
+    for i in 1..=8 {
+        let angle = start + (turn * f64::from(i)) / 8.0;
+        out.extend([cx + rx * js::cos(angle), cy + ry * js::sin(angle)]);
+    }
 }
 
 /// Whether a segment from (x, y) by (dx, dy) overlaps a box, by Liang-Barsky clipping.
