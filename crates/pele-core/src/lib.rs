@@ -16,6 +16,10 @@ pub mod layout;
 // the API.
 #[doc(hidden)]
 pub use diagrams::block::layout as block_layout;
+// Public so that `tests/xychart_ticks.rs` can hold it to Pele bit for bit, and hidden because it
+// is no part of the API.
+#[doc(hidden)]
+pub use diagrams::xychart::ticks as xychart_ticks;
 mod measure;
 pub mod scene;
 pub mod svg;

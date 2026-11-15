@@ -402,6 +402,8 @@ import { sequenceOps } from './sequence.ts';
 Object.assign(ops, sequenceOps);
 import { wardleyOps } from './wardley.ts';
 Object.assign(ops, wardleyOps);
+import { xychartOps } from './xychart.ts';
+Object.assign(ops, xychartOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
