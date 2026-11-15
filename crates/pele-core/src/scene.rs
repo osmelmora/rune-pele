@@ -727,6 +727,10 @@ impl PathProgram {
         self.then(PathStep::HorizontalBy(x))
     }
 
+    pub(crate) fn v_by(self, y: Number) -> Self {
+        self.then(PathStep::VerticalBy(y))
+    }
+
     pub(crate) fn q_by(self, handle: [Number; 2], end: [Number; 2]) -> Self {
         self.then(PathStep::QuadBy([handle, end]))
     }
@@ -936,6 +940,9 @@ pub(crate) struct Properties {
     pub(crate) style: Option<Style>,
     /// Whether the text inside is set in the monospace font.
     pub(crate) mono: bool,
+    /// Whether a shape holds its entity's tooltip as a child, as Pele writes
+    /// `<circle …><title>…</title></circle>`.
+    pub(crate) tooltip_inside: bool,
 }
 
 /// A reference to one value of a node, in the order Pele writes its attributes.
@@ -1016,7 +1023,7 @@ pub struct EntityKey {
 pub enum EntityKind {
     /// The diagram as a whole, which owns its title and what belongs to no other entity.
     Diagram,
-    /// A pie section, named by its label.
+    /// A pie section or another series a legend names, such as a journey's actor, named by its label.
     Section,
     Node,
     /// A group of nodes, such as a flowchart's subgraph.
@@ -1073,6 +1080,12 @@ impl Entity {
     fn named(kind: EntityKind, name: &JsText) -> Self {
         let key = EntityKey { kind, name: EntityName::Named(name.to_vec()), duplicate: 0 };
         Entity { key, author_text: name.clone(), tooltip: None, tooltip_decoded: false }
+    }
+
+    /// A series that a legend names, such as a journey's actor. It is the kind of a pie's
+    /// section, whose label is its identity.
+    pub(crate) fn series(label: &JsText) -> Self {
+        Entity::named(EntityKind::Section, label)
     }
 
     /// A tooltip the diagram has already turned into text, as treemap's path of section names
@@ -2271,6 +2284,13 @@ impl ShapeElement<'_> {
 
     pub(crate) fn look(mut self, look: Look) -> Self {
         self.attributes = self.attributes.look(look);
+        self
+    }
+
+    /// Holds the tooltip of the shape's entity inside the shape, as Pele writes a journey's actor
+    /// dot: `<circle …><title>…</title></circle>`.
+    pub(crate) fn tooltip_inside(mut self) -> Self {
+        self.attributes.properties.tooltip_inside = true;
         self
     }
 

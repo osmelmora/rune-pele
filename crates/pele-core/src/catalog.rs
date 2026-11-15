@@ -298,7 +298,11 @@ diagram_catalog! {
         port: { diagram: diagrams::state::State, section: "state", palette: PaletteRule::None },
         detectors: [(17, "stateDiagram", starts(&["stateDiagram"]))],
     },
-    Journey => { name: "journey", detectors: [(18, "journey", starts(&["journey"]))] },
+    Journey => {
+        name: "journey",
+        port: { diagram: diagrams::journey::Journey, section: "journey", palette: PaletteRule::None },
+        detectors: [(18, "journey", starts(&["journey"]))],
+    },
     QuadrantChart => { name: "quadrantChart", detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))] },
     Sankey => { name: "sankey", detectors: [(20, "sankey", starts(&["sankey"]))] },
     Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },

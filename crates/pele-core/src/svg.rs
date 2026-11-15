@@ -494,7 +494,17 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
         | NodeContent::Circle { .. }
         | NodeContent::Ellipse { .. }
         | NodeContent::Polygon(_)
-        | NodeContent::Image { .. } => out.push_str("/>"),
+        | NodeContent::Image { .. } => {
+            if node.properties.tooltip_inside {
+                out.push_str("><title>");
+                write_tooltip_text(scene, node, out);
+                out.push_str("</title></");
+                out.push_str(tag);
+                out.push('>');
+            } else {
+                out.push_str("/>");
+            }
+        }
     }
 }
 

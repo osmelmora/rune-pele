@@ -561,12 +561,32 @@ impl Scene {
             let detail = if *drawn == 0 { FragmentDetail::Whole } else { FragmentDetail::Piece(*drawn) };
             *drawn += 1;
             let key = FragmentKey { part, detail };
+            // A shape that holds its tooltip is a group of its own, for an interpreter that hangs
+            // tooltips on groups.
+            let tooltip = node.properties.tooltip_inside.then(|| {
+                let text = node.part.and_then(|part| self.entity(part).tooltip_text());
+                text.map(|text| drawable(&text))
+            });
+            if let Some(tooltip) = &tooltip {
+                out.push(PaintVisit::Begin(Group {
+                    part: None,
+                    translate: Point { x: 0.0, y: 0.0 },
+                    rotate: None,
+                    opacity: 1.0,
+                    link: None,
+                    tooltip: tooltip.clone(),
+                    untouchable: false,
+                }));
+            }
             out.push(PaintVisit::Draw(Draw {
                 key,
                 origin: inherited.origin,
                 geometry,
                 style: inherited.style(opacity),
             }));
+            if tooltip.is_some() {
+                out.push(PaintVisit::End);
+            }
         };
         let group = |out: &mut Vec<PaintVisit>, link: Option<LinkRef>, children: &[NodeId]| {
             let (translate, rotate) = match node.properties.transform {

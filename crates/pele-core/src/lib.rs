@@ -627,6 +627,20 @@ pub fn timeline_front_json(source: &str, options: ParseOptions) -> Result<String
     Ok(diagrams::timeline::json::front_json(&model))
 }
 
+/// The journey front end's model as JSON, in the words of the oracle's `journey_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn journey_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Journey {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::journey::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::journey::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
