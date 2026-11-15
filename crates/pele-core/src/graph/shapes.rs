@@ -881,7 +881,9 @@ pub(crate) fn draw_shape(
     (def(shape).unwrap_or(BASE).draw)(&mut Pen { out, part, a, line }, w, h);
 }
 
-fn shape_inset(shape: Shape, w: f64, h: f64, side: i32, t: f64) -> f64 {
+/// Pele's `shapeInset`: how far the outline of `shape`, `w` by `h`, falls short of its bounding box
+/// on `side`, `t` along it from its middle.
+pub(crate) fn shape_inset(shape: Shape, w: f64, h: f64, side: i32, t: f64) -> f64 {
     def(shape).and_then(|def| def.inset).map_or(0.0, |inset| inset(w, h, side, t))
 }
 

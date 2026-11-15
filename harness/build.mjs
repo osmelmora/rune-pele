@@ -56,6 +56,7 @@ const COMMON = {
   'diagrams/common/caseless': ['wordAt'],
   'diagrams/common/outline': ['tokenize', 'parseOutline'],
   'svg/palette': ['palette'],
+  'diagrams/block/layout': ['layout'],
 };
 const peleSrc = resolve(here, '../vendor/pele/src');
 const commonTap = {
