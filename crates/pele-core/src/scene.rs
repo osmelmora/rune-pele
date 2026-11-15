@@ -885,6 +885,12 @@ pub(crate) enum Transform {
         degrees: Number,
         centre: [Number; 2],
     },
+    /// A move to `x`, `y`, then a turn by `degrees` about that point, written as one attribute.
+    TranslateRotate {
+        x: Number,
+        y: Number,
+        degrees: Number,
+    },
 }
 
 /// What a node sets. Each value is stored once; `Node::emission` gives the order they are written in.
@@ -1405,6 +1411,16 @@ impl LayerSpec {
     pub(crate) fn rotate(self, degrees: f64, centre: Point) -> Self {
         let transform =
             Transform::Rotate { degrees: Number::raw(degrees), centre: [Number::num(centre.x), Number::num(centre.y)] };
+        self.with(Field::Transform, |p| p.transform = Some(transform))
+    }
+
+    /// Moves the group's drawing to `point`, then turns it by `degrees` about that point.
+    pub(crate) fn translate_rotate(self, point: Point, degrees: f64) -> Self {
+        let transform = Transform::TranslateRotate {
+            x: Number::num(point.x),
+            y: Number::num(point.y),
+            degrees: Number::raw(degrees),
+        };
         self.with(Field::Transform, |p| p.transform = Some(transform))
     }
 

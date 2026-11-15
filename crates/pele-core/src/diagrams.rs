@@ -8,6 +8,7 @@ pub(crate) mod er;
 pub(crate) mod flowchart;
 pub(crate) mod outline;
 pub(crate) mod pie;
+pub(crate) mod quadrant;
 pub(crate) mod requirement;
 pub(crate) mod scan;
 pub(crate) mod sequence;

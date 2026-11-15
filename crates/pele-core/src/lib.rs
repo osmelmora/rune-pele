@@ -553,6 +553,20 @@ pub fn venn_front_json(source: &str, options: ParseOptions) -> Result<String, Re
     Ok(diagrams::venn::json::front_json(&model))
 }
 
+/// The quadrant chart front end's model as JSON, in the words of the oracle's `quadrant_front`
+/// op, for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn quadrant_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::QuadrantChart {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::quadrant::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::quadrant::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

@@ -243,6 +243,13 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
                 centre[1].write(out);
                 out.push(')');
             }),
+            Some(Transform::TranslateRotate { x, y, degrees }) => write_attribute("transform", out, |out| {
+                out.push_str("translate(");
+                write_pair(&[*x, *y], out);
+                out.push_str(") rotate(");
+                degrees.write(out);
+                out.push(')');
+            }),
             None => {}
         },
         Field::Geometry(geometry) => write_geometry(node, geometry, out),

@@ -341,7 +341,7 @@ impl Inherited {
 
     /// A style declaration wins over the attribute of the same node, as it does in CSS.
     fn within(mut self, properties: &Properties, styled: &Meaning) -> Self {
-        if let Some(Transform::Translate(x, y)) = properties.transform {
+        if let Some(Transform::Translate(x, y) | Transform::TranslateRotate { x, y, .. }) = properties.transform {
             self.origin = Point { x: self.origin.x + x.effective(), y: self.origin.y + y.effective() };
         }
         self.fill = styled.fill.or(properties.fill).unwrap_or(self.fill);
@@ -566,6 +566,10 @@ impl Scene {
                 Some(Transform::Rotate { degrees, centre }) => {
                     let centre = Point { x: centre[0].effective(), y: centre[1].effective() };
                     (Point { x: 0.0, y: 0.0 }, Some(Rotation { degrees: degrees.effective(), centre }))
+                }
+                Some(Transform::TranslateRotate { x, y, degrees }) => {
+                    let to = Point { x: x.effective(), y: y.effective() };
+                    (to, Some(Rotation { degrees: degrees.effective(), centre: to }))
                 }
                 None => (Point { x: 0.0, y: 0.0 }, None),
             };

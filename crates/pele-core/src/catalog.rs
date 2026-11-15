@@ -283,7 +283,11 @@ diagram_catalog! {
         detectors: [(17, "stateDiagram", starts(&["stateDiagram"]))],
     },
     Journey => { name: "journey", detectors: [(18, "journey", starts(&["journey"]))] },
-    QuadrantChart => { name: "quadrantChart", detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))] },
+    QuadrantChart => {
+        name: "quadrantChart",
+        port: { diagram: diagrams::quadrant::Quadrant, section: "quadrantChart", palette: PaletteRule::None },
+        detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))],
+    },
     Sankey => { name: "sankey", detectors: [(20, "sankey", starts(&["sankey"]))] },
     Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },
     Xychart => { name: "xychart", detectors: [(22, "xychart", starts(&["xychart"]))] },
