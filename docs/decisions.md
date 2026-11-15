@@ -289,3 +289,26 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - A relative arc, `PathStep::ArcBy`, sits beside usecase's absolute one.
 
 **Wave 1 total.** Nine types (class, state, er, requirement, usecase, agentflow, swimlane, plus the pilot's flowchart and pie) are byte-identical to Pele. Wave 1 took six worker runs for about 15,000 TS lines, with no run failing parity at merge.
+
+## 2026-11-15 Wave 2 foundation merged: shared helpers
+
+**Result (measured, rerun by the parent after the merge).**
+- `tests/common.rs`: 18 tests, 0 different. Each helper is checked against seeded random inputs and against the inputs Pele's own renders pass it. A new tap records those inputs over 1,656 harvested sources, at default, 320 px and 640 px, and with an icon host.
+- `scripts/break-common.mjs` breaks seven helpers, and every break turns its test red.
+- Corpus unchanged at `522 259 0 263 0`. Every type's front and render tests pass. `mise run check` exits 0.
+
+**What exists now.** Each wave 2 worker reuses these instead of porting its own. Locations and signatures are in "Shared helpers for wave 2" in `.agents/skills/verify-rune-pele/features/parity.md`.
+- Palette rules held by the Scene, with no module-level state as Pele has.
+- `literal_label`, `break_label` and `left_label`.
+- `diagrams/outline.rs`.
+- `diagrams/scan.rs` and `acc_descr_named`.
+- `plain_label`, `fit_label` and `fit_text`.
+- `cap_width`.
+- `titleBefore` and Chevrotain's `longer` alternatives in the tokenizer.
+- `is_letter` and `is_hex`.
+- `Role::Accent` and `Role::Critical`.
+
+**Routing decisions.**
+- Kanban and wardley each write text their own way (`textStyle`, `sharedStyle`, `spanStyle`), and both may need to grow the Scene's text forms. They sit in different waves (2c and 2b), so they never run in parallel.
+- Sankey's `replacements` stays with the sankey worker.
+- `rune-pele` must map `Role::Accent` and `Role::Critical` to app tokens. `rune-graph` branched before these roles existed, so the parent checks that at the `rune-graph` merge.
