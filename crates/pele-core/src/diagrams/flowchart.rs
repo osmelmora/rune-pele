@@ -17,9 +17,9 @@ use indexmap::IndexMap;
 use std::collections::HashMap;
 
 pub(crate) use graph::{FlowGraph, GraphEdge, GraphNode, build_flow_graph};
-pub(crate) use render::Flowchart;
+pub(crate) use render::{FlowVariant, Flowchart, render_flowchart};
 pub(crate) use shapes::Shape;
-use shapes::ShapeName;
+pub(crate) use shapes::ShapeName;
 
 /// How a label's text is read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

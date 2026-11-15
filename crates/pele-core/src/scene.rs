@@ -22,7 +22,7 @@ pub use palette::{Palette, ResolvedPaints, Rgba};
 pub(crate) use style::{AuthorClasses, ResolvedStyle, Style, ink_on, paints, px, resolve_style};
 pub use walk::{
     BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, ImageFit, LinkRef, PaintStyle, PaintVisit,
-    PartKey, PathCommand, StrokeStyle,
+    PartKey, PathCommand, Rotation, StrokeStyle,
 };
 
 /// Whether XML can't hold `c`, so that Pele drops it from text: C0 controls but tab, line feed and
@@ -802,6 +802,11 @@ pub(crate) enum NodeContent {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Transform {
     Translate(Number, Number),
+    /// A turn by `degrees` about `centre`.
+    Rotate {
+        degrees: Number,
+        centre: [Number; 2],
+    },
 }
 
 /// What a node sets. Each value is stored once; `Node::emission` gives the order they are written in.
@@ -1253,6 +1258,13 @@ impl LayerSpec {
         self.with(Field::Stroke, |p| p.stroke = Some(paint))
     }
 
+    /// Turns the group's drawing by `degrees` about `centre`.
+    pub(crate) fn rotate(self, degrees: f64, centre: Point) -> Self {
+        let transform =
+            Transform::Rotate { degrees: Number::raw(degrees), centre: [Number::num(centre.x), Number::num(centre.y)] };
+        self.with(Field::Transform, |p| p.transform = Some(transform))
+    }
+
     pub(crate) fn stroke_width(self, width: Number) -> Self {
         self.with(Field::StrokeWidth, |p| p.stroke_width = Some(width))
     }
@@ -1564,6 +1576,47 @@ impl SceneBuilder {
         }
         let text = PlacedText { label: label.clone(), emission: TextEmission::Rich { lines, shared } };
         self.push(attributes.set(Field::Anchor, middle), NodeContent::Text(text));
+    }
+
+    /// Text whose lines start at `x`, its first line's box at `top`, as requirement fields are
+    /// written: each line's first run carries the line's point, runs with no text are left out,
+    /// and so is a line left with none. Nothing is drawn when no run is left.
+    pub(crate) fn start_text(&mut self, part: PartId, facet: Facet, label: &Label, x: f64, top: f64, look: LabelLook) {
+        let shift = label.size * 0.35;
+        let mut kept = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        for (index, line) in label.lines.iter().enumerate() {
+            let runs: Vec<_> = line.runs.iter().filter(|run| !run.text.is_empty()).cloned().collect();
+            if runs.is_empty() {
+                continue;
+            }
+            let middle = top + (index as f64 + 0.5) * label.line_height;
+            lines.push([Number::num(x), Number::num(middle + shift)]);
+            kept.lines.push(crate::measure::LabelLine { runs, width: line.width });
+        }
+        if kept.lines.is_empty() {
+            return;
+        }
+        let runs = || kept.lines.iter().flat_map(|line| &line.runs);
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        if shared.bold && attributes.properties.weight.is_none() {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono {
+            attributes.emission.push(Field::FontFamily);
+        }
+        let start = |p: &mut Properties| p.anchor = Some(AnchorKind::Start);
+        let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes.set(Field::Anchor, start), NodeContent::Text(text));
     }
 
     /// Plain text at a baseline point, for text whose group sets its anchor and size.

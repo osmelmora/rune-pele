@@ -361,6 +361,41 @@ pub fn state_front_json(source: &str, options: ParseOptions) -> Result<String, R
     Ok(diagrams::state::json::front_json(&model))
 }
 
+/// The swimlane front end, which is the flowchart's, as JSON in the words of the oracle's
+/// `flow_front` op: the model and flow graph, or the error with the flowchart named as its
+/// type. A flowchart answers as `flowchart_front_json` does, and a source of another type
+/// answers only that type.
+#[doc(hidden)]
+pub fn swimlane_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    match front.found.kind {
+        DiagramKind::Swimlane => {}
+        DiagramKind::Flowchart => return flowchart_front_json(source, options),
+        other => return Ok(format!("{{\"type\":\"{}\"}}", other.name())),
+    }
+    let origin = Origin { source };
+    let cx = front.context(&origin, options.limits);
+    let model =
+        <diagrams::swimlane::Swimlane as catalog::Diagram>::parse(&cx).map_err(|error| tagged(error, front.found))?;
+    let graph = diagrams::flowchart::build_flow_graph(&model, diagrams::flowchart::default_curve(&front.config));
+    Ok(diagrams::flowchart::json::front_json(&model, &graph, front.found.mermaid.name()))
+}
+
+/// The requirement front end's model and the graph it lays out as JSON, in the words of the
+/// oracle's `requirement_front` op, for the differential test. A source of another type
+/// answers only that type.
+#[doc(hidden)]
+pub fn requirement_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Requirement {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::requirement::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::requirement::json::front_json(&model, front.found.mermaid.name()))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
@@ -422,9 +457,7 @@ pub fn render(source: &str) -> Result<Rendered, RenderError> {
 fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderError> {
     prepare(source, ParseOptions::default()).map(|prepared| match prepared.model {
         catalog::PreparedModel::Pie(model) => model,
-        catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
-        catalog::PreparedModel::Class(_) => panic!("{source:?} is a class diagram"),
-        catalog::PreparedModel::State(_) => panic!("{source:?} is a state diagram"),
+        _ => panic!("{source:?} is not a pie"),
     })
 }
 

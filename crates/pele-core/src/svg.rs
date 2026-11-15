@@ -197,15 +197,23 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
                 write_attribute("data-id", out, |out| esc_text(&scene.entity(part).author_text, out));
             }
         }
-        Field::Transform => {
-            if let Some(Transform::Translate(x, y)) = &properties.transform {
-                write_attribute("transform", out, |out| {
-                    out.push_str("translate(");
-                    write_pair(&[*x, *y], out);
-                    out.push(')');
-                });
-            }
-        }
+        Field::Transform => match &properties.transform {
+            Some(Transform::Translate(x, y)) => write_attribute("transform", out, |out| {
+                out.push_str("translate(");
+                write_pair(&[*x, *y], out);
+                out.push(')');
+            }),
+            Some(Transform::Rotate { degrees, centre }) => write_attribute("transform", out, |out| {
+                out.push_str("rotate(");
+                degrees.write(out);
+                out.push(' ');
+                centre[0].write(out);
+                out.push(' ');
+                centre[1].write(out);
+                out.push(')');
+            }),
+            None => {}
+        },
         Field::Geometry(geometry) => write_geometry(node, geometry, out),
         Field::Fill | Field::Stroke => {
             let (name, value) = match field {

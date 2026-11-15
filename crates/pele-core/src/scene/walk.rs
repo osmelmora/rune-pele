@@ -56,12 +56,22 @@ pub struct Group {
     pub part: Option<PartKey>,
     /// The group's own translation. Each [`Draw`] already carries the sum of its groups'.
     pub translate: Point,
+    /// A turn the group's whole drawing takes. Its [`Draw`]s and text runs are placed as before
+    /// the turn, so an interpreter turns them itself.
+    pub rotate: Option<Rotation>,
     /// How opaque the group is as a whole, composited once.
     pub opacity: f64,
     /// Where the group leads when it is activated.
     pub link: Option<LinkRef>,
     /// Whether the pointer passes through the group to what is under it.
     pub untouchable: bool,
+}
+
+/// A turn by `degrees`, clockwise as SVG's are, about `centre`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rotation {
+    pub degrees: f64,
+    pub centre: Point,
 }
 
 /// Where a link leads.
@@ -409,12 +419,17 @@ impl Scene {
             }));
         };
         let group = |out: &mut Vec<PaintVisit>, link: Option<LinkRef>| {
-            let translate = match node.properties.transform {
-                Some(Transform::Translate(x, y)) => Point { x: x.effective(), y: y.effective() },
-                None => Point { x: 0.0, y: 0.0 },
+            let (translate, rotate) = match node.properties.transform {
+                Some(Transform::Translate(x, y)) => (Point { x: x.effective(), y: y.effective() }, None),
+                Some(Transform::Rotate { degrees, centre }) => {
+                    let centre = Point { x: centre[0].effective(), y: centre[1].effective() };
+                    (Point { x: 0.0, y: 0.0 }, Some(Rotation { degrees: degrees.effective(), centre }))
+                }
+                None => (Point { x: 0.0, y: 0.0 }, None),
             };
             let untouchable = node.properties.untouchable;
-            out.push(PaintVisit::Begin(Group { part: self.part_key(node), translate, opacity, link, untouchable }));
+            let part = self.part_key(node);
+            out.push(PaintVisit::Begin(Group { part, translate, rotate, opacity, link, untouchable }));
         };
         match &node.content {
             NodeContent::Group(children) => {

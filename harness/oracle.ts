@@ -382,6 +382,10 @@ Object.assign(ops, classOps);
 import { stateOps } from './state.ts';
 Object.assign(ops, stateOps);
 
+import { requirementOps } from './requirement.ts';
+Object.assign(ops, requirementOps);
+import { swimlaneOps } from './swimlane.ts';
+Object.assign(ops, swimlaneOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
