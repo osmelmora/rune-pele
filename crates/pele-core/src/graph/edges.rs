@@ -117,6 +117,12 @@ impl SideReach {
     }
 }
 
+/// Pele's `routePath` default for how far from its node an end trimmed by `trim` starts to turn,
+/// for a caller that gives no reach of its own.
+pub(crate) fn default_reach(trim: f64) -> f64 {
+    if trim > 0.0 { trim + LEAD } else { 0.0 }
+}
+
 /// `Math.sign(x) || 1`
 fn sign_or_one(x: f64) -> f64 {
     if x < 0.0 { -1.0 } else { 1.0 }

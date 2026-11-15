@@ -246,7 +246,11 @@ diagram_catalog! {
         port: { diagram: diagrams::pie::Pie, section: "pie", palette: PaletteRule::Slots("pie", 1) },
         detectors: [(10, "pie", starts(&["pie"]))],
     },
-    Requirement => { name: "requirement", detectors: [(11, "requirement", starts(&["requirement"]))] },
+    Requirement => {
+        name: "requirement",
+        port: { diagram: diagrams::requirement::RequirementDiagram, section: "requirement", palette: PaletteRule::None },
+        detectors: [(11, "requirement", starts(&["requirement"]))],
+    },
     Sequence => { name: "sequence", detectors: [(12, "sequence", starts(&["sequenceDiagram"]))] },
     Swimlane => { name: "swimlane", detectors: [
         (13, "swimlane", starts(&["swimlane-beta"]).then(End::WordBoundary)),

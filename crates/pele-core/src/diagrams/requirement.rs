@@ -1,16 +1,20 @@
 //! Requirement diagrams, ported from Pele's `src/diagrams/requirement`. The lexer and the parser
-//! fill Pele's `RequirementDb`.
+//! fill Pele's `RequirementDb`, and `render` sizes each requirement and element from its fields,
+//! lays them out with their relationships and draws them as a Scene.
 
 mod db;
 pub(crate) mod json;
 mod lexer;
 mod parser;
+mod render;
 
 use crate::RenderError;
 use crate::catalog::ParseContext;
 use crate::input::JsText;
 use crate::layout::Dir;
 use indexmap::IndexMap;
+
+pub(crate) use render::RequirementDiagram;
 
 /// Pele's `RequirementType`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

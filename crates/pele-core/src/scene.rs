@@ -144,6 +144,8 @@ pub enum AnchorKind {
 pub(crate) enum TextWeight {
     Title,
     Bold,
+    /// The weight of a heading inside a node, such as a requirement's name.
+    Heading,
 }
 
 /// Which part of an entity a node draws.
@@ -1285,6 +1287,10 @@ impl LabelLook {
     pub(crate) fn style(self, style: Option<&Style>) -> Self {
         LabelLook(self.0.style(style.cloned()))
     }
+
+    pub(crate) fn font_size(self, size: Number) -> Self {
+        LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
+    }
 }
 
 /// A diagram title: its laid out label and the point it is centred on.
@@ -1511,6 +1517,47 @@ impl SceneBuilder {
         self.push(attributes.set(Field::Anchor, middle), NodeContent::Text(text));
     }
 
+    /// Text whose lines start at `x`, its first line's box at `top`, as requirement fields are
+    /// written: each line's first run carries the line's point, runs with no text are left out,
+    /// and so is a line left with none. Nothing is drawn when no run is left.
+    pub(crate) fn start_text(&mut self, part: PartId, facet: Facet, label: &Label, x: f64, top: f64, look: LabelLook) {
+        let shift = label.size * 0.35;
+        let mut kept = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        for (index, line) in label.lines.iter().enumerate() {
+            let runs: Vec<_> = line.runs.iter().filter(|run| !run.text.is_empty()).cloned().collect();
+            if runs.is_empty() {
+                continue;
+            }
+            let middle = top + (index as f64 + 0.5) * label.line_height;
+            lines.push([Number::num(x), Number::num(middle + shift)]);
+            kept.lines.push(crate::measure::LabelLine { runs, width: line.width });
+        }
+        if kept.lines.is_empty() {
+            return;
+        }
+        let runs = || kept.lines.iter().flat_map(|line| &line.runs);
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        if shared.bold && attributes.properties.weight.is_none() {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono {
+            attributes.emission.push(Field::FontFamily);
+        }
+        let start = |p: &mut Properties| p.anchor = Some(AnchorKind::Start);
+        let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes.set(Field::Anchor, start), NodeContent::Text(text));
+    }
+
     /// Plain text at a baseline point, for text whose group sets its anchor and size.
     pub(crate) fn baseline_text(&mut self, part: PartId, label: Label, at: [Number; 2], fill: Option<Paint>) {
         let mut attributes = Attributes::of(part, Facet::Label).geometry(&[GeometryField::X, GeometryField::Y]);
@@ -1635,6 +1682,10 @@ impl ShapeElement<'_> {
     pub(crate) fn look(mut self, look: Look) -> Self {
         self.attributes = self.attributes.look(look);
         self
+    }
+
+    pub(crate) fn join(self, join: LineJoin) -> Self {
+        self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
     pub(crate) fn finish(self) {
