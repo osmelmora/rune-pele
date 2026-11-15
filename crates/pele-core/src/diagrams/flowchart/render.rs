@@ -1,9 +1,9 @@
 //! Drawing a flowchart, ported from Pele's `src/diagrams/flowchart/render.ts`: nodes are sized
 //! from their labels, laid out with their groups and edges, and drawn as a Scene.
 
-use super::graph::{ArrowHead, GraphEdge, GraphNode};
+use super::graph::{ArrowHead, FlowGraph, GraphEdge, GraphNode};
 use super::shapes::{Shape, ShapeName};
-use super::{Direction, FlowchartModel, LabelType, Link, Stroke, build_flow_graph, default_curve};
+use super::{Direction, FlowchartModel, LabelType, Link, Stroke, build_flow_graph};
 use crate::catalog::{Diagram, DrawContext, ParseContext};
 use crate::graph::cluster::{Crossings, cluster_title_x, draw_struck_title, title_crossed};
 use crate::graph::edges::{
@@ -56,6 +56,21 @@ impl From<ArrowHead> for Marker {
             ArrowHead::Cross => Marker::Cross,
         }
     }
+}
+
+/// Pele's `FlowVariant`: a diagram type that is a flowchart with a different layout, which draws
+/// its top-level groups itself.
+pub(crate) struct FlowVariant {
+    /// The config section that stands in for `flowchart`'s where it is an object.
+    pub(crate) section: &'static str,
+    /// Changes the graph before it is sized.
+    pub(crate) prepare: fn(&mut FlowGraph),
+    /// Lays the graph out. `tight` sets it closer together.
+    pub(crate) layout: fn(&mut [CNode], &mut [CEdge], Dir, &LayeredOptions, bool) -> crate::layout::Size,
+    /// Draws a top-level group from its laid out box, its title, its style and its classes.
+    pub(crate) draw_group: fn(&mut SceneBuilder, PartId, &CNode, &Label, &ResolvedStyle, &AuthorClasses, Dir),
+    /// The part of a top-level group that takes its fill, as left, top, right and bottom.
+    pub(crate) filled_box: fn(&CNode, Dir) -> [f64; 4],
 }
 
 /// A node or a group as it is drawn: its style, its label and the size of its shape.
@@ -148,14 +163,26 @@ fn parts(out: &mut SceneBuilder, nodes: &[GraphNode], edges: &[&GraphEdge]) -> (
 
 /// Pele's `draw`. `turned` draws a flowchart that runs across as one that runs down. `tight`
 /// sets nodes closer together.
-fn draw(model: &FlowchartModel, cx: &DrawContext<'_>, turned: bool, tight: bool) -> Result<Scene, RenderError> {
+fn draw(
+    model: &FlowchartModel,
+    cx: &DrawContext<'_>,
+    variant: Option<&FlowVariant>,
+    turned: bool,
+    tight: bool,
+) -> Result<Scene, RenderError> {
     let group_pad = if tight { 12.0 } else { GROUP_PAD };
-    let flow = cx.config.get("flowchart").and_then(JsValue::as_record);
-    let config_curve = default_curve(cx.config);
-    let graph = build_flow_graph(model, config_curve);
+    let own = variant.and_then(|variant| cx.config.get(variant.section)).and_then(JsValue::as_record);
+    let flow = own.or_else(|| cx.config.get("flowchart").and_then(JsValue::as_record));
+    let config_curve = flow.and_then(|section| section.get("curve")).and_then(JsValue::as_text);
+    let mut graph = build_flow_graph(model, config_curve);
+    if let Some(variant) = variant {
+        (variant.prepare)(&mut graph);
+    }
     let size = cx.options.typography.normal.size;
     let edge_size = js::round(size * 0.875);
-    let wrap_width = number_option(flow, "wrappingWidth", 200.0);
+    let narrow = variant.is_some() && tight;
+    let wrap_width = js::min(number_option(flow, "wrappingWidth", 200.0), if narrow { 100.0 } else { f64::INFINITY });
+    let group_wrap = if narrow { js::max(80.0, fit::title_room(cx.options) / 2.0) } else { 4000.0 };
     let pad = cx.options.padding;
     let policy = &cx.options.resources;
 
@@ -174,7 +201,7 @@ fn draw(model: &FlowchartModel, cx: &DrawContext<'_>, turned: bool, tight: bool)
         let has_asset = has_asset(node);
         let (view, mut c);
         if node.is_group {
-            let label = layout_label(&node.label, markdown, cx.measure, font_size, 4000.0, text_style);
+            let label = layout_label(&node.label, markdown, cx.measure, font_size, group_wrap, text_style);
             c = CNode::new(0.0, 0.0);
             c.is_group = true;
             c.dir = node.dir.map(|dir| Dir::named(Some(dir.name())));
@@ -283,7 +310,10 @@ fn draw(model: &FlowchartModel, cx: &DrawContext<'_>, turned: bool, tight: bool)
         apart: false,
         head_room: Marker::Point.trim(),
     };
-    let layout = compound_layout(&mut cnodes, &mut cedges, root_dir, &layout_options);
+    let layout = match variant {
+        Some(variant) => (variant.layout)(&mut cnodes, &mut cedges, root_dir, &layout_options, tight),
+        None => compound_layout(&mut cnodes, &mut cedges, root_dir, &layout_options),
+    };
 
     let title_room = if tight { fit::title_room(cx.options) } else { 4000.0 };
     let title_text = model.title.as_deref().unwrap_or_default();
@@ -316,6 +346,13 @@ fn draw(model: &FlowchartModel, cx: &DrawContext<'_>, turned: bool, tight: bool)
             continue;
         }
         let shape = view.style.shape.as_ref();
+        if let Some(variant) = variant.filter(|_| c.parent.is_none()) {
+            if paints(shape) {
+                fills.push(Fill { bounds: (variant.filled_box)(c, root_dir), shape });
+            }
+            titles.push(None);
+            continue;
+        }
         if paints(shape) {
             fills.push(Fill { bounds: [c.x - c.w / 2.0, c.y - c.h / 2.0, c.x + c.w / 2.0, c.y + c.h / 2.0], shape });
         }
@@ -398,10 +435,15 @@ fn draw(model: &FlowchartModel, cx: &DrawContext<'_>, turned: bool, tight: bool)
 
     out.layer(LayerSpec::class("pele-clusters"), |out| {
         for (i, view) in views.iter().enumerate() {
+            let c = &cnodes[i];
+            if let Some(variant) = variant.filter(|_| c.is_group && c.parent.is_none()) {
+                let classes = author_classes(view.node);
+                (variant.draw_group)(out, node_parts[i], c, &view.label, &view.style, &classes, root_dir);
+                continue;
+            }
             let Some(title) = &titles[i] else {
                 continue;
             };
-            let c = &cnodes[i];
             let part = node_parts[i];
             let classes = author_classes(view.node);
             out.layer(LayerSpec::classes("pele-cluster", &classes).part(part, Facet::Shape).data_id(), |out| {
@@ -606,10 +648,18 @@ impl Diagram for Flowchart {
         super::parse(cx)
     }
 
-    /// Pele's `renderFlowchart`: with room to spare, then tightly, and for a flowchart that runs
-    /// across, both again running down.
     fn scene(model: &FlowchartModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError> {
-        let fitted = |down: bool| fit::tighten(cx.options, |tight| draw(model, cx, down, tight));
-        if runs_across(model.direction) { fit::turn_to_fit(cx.options, fitted) } else { fitted(false) }
+        render_flowchart(model, cx, None)
     }
+}
+
+/// Pele's `renderFlowchart`: with room to spare, then tightly, and for a flowchart that runs
+/// across, both again running down.
+pub(crate) fn render_flowchart(
+    model: &FlowchartModel,
+    cx: &DrawContext<'_>,
+    variant: Option<&FlowVariant>,
+) -> Result<Scene, RenderError> {
+    let fitted = |down: bool| fit::tighten(cx.options, |tight| draw(model, cx, variant, down, tight));
+    if runs_across(model.direction) { fit::turn_to_fit(cx.options, fitted) } else { fitted(false) }
 }

@@ -22,7 +22,7 @@ pub use palette::{Palette, ResolvedPaints, Rgba};
 pub(crate) use style::{AuthorClasses, ResolvedStyle, Style, ink_on, paints, px, resolve_style};
 pub use walk::{
     BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, ImageFit, LinkRef, PaintStyle, PaintVisit,
-    PartKey, PathCommand, StrokeStyle,
+    PartKey, PathCommand, Rotation, StrokeStyle,
 };
 
 /// Whether XML can't hold `c`, so that Pele drops it from text: C0 controls but tab, line feed and
@@ -779,6 +779,11 @@ pub(crate) enum NodeContent {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Transform {
     Translate(Number, Number),
+    /// A turn by `degrees` about `centre`.
+    Rotate {
+        degrees: Number,
+        centre: [Number; 2],
+    },
 }
 
 /// What a node sets. Each value is stored once; `Node::emission` gives the order they are written in.
@@ -1212,6 +1217,13 @@ impl LayerSpec {
 
     pub(crate) fn stroke(self, paint: Paint) -> Self {
         self.with(Field::Stroke, |p| p.stroke = Some(paint))
+    }
+
+    /// Turns the group's drawing by `degrees` about `centre`.
+    pub(crate) fn rotate(self, degrees: f64, centre: Point) -> Self {
+        let transform =
+            Transform::Rotate { degrees: Number::raw(degrees), centre: [Number::num(centre.x), Number::num(centre.y)] };
+        self.with(Field::Transform, |p| p.transform = Some(transform))
     }
 
     pub(crate) fn stroke_width(self, width: Number) -> Self {
