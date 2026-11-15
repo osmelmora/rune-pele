@@ -396,6 +396,32 @@ fn worst_cases_match_pele() {
     assert!(tally.identical > 15, "the worst cases that fit Pele's output limit are drawn");
 }
 
+/// A word whose letters add up to exactly the card's text width: Pele keeps the last letter that
+/// meets the edge on the line, since `width + w > max` is false at the tie. Each column is set as
+/// wide as that from Pele's own width of the letter, for words that break after 10 to 15 letters.
+#[test]
+fn a_word_that_only_just_fits_keeps_its_last_letter() {
+    let request = format!("label\t\"m\"\t{:016x}\t{:016x}\t0\tfalse", 14f64.to_bits(), 1e9f64.to_bits());
+    let answer: Value = serde_json::from_str(&pele_oracle::ask(&[request])[0]).expect("the oracle answers JSON");
+    let bits = u64::from_str_radix(answer["width"].as_str().expect("a width"), 16).expect("hex bits");
+    let letter = f64::from_bits(bits);
+    let mut cases = Vec::new();
+    for fits in 10..16 {
+        let mut sum = 0.0;
+        for _ in 0..fits {
+            sum += letter;
+        }
+        let section = sum + 36.0;
+        if section - 16.0 - 20.0 == sum {
+            let source = format!("kanban\n  todo\n    a[{}]", "m".repeat(fits * 2 + 1));
+            cases.push((source, json!({ "config": { "kanban": { "sectionWidth": section } } })));
+        }
+    }
+    assert!(cases.len() > 3, "most widths give an exact tie");
+    let tally = run("tie", &cases).finish("kanban cards whose letters meet the edge exactly");
+    assert_eq!(tally.identical, cases.len());
+}
+
 /// xorshift64, so the boards are the same on every run.
 struct Rng(u64);
 
