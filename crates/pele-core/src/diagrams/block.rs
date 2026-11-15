@@ -4,6 +4,7 @@
 
 mod db;
 pub(crate) mod json;
+pub mod layout;
 mod lexer;
 mod parser;
 

@@ -12,6 +12,10 @@ pub mod js;
 // hold it to Pele, and hidden because it is no part of the API.
 #[doc(hidden)]
 pub mod layout;
+// Public so that `tests/block_layout.rs` can hold it to Pele, and hidden because it is no part of
+// the API.
+#[doc(hidden)]
+pub use diagrams::block::layout as block_layout;
 mod measure;
 pub mod scene;
 pub mod svg;
