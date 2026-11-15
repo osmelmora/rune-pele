@@ -263,7 +263,11 @@ diagram_catalog! {
         port: { diagram: diagrams::requirement::RequirementDiagram, section: "requirement", palette: PaletteRule::None },
         detectors: [(11, "requirement", starts(&["requirement"]))],
     },
-    Sequence => { name: "sequence", detectors: [(12, "sequence", starts(&["sequenceDiagram"]))] },
+    Sequence => {
+        name: "sequence",
+        port: { diagram: diagrams::sequence::Sequence, section: "sequence", palette: PaletteRule::None },
+        detectors: [(12, "sequence", starts(&["sequenceDiagram"]))],
+    },
     Swimlane => {
         name: "swimlane",
         port: { diagram: diagrams::swimlane::Swimlane, section: "swimlane", palette: PaletteRule::None },

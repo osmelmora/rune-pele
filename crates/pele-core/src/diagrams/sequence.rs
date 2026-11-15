@@ -2,6 +2,7 @@
 //! source into statements, the db applies them to build Pele's model, and `render` places the
 //! lifelines and draws what passes between them.
 
+mod actors;
 mod colors;
 mod db;
 pub(crate) mod json;
@@ -14,7 +15,7 @@ use crate::catalog::ParseContext;
 use crate::input::{JsText, JsValue};
 use indexmap::IndexMap;
 
-pub(crate) use render::number_messages;
+pub(crate) use render::{Sequence, number_messages};
 
 /// The kinds of entry in a diagram's list of messages, numbered as in Mermaid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -96,6 +97,14 @@ impl Central {
             Central::From => 60,
             Central::Both => 61,
         }
+    }
+
+    pub(crate) fn at_receiver(self) -> bool {
+        matches!(self, Central::To | Central::Both)
+    }
+
+    pub(crate) fn at_sender(self) -> bool {
+        matches!(self, Central::From | Central::Both)
     }
 }
 

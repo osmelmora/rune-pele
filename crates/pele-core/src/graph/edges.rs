@@ -13,7 +13,7 @@ use crate::scene::{
 };
 use std::collections::HashMap;
 
-const ARROW: f64 = 8.0;
+pub(crate) const ARROW: f64 = 8.0;
 // The most a corner is rounded by in a stepped route.
 const CORNER: f64 = 12.0;
 // How far the handles of a wide turn reach along its two legs. A little more than a circle's,

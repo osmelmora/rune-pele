@@ -1082,6 +1082,14 @@ impl Entity {
         Entity { key, author_text: written_id.clone(), tooltip: None }
     }
 
+    /// A note the author gives no name, such as a sequence diagram's. `written_id` is the id
+    /// Pele writes, which counts what comes before the note. The key does not hold it: `name`
+    /// is what the note is attached to, and `duplicate` its place among those with the same name.
+    pub(crate) fn note_between(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
+        let key = EntityKey { kind: EntityKind::Note, name, duplicate };
+        Entity { key, author_text: written_id.clone(), tooltip: None }
+    }
+
     pub(crate) fn tooltip(mut self, tooltip: Option<&JsText>) -> Self {
         self.tooltip = tooltip.cloned();
         self
@@ -1472,6 +1480,12 @@ impl LabelLook {
 
     pub(crate) fn style(self, style: Option<&Style>) -> Self {
         LabelLook(self.0.style(style.cloned()))
+    }
+
+    /// A stroke with no width or join of its own, written where this is called, as a label
+    /// inside a stroked group is written with `stroke="none"`.
+    pub(crate) fn stroke_paint(self, paint: Paint) -> Self {
+        LabelLook(self.0.set(Field::Stroke, |p| p.stroke = Some(paint)))
     }
 }
 
@@ -2005,6 +2019,15 @@ impl TextStart<'_> {
             Some(paint) => self.with(Field::Fill, |p| p.fill = Some(paint)),
             None => self,
         }
+    }
+
+    /// A weight for the run as a whole, written here as an attribute.
+    pub(crate) fn weight(self, weight: TextWeight) -> Self {
+        self.with(Field::FontWeight, |p| p.weight = Some(weight))
+    }
+
+    pub(crate) fn stroke(self, paint: Paint) -> Self {
+        self.with(Field::Stroke, |p| p.stroke = Some(paint))
     }
 
     /// Sets the run in italics, written here as an attribute.
