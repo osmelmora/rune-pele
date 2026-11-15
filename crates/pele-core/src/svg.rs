@@ -117,6 +117,13 @@ fn write_path(path: &PathProgram, out: &mut String) {
             }
             PathStep::QuadBy(pairs) => write_pairs('q', pairs, out),
             PathStep::SmoothQuadBy(to) => write_pairs('t', &[*to], out),
+            PathStep::ArcBy { radii, large, sweep, end } => {
+                out.push('a');
+                write_pair(radii, out);
+                out.push_str(if *large { " 0 1 " } else { " 0 0 " });
+                out.push_str(if *sweep { "1 " } else { "0 " });
+                write_pair(end, out);
+            }
         }
     }
 }

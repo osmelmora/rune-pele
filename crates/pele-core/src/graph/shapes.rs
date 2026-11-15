@@ -18,8 +18,8 @@ pub(crate) struct ShapeSize {
     pub(crate) dy: f64,
 }
 
-const PAD_X: f64 = 18.0;
-const PAD_Y: f64 = 12.0;
+pub(crate) const PAD_X: f64 = 18.0;
+pub(crate) const PAD_Y: f64 = 12.0;
 // Kept clear at each end of a straight side, for the corner.
 const CORNER: f64 = 12.0;
 

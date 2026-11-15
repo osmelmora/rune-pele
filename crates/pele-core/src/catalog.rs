@@ -103,6 +103,8 @@ pub(crate) struct ParseContext<'a> {
     /// The source's config laid over the host's.
     pub(crate) config: &'a JsObject,
     pub(crate) limits: Limits,
+    /// The number of front matter lines removed before `text`.
+    pub(crate) line_offset: usize,
 }
 
 impl ParseContext<'_> {
@@ -230,9 +232,11 @@ diagram_catalog! {
     },
     Mindmap => { name: "mindmap", detectors: [(1, "mindmap", starts(&["mindmap"]))] },
     Architecture => { name: "architecture", detectors: [(2, "architecture", starts(&["architecture"]))] },
-    Agentflow => { name: "agentflow", detectors: [
-        (3, "agentflow", starts(&["agentflow-beta"]).then(End::WordBoundary)),
-    ] },
+    Agentflow => {
+        name: "agentflow",
+        port: { diagram: diagrams::agentflow::Agentflow, section: "agentflow", palette: PaletteRule::None },
+        detectors: [(3, "agentflow", starts(&["agentflow-beta"]).then(End::WordBoundary))],
+    },
     C4 => { name: "c4", detectors: [
         (4, "c4", starts(&["C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment"])),
     ] },
@@ -285,6 +289,14 @@ diagram_catalog! {
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
     Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },
     Usecase => { name: "usecase", detectors: [(36, "usecase", starts(&["usecase-beta"]).then(End::Space))] },
+}
+
+impl DiagramKind {
+    /// Pele's `keepComments`: whether the kind's parser is given the text with its `%%` comment
+    /// lines kept, because it reports where each statement sits in the source.
+    pub(crate) fn keeps_comments(self) -> bool {
+        self == DiagramKind::Agentflow
+    }
 }
 
 /// Pele's `detectDiagram`, on text that preprocessing has cleaned.

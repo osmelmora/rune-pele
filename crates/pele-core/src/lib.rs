@@ -239,7 +239,14 @@ impl Origin<'_> {
         let (parsed_offset, past) = if end > 0 && offset >= end { (end - 1, 1) } else { (offset, 0) };
         let mut steps = input::Steps::new();
         let pre = input::preprocess(self.source, Some(&mut steps)).expect("a source that parsed preprocesses");
-        input::encode_entities(&pre.text, Some(&mut steps));
+        if catalog::detect(&pre.text).is_some_and(|found| found.kind.keeps_comments()) {
+            steps.clear();
+            let pre = input::preprocess_keeping_comments(self.source, Some(&mut steps))
+                .expect("a source that parsed preprocesses");
+            input::encode_entities(&pre.with_comments, Some(&mut steps));
+        } else {
+            input::encode_entities(&pre.text, Some(&mut steps));
+        }
         let mut source = input::normalize_line_breaks(&self.source.encode_utf16().collect::<Vec<_>>());
         source.push(10);
         let offset = input::input_offset(&steps, parsed_offset) + past;
@@ -279,6 +286,7 @@ struct Front {
     parsed: Vec<u16>,
     title: Option<input::JsText>,
     config: input::JsObject,
+    line_offset: usize,
 }
 
 /// Pele's `parseSource` up to the detected kind's parser: limits, preprocessing, detection and
@@ -294,14 +302,23 @@ fn front(source: &str, options: &ParseOptions) -> Result<Front, RenderError> {
         let message = "No diagram type detected for the given text.".to_owned();
         return Err(RenderError::Diagnostic(Diagnostic::new(ErrorCode::Unsupported, message)));
     };
-    let mut parsed = input::encode_entities(&pre.text, None);
+    let text = if found.kind.keeps_comments() { &pre.with_comments } else { &pre.text };
+    let mut parsed = input::encode_entities(text, None);
     parsed.push(10);
-    Ok(Front { found, parsed, title: pre.title, config: options.config.value.spread(&pre.config) })
+    let config = options.config.value.spread(&pre.config);
+    Ok(Front { found, parsed, title: pre.title, config, line_offset: pre.line_offset })
 }
 
 impl Front {
     fn context<'a>(&'a self, origin: &'a Origin<'a>, limits: Limits) -> catalog::ParseContext<'a> {
-        catalog::ParseContext { text: &self.parsed, title: self.title.as_ref(), origin, config: &self.config, limits }
+        catalog::ParseContext {
+            text: &self.parsed,
+            title: self.title.as_ref(),
+            origin,
+            config: &self.config,
+            limits,
+            line_offset: self.line_offset,
+        }
     }
 }
 
@@ -359,6 +376,21 @@ pub fn state_front_json(source: &str, options: ParseOptions) -> Result<String, R
     let model =
         diagrams::state::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::state::json::front_json(&model))
+}
+
+/// The agentflow front end's model, graph and semantic model as JSON, in the words of the
+/// oracle's `agentflow_front` op, for the differential test. A source of another type answers
+/// only that type.
+#[doc(hidden)]
+pub fn agentflow_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Agentflow {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::agentflow::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::agentflow::json::front_json(&model, front.found.mermaid.name()))
 }
 
 impl Prepared {
@@ -425,6 +457,7 @@ fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderE
         catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
         catalog::PreparedModel::Class(_) => panic!("{source:?} is a class diagram"),
         catalog::PreparedModel::State(_) => panic!("{source:?} is a state diagram"),
+        catalog::PreparedModel::Agentflow(_) => panic!("{source:?} is an agentflow"),
     })
 }
 

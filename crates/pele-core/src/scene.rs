@@ -599,6 +599,13 @@ pub(crate) enum PathStep {
     QuadBy([[Number; 2]; 2]),
     /// A quadratic curve whose handle mirrors the one before it.
     SmoothQuadBy([Number; 2]),
+    /// An unrotated elliptical arc that ends `end` away from where it starts.
+    ArcBy {
+        radii: [Number; 2],
+        large: bool,
+        sweep: bool,
+        end: [Number; 2],
+    },
 }
 
 impl PathProgram {
@@ -650,6 +657,11 @@ impl PathProgram {
 
     pub(crate) fn t_by(self, x: Number, y: Number) -> Self {
         self.then(PathStep::SmoothQuadBy([x, y]))
+    }
+
+    /// An arc that ends `end` away from where it starts.
+    pub(crate) fn a_by(self, radii: [Number; 2], large: bool, sweep: bool, end: [Number; 2]) -> Self {
+        self.then(PathStep::ArcBy { radii, large, sweep, end })
     }
 }
 
@@ -1121,6 +1133,9 @@ impl Attributes {
         if let Some(fill) = look.fill {
             self = self.set(Field::Fill, |p| p.fill = Some(fill));
         }
+        if let Some(opacity) = look.fill_opacity {
+            self = self.set(Field::FillOpacity, |p| p.fill_opacity = Some(opacity));
+        }
         if let Some(stroke) = look.stroke {
             self = self.set(Field::Stroke, |p| p.stroke = Some(stroke));
         }
@@ -1135,11 +1150,13 @@ impl Attributes {
     }
 }
 
-/// The paint a shape is written with: a fill, a stroke and style declarations, in that order.
-/// Only [`ShapeLook`] and [`LineLook`] make one, so a look is rewritten at most once.
+/// The paint a shape is written with: a fill, how opaque the fill is, a stroke and style
+/// declarations, in that order. Only [`ShapeLook`] and [`LineLook`] make one, so a look is
+/// rewritten at most once.
 #[derive(Clone, Debug)]
 pub(crate) struct Look {
     fill: Option<Paint>,
+    fill_opacity: Option<Number>,
     stroke: Option<Paint>,
     style: Option<Style>,
 }
@@ -1147,7 +1164,7 @@ pub(crate) struct Look {
 impl Look {
     /// No fill and no stroke: a shape that only holds its place.
     pub(crate) fn unseen() -> Self {
-        Look { fill: Some(Paint::None), stroke: Some(Paint::None), style: None }
+        Look { fill: Some(Paint::None), fill_opacity: None, stroke: Some(Paint::None), style: None }
     }
 }
 
@@ -1156,18 +1173,31 @@ impl Look {
 #[derive(Clone, Debug)]
 pub(crate) struct ShapeLook {
     fill: Paint,
+    fill_opacity: Option<Number>,
     stroke: Paint,
     style: Option<Style>,
 }
 
 impl ShapeLook {
     pub(crate) fn new(fill: Role, stroke: Role, style: Option<&Style>) -> Self {
-        ShapeLook { fill: Paint::Role(fill), stroke: Paint::Role(stroke), style: style.cloned() }
+        ShapeLook { fill: Paint::Role(fill), fill_opacity: None, stroke: Paint::Role(stroke), style: style.cloned() }
+    }
+
+    /// One colour as an outline with a wash of the same colour inside, `wash` opaque. A fill
+    /// the node's style sets replaces the wash and stays opaque.
+    pub(crate) fn tinted(colour: Paint, wash: f64, style: Option<&Style>) -> Self {
+        let fill_opacity = if style.is_some_and(Style::sets_fill) { None } else { Some(Number::raw(wash)) };
+        ShapeLook { fill: colour, fill_opacity, stroke: colour, style: style.cloned() }
     }
 
     /// As it is.
     pub(crate) fn plain(&self) -> Look {
-        Look { fill: Some(self.fill), stroke: Some(self.stroke), style: self.style.clone() }
+        Look {
+            fill: Some(self.fill),
+            fill_opacity: self.fill_opacity,
+            stroke: Some(self.stroke),
+            style: self.style.clone(),
+        }
     }
 
     /// Pele's `rounded`: with the theme's corner radius, declared first so that the node's own
@@ -1195,6 +1225,11 @@ impl LineLook {
         LineLook { stroke: Paint::Role(stroke), style: style.cloned() }
     }
 
+    /// A line in a colour that is no theme role, such as a series colour.
+    pub(crate) fn painted(stroke: Paint, style: Option<&Style>) -> Self {
+        LineLook { stroke, style: style.cloned() }
+    }
+
     /// A line with nothing inside it.
     pub(crate) fn open(&self) -> Look {
         self.filled(Paint::None)
@@ -1202,7 +1237,7 @@ impl LineLook {
 
     /// A line around a fill of its own.
     pub(crate) fn filled(&self, fill: Paint) -> Look {
-        Look { fill: Some(fill), stroke: Some(self.stroke), style: self.style.clone() }
+        Look { fill: Some(fill), fill_opacity: None, stroke: Some(self.stroke), style: self.style.clone() }
     }
 }
 
