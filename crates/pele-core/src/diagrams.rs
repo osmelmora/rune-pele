@@ -10,6 +10,7 @@ pub(crate) mod er;
 pub(crate) mod flowchart;
 pub(crate) mod gantt;
 pub(crate) mod info;
+pub(crate) mod ishikawa;
 pub(crate) mod kanban;
 pub(crate) mod mindmap;
 pub(crate) mod outline;

@@ -319,9 +319,11 @@ diagram_catalog! {
     Eventmodeling => { name: "eventmodeling", detectors: [(24, "eventmodeling", starts(&["eventmodeling"]))] },
     TreeView => { name: "treeView", detectors: [(25, "treeView", starts(&["treeView-beta"]))] },
     Radar => { name: "radar", detectors: [(26, "radar", starts(&["radar-beta"]))] },
-    Ishikawa => { name: "ishikawa", detectors: [
-        (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
-    ] },
+    Ishikawa => {
+        name: "ishikawa",
+        port: { diagram: diagrams::ishikawa::Ishikawa, section: "ishikawa", palette: PaletteRule::None },
+        detectors: [(27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary))],
+    },
     Treemap => { name: "treemap", detectors: [(28, "treemap", starts(&["treemap"]))] },
     Railroad => {
         name: "railroad",

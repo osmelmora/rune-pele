@@ -653,6 +653,20 @@ pub fn mindmap_front_json(source: &str, options: ParseOptions) -> Result<String,
     Ok(diagrams::mindmap::json::front_json(&model))
 }
 
+/// The Ishikawa front end's outline as JSON, in the words of the oracle's `ishikawa_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn ishikawa_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Ishikawa {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::ishikawa::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::ishikawa::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
