@@ -217,6 +217,7 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
             }
         }
         Field::FillOpacity => number("fill-opacity", properties.fill_opacity.as_ref(), out),
+        Field::Opacity => number("opacity", properties.opacity.as_ref(), out),
         Field::StrokeWidth => number("stroke-width", properties.stroke_width.as_ref(), out),
         Field::DashArray => write_attribute("stroke-dasharray", out, |out| {
             for (index, length) in properties.dash.iter().enumerate() {

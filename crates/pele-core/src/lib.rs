@@ -424,6 +424,7 @@ fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderE
         catalog::PreparedModel::Pie(model) => model,
         catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
         catalog::PreparedModel::Class(_) => panic!("{source:?} is a class diagram"),
+        catalog::PreparedModel::Er(_) => panic!("{source:?} is an ER diagram"),
     })
 }
 

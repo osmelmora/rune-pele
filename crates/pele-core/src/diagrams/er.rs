@@ -6,7 +6,9 @@ mod db;
 mod graph;
 pub(crate) mod json;
 mod lexer;
+mod markers;
 mod parser;
+mod render;
 
 use crate::RenderError;
 use crate::catalog::ParseContext;
@@ -14,6 +16,7 @@ use crate::input::JsText;
 use indexmap::IndexMap;
 
 pub(crate) use graph::build_er_graph;
+pub(crate) use render::Er;
 
 /// The way a diagram, or a subgraph in it, runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
