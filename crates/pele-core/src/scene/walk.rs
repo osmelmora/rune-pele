@@ -357,6 +357,8 @@ impl Inherited {
         self.stroke_opacity = styled.stroke_opacity.unwrap_or(self.stroke_opacity);
         if let Some(dash) = &styled.dash {
             self.dash = dash.clone();
+        } else if properties.undashed {
+            self.dash = Vec::new();
         } else if !properties.dash.is_empty() {
             self.dash = properties.dash.iter().map(Number::effective).collect();
         }
@@ -462,13 +464,15 @@ impl PathProgram {
                     mirrored = Some(at(control));
                     PathCommand::Quad { control: at(control), end: at(end) }
                 }
-                PathStep::Arc { radii, large, sweep, end } => PathCommand::Arc {
-                    rx: radii[0].effective(),
-                    ry: radii[1].effective(),
-                    large: *large,
-                    sweep: *sweep,
-                    end: at(end),
-                },
+                PathStep::Arc { radii, large, sweep, end } | PathStep::PairedArc { radii, large, sweep, end } => {
+                    PathCommand::Arc {
+                        rx: radii[0].effective(),
+                        ry: radii[1].effective(),
+                        large: *large,
+                        sweep: *sweep,
+                        end: at(end),
+                    }
+                }
                 PathStep::Close => PathCommand::Close,
                 PathStep::LineBy(to) => PathCommand::Line(by(here, to)),
                 PathStep::HorizontalBy(x) => PathCommand::Line(Point { x: here.x + x.effective(), y: here.y }),

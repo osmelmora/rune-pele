@@ -400,6 +400,8 @@ import { c4Ops } from './c4.ts';
 Object.assign(ops, c4Ops);
 import { architectureOps } from './architecture.ts';
 Object.assign(ops, architectureOps);
+import { cynefinOps } from './cynefin.ts';
+Object.assign(ops, cynefinOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

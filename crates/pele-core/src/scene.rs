@@ -667,6 +667,13 @@ pub(crate) enum PathStep {
         sweep: bool,
         end: [Number; 2],
     },
+    /// [`PathStep::Arc`] with its two flags written as one pair, `0 1,1`, as cynefin's ellipse is.
+    PairedArc {
+        radii: [Number; 2],
+        large: bool,
+        sweep: bool,
+        end: [Number; 2],
+    },
 }
 
 impl PathProgram {
@@ -723,6 +730,11 @@ impl PathProgram {
 
     pub(crate) fn t_by(self, x: Number, y: Number) -> Self {
         self.then(PathStep::SmoothQuadBy([x, y]))
+    }
+
+    /// An arc whose flags are written as one pair.
+    pub(crate) fn a_paired(self, radii: [Number; 2], large: bool, sweep: bool, end: [Number; 2]) -> Self {
+        self.then(PathStep::PairedArc { radii, large, sweep, end })
     }
 
     /// An arc that ends `end` away from where it starts.
@@ -907,6 +919,8 @@ pub(crate) struct Properties {
     pub(crate) join: Option<LineJoin>,
     /// Whether the pointer passes through to what is underneath.
     pub(crate) untouchable: bool,
+    /// Whether the node draws its stroke solid, though the group around it dashes it.
+    pub(crate) undashed: bool,
     /// How opaque a group is as a whole, written as an attribute.
     pub(crate) opacity: Option<Number>,
     pub(crate) font_size: Option<Number>,
@@ -1742,7 +1756,7 @@ impl SceneBuilder {
         if shared.bold && attributes.properties.weight.is_none() {
             attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
         }
-        if shared.italic {
+        if shared.italic && !attributes.emission.contains(&Field::FontStyle) {
             attributes.emission.push(Field::FontStyle);
         }
         if shared.mono {
@@ -2140,6 +2154,15 @@ impl ShapeElement<'_> {
     /// Dashes and the gaps between them, in turn.
     pub(crate) fn dash(self, pattern: &[Number]) -> Self {
         self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
+    }
+
+    /// A solid stroke inside a group that dashes its strokes: `stroke-dasharray="none"`.
+    pub(crate) fn undashed(self) -> Self {
+        self.with(Field::DashArray, |p| p.undashed = true)
+    }
+
+    pub(crate) fn cap(self, cap: LineCap) -> Self {
+        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
     }
 
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {

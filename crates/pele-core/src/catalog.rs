@@ -307,7 +307,11 @@ diagram_catalog! {
     ] },
     Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
-    Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },
+    Cynefin => {
+        name: "cynefin",
+        port: { diagram: diagrams::cynefin::Cynefin, section: "cynefin", palette: PaletteRule::None },
+        detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))],
+    },
     Usecase => {
         name: "usecase",
         port: { diagram: diagrams::usecase::Usecase, section: "usecase", palette: PaletteRule::None },

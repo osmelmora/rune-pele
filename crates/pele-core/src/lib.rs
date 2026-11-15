@@ -539,6 +539,20 @@ pub fn architecture_front_json(source: &str, options: ParseOptions) -> Result<St
     Ok(diagrams::architecture::json::front_json(&model))
 }
 
+/// The cynefin front end's model as JSON, in the words of the oracle's `cynefin_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn cynefin_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Cynefin {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::cynefin::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::cynefin::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
