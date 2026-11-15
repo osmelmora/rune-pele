@@ -625,6 +625,20 @@ pub fn xychart_front_json(source: &str, options: ParseOptions) -> Result<String,
     Ok(diagrams::xychart::json::front_json(&model))
 }
 
+/// The kanban front end's board as JSON, in the words of the oracle's `kanban_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn kanban_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Kanban {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::kanban::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::kanban::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

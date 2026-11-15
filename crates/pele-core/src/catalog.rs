@@ -246,7 +246,11 @@ diagram_catalog! {
         port: { diagram: diagrams::c4::C4, section: "c4", palette: PaletteRule::None },
         detectors: [(4, "c4", starts(&["C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment"]))],
     },
-    Kanban => { name: "kanban", detectors: [(5, "kanban", starts(&["kanban"]))] },
+    Kanban => {
+        name: "kanban",
+        port: { diagram: diagrams::kanban::Kanban, section: "kanban", palette: PaletteRule::None },
+        detectors: [(5, "kanban", starts(&["kanban"]))],
+    },
     Class => {
         name: "class",
         port: { diagram: diagrams::class::Class, section: "class", palette: PaletteRule::None },

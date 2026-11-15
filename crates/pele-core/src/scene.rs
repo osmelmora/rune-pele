@@ -2119,6 +2119,14 @@ impl<'a> ElementStart<'a> {
         self.shape(content, &[X, Width, Height])
     }
 
+    /// A rectangle whose top left corner is its group's origin, written with neither `x` nor `y`,
+    /// as a kanban column is.
+    pub(crate) fn rect_at_origin(self, size: [Number; 2]) -> ShapeElement<'a> {
+        let zero = Number::raw(0.0);
+        let content = NodeContent::Rect { x: zero, y: zero, width: size[0], height: size[1], rx: None };
+        self.shape(content, &[GeometryField::Width, GeometryField::Height])
+    }
+
     /// A rectangle whose attributes are written x, width, y, height, as a row of an ER entity's
     /// table is.
     pub(crate) fn row_rect(self, origin: [Number; 2], size: [Number; 2]) -> ShapeElement<'a> {
@@ -2278,6 +2286,11 @@ impl ShapeElement<'_> {
 
     pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
         self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
+    /// Makes the whole shape this opaque, written where this is called.
+    pub(crate) fn opacity(self, opacity: Number) -> Self {
+        self.with(Field::Opacity, |p| p.opacity = Some(opacity))
     }
 
     /// A class written after the geometry, where Pele's template puts it there.
