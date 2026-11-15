@@ -6,8 +6,9 @@
 use crate::input::{JsText, decode_entities};
 use crate::measure::{Emphasis, Script};
 use crate::scene::{
-    AnchorKind, Aspect, Field, GeometryField, LineCap, LineJoin, Node, NodeContent, NodeId, Number, PELE_SERIES, Paint,
-    PathProgram, PathStep, PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform, esc, own_emphasis,
+    AnchorKind, Aspect, Field, GeometryField, GradientId, LineCap, LineJoin, Node, NodeContent, NodeId, Number,
+    PELE_SERIES, Paint, PathProgram, PathStep, PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform,
+    esc, own_emphasis,
 };
 use crate::{Diagnostic, ErrorCode, ParityScene, RenderError, Rendered, js};
 
@@ -185,14 +186,22 @@ fn write_geometry(node: &Node, field: GeometryField, out: &mut String) {
         (NodeContent::Circle { radius, .. }, G::Radius) => number("r", radius, out),
         (
             NodeContent::Text(PlacedText {
-                emission: TextEmission::Plain { x, .. } | TextEmission::Line { x, .. } | TextEmission::Painted { x, .. },
+                emission:
+                    TextEmission::Plain { x, .. }
+                    | TextEmission::Line { x, .. }
+                    | TextEmission::Painted { x, .. }
+                    | TextEmission::Tailed { x, .. },
                 ..
             }),
             G::X,
         ) => number("x", x, out),
         (
             NodeContent::Text(PlacedText {
-                emission: TextEmission::Plain { y, .. } | TextEmission::Line { y, .. } | TextEmission::Painted { y, .. },
+                emission:
+                    TextEmission::Plain { y, .. }
+                    | TextEmission::Line { y, .. }
+                    | TextEmission::Painted { y, .. }
+                    | TextEmission::Tailed { y, .. },
                 ..
             }),
             G::Y,
@@ -238,7 +247,14 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
         }
         Field::DataId => {
             if let Some(part) = node.part {
-                write_attribute("data-id", out, |out| esc_text(&scene.entity(part).author_text, out));
+                let entity = scene.entity(part);
+                write_attribute("data-id", out, |out| {
+                    if entity.decoded {
+                        esc(&entity.author_text, out);
+                    } else {
+                        esc_text(&entity.author_text, out);
+                    }
+                });
             }
         }
         Field::Transform => match &properties.transform {
@@ -272,7 +288,14 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
                 _ => ("stroke", properties.stroke),
             };
             if let Some(value) = value.and_then(|value| paint(scene, value)) {
-                write_attribute(name, out, |out| out.push_str(&value));
+                write_attribute(name, out, |out| {
+                    if let Some(gradient) = properties.gradient.filter(|_| field == Field::Fill) {
+                        out.push_str("url(#");
+                        out.push_str(&gradient_id(scene, gradient));
+                        out.push_str(") ");
+                    }
+                    out.push_str(&value);
+                });
             }
         }
         Field::FillOpacity => number("fill-opacity", properties.fill_opacity.as_ref(), out),
@@ -415,6 +438,26 @@ fn write_text(scene: &Scene, text: &PlacedText, out: &mut String) {
                 }
             }
         }
+        TextEmission::Tailed { class, fill, .. } => {
+            out.push('>');
+            let runs = text.label.lines.iter().flat_map(|line| &line.runs).collect::<Vec<_>>();
+            if let Some((tail, head)) = runs.split_last() {
+                for run in head {
+                    esc(&run.text, out);
+                }
+                out.push_str("<tspan class=\"");
+                out.push_str(class);
+                out.push('"');
+                if let Some(fill) = paint(scene, *fill) {
+                    out.push_str(" fill=\"");
+                    out.push_str(&fill);
+                    out.push('"');
+                }
+                out.push('>');
+                esc(&tail.text, out);
+                out.push_str("</tspan>");
+            }
+        }
         TextEmission::Line { shared, .. } => {
             out.push_str(" xml:space=\"preserve\">");
             for run in text.label.lines.iter().flat_map(|line| &line.runs) {
@@ -465,6 +508,7 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
         NodeContent::Image { .. } => "image",
         NodeContent::Icon { .. } => "svg",
         NodeContent::Tooltip => "title",
+        NodeContent::Gradients(_) => "defs",
     };
     out.push('<');
     out.push_str(tag);
@@ -496,18 +540,93 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
         }
         NodeContent::Tooltip => {
             out.push('>');
-            if let Some(tooltip) = node.part.and_then(|part| scene.entity(part).tooltip.as_ref()) {
-                esc_text(tooltip, out);
-            }
+            write_tooltip(scene, node, out);
             out.push_str("</title>");
+        }
+        NodeContent::Gradients(gradients) => {
+            out.push('>');
+            let mut written = std::collections::HashSet::new();
+            for &gradient in gradients {
+                // Ids come from the gradient itself, so one that is already defined is the same.
+                let id = gradient_id(scene, gradient);
+                if written.insert(id.clone()) {
+                    out.push_str(&format!("<linearGradient id=\"{id}\" gradientUnits=\"userSpaceOnUse\" "));
+                    out.push_str(&gradient_stops(scene, gradient));
+                    out.push_str("</linearGradient>");
+                }
+            }
+            out.push_str("</defs>");
         }
         NodeContent::Path(_)
         | NodeContent::Rect { .. }
         | NodeContent::Circle { .. }
         | NodeContent::Ellipse { .. }
         | NodeContent::Polygon(_)
-        | NodeContent::Image { .. } => out.push_str("/>"),
+        | NodeContent::Image { .. } => {
+            if node.properties.titled {
+                out.push_str("><title>");
+                write_tooltip(scene, node, out);
+                out.push_str("</title></");
+                out.push_str(tag);
+                out.push('>');
+            } else {
+                out.push_str("/>");
+            }
+        }
     }
+}
+
+/// The tooltip of a node's entity, escaped.
+fn write_tooltip(scene: &Scene, node: &Node, out: &mut String) {
+    if let Some(tooltip) = node.part.and_then(|part| scene.entity(part).tooltip_text()) {
+        esc(&tooltip, out);
+    }
+}
+
+/// What follows a gradient's `gradientUnits`, as Pele's sankey writes it: where it runs, then
+/// its two stops.
+fn gradient_stops(scene: &Scene, id: GradientId) -> String {
+    let gradient = scene.gradient(id);
+    let mut out = String::from("x1=\"");
+    gradient.x[0].write(&mut out);
+    out.push_str("\" x2=\"");
+    gradient.x[1].write(&mut out);
+    out.push_str("\">");
+    for (offset, stop) in gradient.stops.iter().enumerate() {
+        let colour = paint(scene, *stop).unwrap_or_default();
+        out.push_str(&format!("<stop offset=\"{offset}\" stop-color=\"{colour}\"/>"));
+    }
+    out
+}
+
+/// Pele's `contentId`: two 32-bit hashes of what defines a gradient, so different gradients
+/// practically never share an id.
+fn content_id(text: &str) -> String {
+    let (mut a, mut b) = (0x811c_9dc5_u32, 5381_u32);
+    for unit in text.encode_utf16() {
+        a = (a ^ u32::from(unit)).wrapping_mul(0x0100_0193);
+        b = b.wrapping_mul(33).wrapping_add(u32::from(unit));
+    }
+    format!("{}{}", radix36(a), radix36(b))
+}
+
+/// `n.toString(36)`.
+fn radix36(mut n: u32) -> String {
+    let mut digits = Vec::new();
+    loop {
+        digits.push(char::from_digit(n % 36, 36).expect("a digit below 36"));
+        n /= 36;
+        if n == 0 {
+            break;
+        }
+    }
+    digits.iter().rev().collect()
+}
+
+/// The id of a gradient: the drawing's id prefix, its type and a hash of the gradient.
+fn gradient_id(scene: &Scene, id: GradientId) -> String {
+    let prefix = scene.document.id_prefix.as_deref().unwrap_or_default();
+    format!("{prefix}-{}-{}", scene.document.kind.name(), content_id(&gradient_stops(scene, id)))
 }
 
 // Private aliases set once on the root element, so each use is short and the public --pele-*

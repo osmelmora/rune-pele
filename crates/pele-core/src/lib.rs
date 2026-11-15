@@ -23,6 +23,10 @@ pub use diagrams::block::layout as block_layout;
 // is no part of the API.
 #[doc(hidden)]
 pub use diagrams::xychart::ticks as xychart_ticks;
+// Public so that `tests/sankey_layout.rs` can hold it to Pele, and hidden because it is no part of
+// the API.
+#[doc(hidden)]
+pub use diagrams::sankey::layout as sankey_layout;
 mod measure;
 pub mod scene;
 pub mod svg;
@@ -659,6 +663,48 @@ pub fn quadrant_front_json(source: &str, options: ParseOptions) -> Result<String
     let model = diagrams::quadrant::parse(&front.context(&origin, options.limits))
         .map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::quadrant::json::front_json(&model))
+}
+
+/// The git graph front end's model as JSON, in the words of the oracle's `git_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn git_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::GitGraph {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::git::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::git::json::front_json(&model))
+}
+
+/// The sankey front end's model as JSON, in the words of the oracle's `sankey_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn sankey_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Sankey {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::sankey::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::sankey::json::front_json(&model))
+}
+
+/// The packet front end's model as JSON, in the words of the oracle's `packet_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn packet_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Packet {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::packet::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::packet::json::front_json(&model))
 }
 
 impl Prepared {

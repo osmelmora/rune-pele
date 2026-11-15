@@ -288,7 +288,11 @@ diagram_catalog! {
         detectors: [(13, "swimlane", starts(&["swimlane-beta"]).then(End::WordBoundary))],
     },
     Timeline => { name: "timeline", detectors: [(15, "timeline", starts(&["timeline"]))] },
-    GitGraph => { name: "gitGraph", detectors: [(16, "gitGraph", starts(&["gitGraph"]))] },
+    GitGraph => {
+        name: "gitGraph",
+        port: { diagram: diagrams::git::Git, section: "gitGraph", palette: PaletteRule::Slots("git", 0) },
+        detectors: [(16, "gitGraph", starts(&["gitGraph"]))],
+    },
     State => {
         name: "state",
         port: { diagram: diagrams::state::State, section: "state", palette: PaletteRule::None },
@@ -300,8 +304,16 @@ diagram_catalog! {
         port: { diagram: diagrams::quadrant::Quadrant, section: "quadrantChart", palette: PaletteRule::None },
         detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))],
     },
-    Sankey => { name: "sankey", detectors: [(20, "sankey", starts(&["sankey"]))] },
-    Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },
+    Sankey => {
+        name: "sankey",
+        port: { diagram: diagrams::sankey::Sankey, section: "sankey", palette: PaletteRule::None },
+        detectors: [(20, "sankey", starts(&["sankey"]))],
+    },
+    Packet => {
+        name: "packet",
+        port: { diagram: diagrams::packet::Packet, section: "packet", palette: PaletteRule::None },
+        detectors: [(21, "packet", starts(&["packet"]))],
+    },
     Xychart => {
         name: "xychart",
         port: { diagram: diagrams::xychart::Xychart, section: "xyChart", palette: PaletteRule::PlotColors },

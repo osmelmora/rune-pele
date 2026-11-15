@@ -592,7 +592,7 @@ impl Scene {
             let tooltip = children.iter().find_map(|&child| {
                 let child = self.node(child);
                 let entity = matches!(child.content, NodeContent::Tooltip).then_some(child.part?)?;
-                Some(drawable(&crate::input::decode_entities(self.entity(entity).tooltip.as_ref()?)))
+                Some(drawable(&self.entity(entity).tooltip_text()?))
             });
             out.push(PaintVisit::Begin(Group { part, translate, rotate, opacity, link, tooltip, untouchable }));
         };
@@ -681,7 +681,7 @@ impl Scene {
                 };
                 shape(out, geometry);
             }
-            NodeContent::Tooltip => {}
+            NodeContent::Tooltip | NodeContent::Gradients(_) => {}
             NodeContent::Text(text) => {
                 let part = self.part_key(node).expect("every drawing is a part of an entity");
                 let label = pieces.labels.entry((node.part.expect("a part"), part.facet)).or_insert(0);
@@ -694,8 +694,14 @@ impl Scene {
                     let key = FragmentKey { part: part.clone(), detail };
                     let geometry = Geometry::Text(baseline);
                     let mut style = inherited.style(opacity);
+                    // A painted text's runs, and a tailed text's last run, are in fills of their own.
                     if let TextEmission::Painted { fills, .. } = &text.emission
                         && let Some(&Some(fill)) = fills.get(run as usize)
+                    {
+                        style.fill = fill;
+                    }
+                    if let TextEmission::Tailed { fill, .. } = text.emission
+                        && run as usize + 1 == text.label.lines[0].runs.len()
                     {
                         style.fill = fill;
                     }
@@ -732,6 +738,7 @@ fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)
         // A line's first run carries the line's point and the anchor places the whole line, so
         // each run starts where the runs before it end.
         TextEmission::Line { x, y, shared } => line_runs(label, &[[*x, *y]], *shared, inherited),
+        TextEmission::Tailed { x, y, .. } => line_runs(label, &[[*x, *y]], Emphasis::default(), inherited),
         TextEmission::Rich { lines, shared } => line_runs(label, lines, *shared, inherited),
         TextEmission::Painted { x, y, shared, .. } => line_runs(label, &[[*x, *y]], *shared, inherited),
     }
