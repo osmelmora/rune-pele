@@ -317,6 +317,21 @@ pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<Strin
     Ok(diagrams::flowchart::json::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
+/// The class diagram front end's model and class graph as JSON, in the words of the oracle's
+/// `class_front` op, for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn class_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Class {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::class::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    let graph = diagrams::class::build_class_graph(&model, diagrams::class::hierarchical(&front.config));
+    Ok(diagrams::class::json::front_json(&model, &graph, front.found.mermaid.name()))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
