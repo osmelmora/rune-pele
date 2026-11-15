@@ -141,6 +141,7 @@ pub(crate) fn write_path(path: &PathProgram, out: &mut String) {
                 y.write(out);
             }
             PathStep::CloseBy => out.push('z'),
+            PathStep::Space => out.push(' '),
         }
     }
 }

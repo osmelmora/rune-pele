@@ -42,11 +42,28 @@ export function constant(file, name) {
 
 const RE_LITERAL = /`((?:[^`\\]|\\.)*)`|'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g;
 
+// String literals of the ported Langium tests, as tests/support/langium-extra.ts reads them.
+export function loadTestStrings(diagram, keyword) {
+  const seeds = new Set();
+  const dir = join('tests/compat', diagram);
+  for (const file of readdirSync(dir).filter((f) => /\.test\.[jt]s$/.test(f))) {
+    for (const m of readFileSync(join(dir, file), 'utf8').matchAll(RE_LITERAL)) {
+      const raw = m[1] ?? m[2] ?? m[3];
+      if (!keyword.test(raw)) continue;
+      const text = value(raw);
+      if (text !== undefined) seeds.add(text);
+    }
+  }
+  return [...seeds];
+}
+
 // `type` names the fixture folder, `keyword` the line a source starts with, `compat` and
 // `pattern` Pele's loadCorpus arguments, `oracle` and `security` the two tests, `seeds` the
 // constants of the oracle test besides FRAGMENTS, `oracleRun` and `securityRun` the seed and count
-// of each mutation run, and `extra` a list of [source, origin] pairs.
-export function harvest({ type, keyword, compat, pattern, oracle, security, seeds, oracleRun, securityRun, extra = [] }) {
+// of each mutation run, and `extra` a list of [source, origin] pairs. A test that builds its
+// corpus or its hostile fragments its own way gives `corpus()` or `hostile(PAYLOADS)` instead,
+// each called from within vendor/pele.
+export function harvest({ type, keyword, compat, pattern, oracle, security, seeds = [], oracleRun, securityRun, extra = [], corpus: ownCorpus, hostile: ownHostile }) {
   const sources = new Set();
   const origin = new Map();
   let illFormed = 0;
@@ -73,7 +90,9 @@ export function harvest({ type, keyword, compat, pattern, oracle, security, seed
 
   process.chdir(pele);
   const FRAGMENTS = new Function('return ' + constant(oracle, 'FRAGMENTS'))();
-  const corpus = [...loadCorpus(compat, pattern), ...seeds.flatMap((name) => new Function('return ' + constant(oracle, name))())];
+  const corpus = ownCorpus
+    ? ownCorpus()
+    : [...loadCorpus(compat, pattern), ...seeds.flatMap((name) => new Function('return ' + constant(oracle, name))())];
   for (const text of corpus) add(text, `${oracle} corpus`);
 
   const PAYLOADS = new Function('return ' + constant('support/inert.ts', 'PAYLOADS'))();
@@ -98,9 +117,13 @@ export function harvest({ type, keyword, compat, pattern, oracle, security, seed
     }
   };
   mutate(corpus, FRAGMENTS, oracleRun.seed, oracleRun.count);
-  const hostile = new RegExp(`mutator\\(corpus, (\\[\\.\\.\\.PAYLOADS, [^\\n]*\\]), random\\(${securityRun.seed}\\)\\)`).exec(securityTest);
-  if (hostile === null) throw new Error(`${security} no longer mutates the corpus`);
-  mutate(loadCorpus(compat, pattern), new Function('PAYLOADS', 'return ' + hostile[1])(PAYLOADS), securityRun.seed, securityRun.count);
+  let fragments = ownHostile?.(PAYLOADS);
+  if (fragments === undefined) {
+    const hostile = new RegExp(`mutator\\(corpus, (\\[\\.\\.\\.PAYLOADS, [^\\n]*\\]), random\\(${securityRun.seed}\\)\\)`).exec(securityTest);
+    if (hostile === null) throw new Error(`${security} no longer mutates the corpus`);
+    fragments = new Function('PAYLOADS', 'return ' + hostile[1])(PAYLOADS);
+  }
+  mutate(loadCorpus(compat, pattern), fragments, securityRun.seed, securityRun.count);
 
   const pin = execFileSync('git', ['-C', pele, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   mkdirSync(join(root, `tests/fixtures/${type}`), { recursive: true });

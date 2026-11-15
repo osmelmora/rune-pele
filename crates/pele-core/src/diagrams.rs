@@ -11,6 +11,7 @@ pub(crate) mod gantt;
 pub(crate) mod info;
 pub(crate) mod outline;
 pub(crate) mod pie;
+pub(crate) mod radar;
 pub(crate) mod railroad;
 pub(crate) mod requirement;
 pub(crate) mod scan;

@@ -38,6 +38,9 @@ pub(crate) enum Matcher {
     /// Pele's `titleBefore(rest)`: `TITLE`, except that the bare word does not match where
     /// `rest`, the suffix of a longer name, matches right after it.
     TitleBefore(fn(&[u16], usize) -> bool),
+    /// Pele's `match` that reads the token before it: the type of the last visible token, or
+    /// `None` at the start, is passed after the position.
+    After(fn(&[u16], usize, Option<usize>) -> Option<usize>),
 }
 
 pub(crate) struct TokenType {
@@ -93,7 +96,7 @@ fn line_value(src: &[u16], from: usize) -> usize {
 }
 
 /// `[\t ]*accDescr(?:[\t ]*:([^\n\r]*?(?=%%)|[^\n\r]*)|\s*{([^}]*)})`
-fn acc_descr(src: &[u16], at: usize) -> Option<usize> {
+pub(crate) fn acc_descr(src: &[u16], at: usize) -> Option<usize> {
     let word = src.run(at, is_blank);
     if !src.starts_at(word, "accDescr") {
         return None;
@@ -301,7 +304,7 @@ pub(crate) fn tokenize(src: &[u16], types: &[TokenType]) -> Result<Tokens, Synta
     let mut tokens = Tokens { kinds: Vec::new(), starts: Vec::new(), ends: Vec::new() };
     let mut dead = vec![false; types.len()];
     let mut scanners: Vec<Option<Scanner>> = types.iter().map(|_| None).collect();
-    let mut matched = |kind: usize, at: usize| match &types[kind].matcher {
+    let mut matched = |kind: usize, at: usize, previous: Option<usize>| match &types[kind].matcher {
         Matcher::Literal(text) => src.starts_at(at, text).then_some(at + text.len()),
         Matcher::Keyword(word) => {
             let end = at + word.len();
@@ -317,16 +320,18 @@ pub(crate) fn tokenize(src: &[u16], types: &[TokenType]) -> Result<Tokens, Synta
         }
         Matcher::Scanner(make) => scanners[kind].get_or_insert_with(make)(src, at),
         Matcher::TitleBefore(rest) => title_ending(src, at, *rest),
+        Matcher::After(scan) => scan(src, at, previous),
     };
     let mut at = 0;
     'scan: while at < src.len() {
+        let previous = tokens.kinds.last().copied().flatten();
         for kind in 0..types.len() {
-            let Some(mut end) = matched(kind, at).filter(|&end| end > at) else {
+            let Some(mut end) = matched(kind, at, previous).filter(|&end| end > at) else {
                 continue;
             };
             let mut found = kind;
             for &alternative in types[kind].longer {
-                if let Some(longer) = matched(alternative, at).filter(|&longer| longer > end) {
+                if let Some(longer) = matched(alternative, at, previous).filter(|&longer| longer > end) {
                     (found, end) = (alternative, longer);
                     break;
                 }

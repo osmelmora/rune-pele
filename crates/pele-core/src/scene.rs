@@ -667,6 +667,8 @@ pub(crate) enum PathStep {
     VerticalBy(Number),
     /// Pele's lowercase `z`, which closes the subpath as `Z` does.
     CloseBy,
+    /// A space Pele writes between two commands, as radar's curves are written. It draws nothing.
+    Space,
 }
 
 impl PathProgram {
@@ -697,6 +699,11 @@ impl PathProgram {
 
     pub(crate) fn q(self, handle: [Number; 2], end: [Number; 2]) -> Self {
         self.then(PathStep::Quad([handle, end]))
+    }
+
+    /// A space before the next command.
+    pub(crate) fn space(self) -> Self {
+        self.then(PathStep::Space)
     }
 
     /// An arc of less than half a turn.
@@ -1477,6 +1484,11 @@ impl LayerSpec {
         self.with(Field::Fill, |p| p.fill = Some(paint))
     }
 
+    /// How opaque the fills inside are, unless they say otherwise.
+    pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
+        self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
     /// Sets the text inside in the monospace font.
     pub(crate) fn mono(self) -> Self {
         self.with(Field::FontFamily, |p| p.mono = true)
@@ -2038,6 +2050,18 @@ impl<'a> ElementStart<'a> {
     pub(crate) fn data_id(mut self) -> Self {
         debug_assert!(self.attributes.part.is_some(), "only a part of an entity has the entity's name");
         self.attributes.emission.push(Field::DataId);
+        self
+    }
+
+    /// A fill written before the geometry, where Pele's template puts it there.
+    pub(crate) fn fill(mut self, paint: Paint) -> Self {
+        self.attributes = self.attributes.set(Field::Fill, |p| p.fill = Some(paint));
+        self
+    }
+
+    /// A stroke written before the geometry, where Pele's template puts it there.
+    pub(crate) fn stroke(mut self, paint: Paint) -> Self {
+        self.attributes = self.attributes.set(Field::Stroke, |p| p.stroke = Some(paint));
         self
     }
 

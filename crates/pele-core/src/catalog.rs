@@ -310,7 +310,11 @@ diagram_catalog! {
         port: { diagram: diagrams::treeview::TreeView, section: "treeView", palette: PaletteRule::None },
         detectors: [(25, "treeView", starts(&["treeView-beta"]))],
     },
-    Radar => { name: "radar", detectors: [(26, "radar", starts(&["radar-beta"]))] },
+    Radar => {
+        name: "radar",
+        port: { diagram: diagrams::radar::Radar, section: "radar", palette: PaletteRule::Slots("cScale", 0) },
+        detectors: [(26, "radar", starts(&["radar-beta"]))],
+    },
     Ishikawa => { name: "ishikawa", detectors: [
         (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
     ] },
