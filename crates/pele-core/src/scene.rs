@@ -144,6 +144,8 @@ pub enum AnchorKind {
 pub(crate) enum TextWeight {
     Title,
     Bold,
+    /// The weight of a heading inside a node, such as a class's name.
+    Heading,
 }
 
 /// Which part of an entity a node draws.
@@ -161,6 +163,16 @@ pub enum Facet {
     EndMarker,
     /// The outline in the colour behind a title that edges run through.
     Halo,
+    /// A stereotype above a node's name, such as a class's `«interface»`.
+    Annotation,
+    /// One attribute of a node, one line each.
+    Attribute,
+    /// One method of a node, one line each.
+    Method,
+    /// The text where an edge starts, such as a cardinality.
+    StartLabel,
+    /// The text where an edge ends.
+    EndLabel,
 }
 
 /// Mermaid's palette theme variables for one diagram type: the name before the number, and the
@@ -798,6 +810,8 @@ pub(crate) struct Properties {
     pub(crate) weight: Option<TextWeight>,
     pub(crate) anchor: Option<AnchorKind>,
     pub(crate) style: Option<Style>,
+    /// Whether the text inside is set in the monospace font.
+    pub(crate) mono: bool,
 }
 
 /// A reference to one value of a node, in the order Pele writes its attributes.
@@ -880,6 +894,8 @@ pub enum EntityKind {
     /// A group of nodes, such as a flowchart's subgraph.
     Group,
     Edge,
+    /// A note that stands beside the nodes, such as a class diagram's.
+    Note,
 }
 
 /// What tells an entity from the others of its kind.
@@ -909,8 +925,9 @@ impl EntityKey {
         }
     }
 
-    /// The entity's place among those with the same kind and name, counted from 0. Only edges
-    /// repeat: two edges may join the same nodes in the same way, or share an id.
+    /// The entity's place among those with the same kind and name, counted from 0. Edges
+    /// repeat: two edges may join the same nodes in the same way, or share an id. So may nodes of
+    /// one diagram that a source names alike, such as a class and a lollipop interface.
     pub fn duplicate(&self) -> u32 {
         self.duplicate
     }
@@ -940,6 +957,17 @@ impl Entity {
 
     pub(crate) fn node(id: &JsText) -> Self {
         Entity::named(EntityKind::Node, id)
+    }
+
+    pub(crate) fn note(id: &JsText) -> Self {
+        Entity::named(EntityKind::Note, id)
+    }
+
+    /// The entity's place among those with the same kind and name, where a diagram can have
+    /// several, such as a class and a lollipop interface that share a name.
+    pub(crate) fn ranked(mut self, duplicate: u32) -> Self {
+        self.key.duplicate = duplicate;
+        self
     }
 
     pub(crate) fn group(id: &JsText) -> Self {
@@ -1241,6 +1269,11 @@ impl LayerSpec {
         self.with(Field::Fill, |p| p.fill = Some(paint))
     }
 
+    /// Sets the text inside in the monospace font.
+    pub(crate) fn mono(self) -> Self {
+        self.with(Field::FontFamily, |p| p.mono = true)
+    }
+
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {
         self.attributes = self.attributes.style(style);
         self
@@ -1264,6 +1297,10 @@ impl LabelLook {
 
     pub(crate) fn weight(self, weight: TextWeight) -> Self {
         LabelLook(self.0.set(Field::FontWeight, |p| p.weight = Some(weight)))
+    }
+
+    pub(crate) fn font_size(self, size: Number) -> Self {
+        LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
     }
 
     pub(crate) fn fill(self, paint: Option<Paint>) -> Self {
@@ -1521,6 +1558,12 @@ impl SceneBuilder {
         self.push(attributes, NodeContent::Text(text));
     }
 
+    /// Starts a text element of one plain run, whose attributes are written in the order they
+    /// are given, as the text of a class's member is.
+    pub(crate) fn text(&mut self, part: PartId, facet: Facet) -> TextStart<'_> {
+        TextStart { builder: self, attributes: Attributes::of(part, facet), style: Emphasis::default(), at: None }
+    }
+
     /// Seals the drawing. Nothing of an attempt is visible before this returns.
     pub(crate) fn finish(mut self) -> Result<Scene, RenderError> {
         let roots = self.open.pop().expect("the roots are always open");
@@ -1593,6 +1636,75 @@ impl<'a> ElementStart<'a> {
     }
 }
 
+/// A text element of one run before it has its text. Its run's emphasis is what an interpreter
+/// sets the text in; the attributes are where the SVG says so.
+pub(crate) struct TextStart<'a> {
+    builder: &'a mut SceneBuilder,
+    attributes: Attributes,
+    style: Emphasis,
+    at: Option<[Number; 2]>,
+}
+
+impl TextStart<'_> {
+    fn with(mut self, field: Field, set: impl FnOnce(&mut Properties)) -> Self {
+        self.attributes = self.attributes.set(field, set);
+        self
+    }
+
+    pub(crate) fn class(self, class: &str) -> Self {
+        self.with(Field::Class, |p| p.class = Some(class.to_owned()))
+    }
+
+    /// The baseline point of the run.
+    pub(crate) fn at(mut self, at: [Number; 2]) -> Self {
+        self.at = Some(at);
+        self.attributes = self.attributes.geometry(&[GeometryField::X, GeometryField::Y]);
+        self
+    }
+
+    pub(crate) fn anchor(self, anchor: AnchorKind) -> Self {
+        self.with(Field::Anchor, |p| p.anchor = Some(anchor))
+    }
+
+    pub(crate) fn font_size(self, size: Number) -> Self {
+        self.with(Field::FontSize, |p| p.font_size = Some(size))
+    }
+
+    pub(crate) fn fill(self, paint: Option<Paint>) -> Self {
+        match paint {
+            Some(paint) => self.with(Field::Fill, |p| p.fill = Some(paint)),
+            None => self,
+        }
+    }
+
+    /// Sets the run in italics, written here as an attribute.
+    pub(crate) fn italic(mut self) -> Self {
+        self.style.italic = true;
+        self.attributes.emission.push(Field::FontStyle);
+        self
+    }
+
+    /// Underlines the run, written as Pele writes it: `text-decoration:underline` after the text
+    /// style declarations given, in the element's `style`.
+    pub(crate) fn underlined(mut self, text: Option<&Style>) -> Self {
+        self.style.underline = true;
+        self.style(Some(Style::underlined(text)))
+    }
+
+    pub(crate) fn style(mut self, style: Option<Style>) -> Self {
+        self.attributes = self.attributes.style(style);
+        self
+    }
+
+    /// The run's text, measured `width` wide at `size` pixels.
+    pub(crate) fn finish(self, text: &[u16], width: f64, size: f64) {
+        let [x, y] = self.at.expect("a text element has a place");
+        let label = Label::single(text, self.style, width, size, js::round(size * 1.5));
+        self.builder
+            .push(self.attributes, NodeContent::Text(PlacedText { label, emission: TextEmission::Plain { x, y } }));
+    }
+}
+
 /// A shape with its geometry, taking paint until it is finished.
 pub(crate) struct ShapeElement<'a> {
     builder: &'a mut SceneBuilder,
@@ -1625,6 +1737,10 @@ impl ShapeElement<'_> {
     /// Dashes and the gaps between them, in turn.
     pub(crate) fn dash(self, pattern: &[Number]) -> Self {
         self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
+    }
+
+    pub(crate) fn join(self, join: LineJoin) -> Self {
+        self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {

@@ -210,6 +210,7 @@ struct Inherited {
     font_size: f64,
     anchor: AnchorKind,
     weight: Option<TextWeight>,
+    mono: bool,
 }
 
 impl Inherited {
@@ -228,6 +229,7 @@ impl Inherited {
             font_size: document.font_size,
             anchor: AnchorKind::Start,
             weight: None,
+            mono: false,
         }
     }
 
@@ -256,6 +258,7 @@ impl Inherited {
             styled.font_size.or(properties.font_size.map(|size| size.effective())).unwrap_or(self.font_size);
         self.anchor = properties.anchor.unwrap_or(self.anchor);
         self.weight = properties.weight.or(self.weight);
+        self.mono |= properties.mono;
         self
     }
 
@@ -273,7 +276,7 @@ impl Inherited {
 
     fn font(&self, style: Emphasis) -> Font {
         Font {
-            family: if style.mono { FontFamily::Mono } else { FontFamily::Sans },
+            family: if style.mono || self.mono { FontFamily::Mono } else { FontFamily::Sans },
             size: if style.script == Script::Normal { self.font_size } else { self.font_size / SMALLER },
             weight: if style.bold || self.weight.is_some() { FontWeight::Bold } else { FontWeight::Normal },
             italic: style.italic,
@@ -361,14 +364,20 @@ impl PathProgram {
     }
 }
 
-/// The shapes each part has drawn so far, so that each drawing of a part has a key of its own.
-type Pieces = HashMap<(PartId, Facet), u32>;
+/// What each part has drawn so far, so that each drawing of a part has a key of its own: its
+/// shapes, and the lines of its text. A part that draws several texts, such as the members of a
+/// class, numbers their lines on from one text to the next.
+#[derive(Default)]
+struct Pieces {
+    shapes: HashMap<(PartId, Facet), u32>,
+    lines: HashMap<(PartId, Facet), u32>,
+}
 
 impl Scene {
     /// Every drawing in paint order, inside the groups that hold it.
     pub fn paint(&self) -> impl Iterator<Item = PaintVisit> + '_ {
         let mut out = Vec::new();
-        let mut pieces = Pieces::new();
+        let mut pieces = Pieces::default();
         let root = Inherited::root(&self.document);
         for &id in &self.roots {
             self.visit(id, &root, &mut pieces, &mut out);
@@ -388,7 +397,7 @@ impl Scene {
         let opacity = node.styled.opacity.unwrap_or(1.0);
         let mut shape = |out: &mut Vec<PaintVisit>, geometry: Geometry| {
             let part = self.part_key(node).expect("every drawing is a part of an entity");
-            let drawn = pieces.entry((node.part.expect("a part"), part.facet)).or_insert(0);
+            let drawn = pieces.shapes.entry((node.part.expect("a part"), part.facet)).or_insert(0);
             let detail = if *drawn == 0 { FragmentDetail::Whole } else { FragmentDetail::Piece(*drawn) };
             *drawn += 1;
             let key = FragmentKey { part, detail };
@@ -470,7 +479,11 @@ impl Scene {
             NodeContent::Tooltip => {}
             NodeContent::Text(text) => {
                 let part = self.part_key(node).expect("every drawing is a part of an entity");
+                let before = pieces.lines.entry((node.part.expect("a part"), part.facet)).or_insert(0);
+                let first = *before;
+                *before += text.label.lines.len() as u32;
                 for (line, run, baseline) in runs(text, &inherited) {
+                    let line = first + line;
                     let key = FragmentKey { part: part.clone(), detail: FragmentDetail::TextRun { line, run } };
                     let geometry = Geometry::Text(baseline);
                     out.push(PaintVisit::Draw(Draw {
@@ -492,14 +505,16 @@ fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)
         TextEmission::Plain { x, y } => {
             let line = &label.lines[0];
             let units: Vec<u16> = line.runs.iter().flat_map(|run| run.text.iter().copied()).collect();
+            // One run, whose emphasis an attribute or a style of the text element writes.
+            let style = line.runs.first().map_or(Emphasis::default(), |run| run.style);
             let run = BaselineRun {
                 text: drawable(&units),
                 baseline: Point { x: x.effective(), y: y.effective() },
                 anchor: inherited.anchor,
                 advance: line.width,
-                font: inherited.font(Emphasis::default()),
+                font: inherited.font(style),
                 script: Script::Normal,
-                underline: false,
+                underline: style.underline,
             };
             vec![(0, 0, run)]
         }
@@ -553,6 +568,7 @@ impl std::fmt::Display for FragmentKey {
             EntityKind::Node => "node:",
             EntityKind::Group => "group:",
             EntityKind::Edge => "edge:",
+            EntityKind::Note => "note:",
         })?;
         match entity.name() {
             EntityName::Named(name) => write_name(f, name)?,
@@ -575,6 +591,11 @@ impl std::fmt::Display for FragmentKey {
             Facet::StartMarker => "/start",
             Facet::EndMarker => "/end",
             Facet::Halo => "/halo",
+            Facet::Annotation => "/annotation",
+            Facet::Attribute => "/attribute",
+            Facet::Method => "/method",
+            Facet::StartLabel => "/start-label",
+            Facet::EndLabel => "/end-label",
         })?;
         match self.detail {
             FragmentDetail::Whole => Ok(()),
