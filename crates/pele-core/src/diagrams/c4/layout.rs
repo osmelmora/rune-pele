@@ -53,6 +53,9 @@ pub(super) struct Layout {
     pub(super) groups: Vec<Group>,
     /// The boundaries that are drawn, parents before children. The first is the unnamed top level.
     pub(super) order: Vec<usize>,
+    /// The box each shape and each boundary is drawn in, where it is drawn at all.
+    pub(super) shape_boxes: Vec<Option<BoxId>>,
+    pub(super) boundary_boxes: Vec<Option<BoxId>>,
 }
 
 /// Shape keywords Mermaid accepts in `$shape`, `$sprite` or `$tags`, as names of the shared shapes.
@@ -280,6 +283,8 @@ pub(super) fn layout(model: &C4Model, texts: &Texts<'_>, room: Option<f64>, gap:
         b.h = (if frame != 0.0 { group.head } else { frame }) + grid_h + between + kids_h + frame;
     }
 
+    let mut shape_boxes = vec![None; model.shapes.len()];
+    let mut boundary_boxes = vec![None; model.boundaries.len()];
     for &g in &order {
         let group = &groups[g];
         let own = boxes[group.at];
@@ -288,12 +293,16 @@ pub(super) fn layout(model: &C4Model, texts: &Texts<'_>, room: Option<f64>, gap:
         for node in &group.nodes {
             boxes[node.at].x += left;
             boxes[node.at].y += top;
+            shape_boxes[node.shape] = Some(node.at);
         }
         for &kid in &group.kids {
             let at = groups[kid].at;
             boxes[at].x += left;
             boxes[at].y += top + kids_top[g];
         }
+        if g != 0 {
+            boundary_boxes[g] = Some(group.at);
+        }
     }
-    Layout { boxes, groups, order }
+    Layout { boxes, groups, order, shape_boxes, boundary_boxes }
 }

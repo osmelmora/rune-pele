@@ -268,6 +268,16 @@ impl RelType {
             RelType::Back => "rel_b",
         }
     }
+
+    /// Whether an arrowhead is drawn where the relation starts.
+    pub(crate) fn start_arrow(self) -> bool {
+        matches!(self, RelType::BiRel | RelType::Back)
+    }
+
+    /// Whether an arrowhead is drawn where the relation ends.
+    pub(crate) fn end_arrow(self) -> bool {
+        self != RelType::Back
+    }
 }
 
 /// Pele's `C4Rel`.
@@ -290,6 +300,18 @@ pub(crate) struct Rel {
 impl Rel {
     pub(crate) fn field(&self, field: RelField) -> Option<&JsText> {
         self.fields[field as usize].as_ref()
+    }
+
+    pub(crate) fn filled(&self, field: RelField) -> Option<&JsText> {
+        self.field(field).filter(|text| !text.is_empty())
+    }
+
+    /// The id Pele writes for the relation and its label.
+    pub(crate) fn id(&self) -> JsText {
+        let mut id = self.from.clone();
+        id.push(u16::from(b'-'));
+        id.push_units(&self.to);
+        id
     }
 }
 
@@ -315,6 +337,15 @@ pub(crate) struct C4Model {
 pub(crate) enum Found {
     Shape(usize),
     Boundary(usize),
+}
+
+impl C4Model {
+    pub(crate) fn find(&self, alias: &[u16]) -> Option<Found> {
+        self.shape_index
+            .get(alias)
+            .map(|&at| Found::Shape(at))
+            .or_else(|| self.boundary_index.get(alias).map(|&at| Found::Boundary(at)))
+    }
 }
 
 /// Pele's C4 `parse`: the model a source describes, or the first error in it.
