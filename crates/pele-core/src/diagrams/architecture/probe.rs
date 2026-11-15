@@ -18,10 +18,11 @@ pub struct GridProbe {
     pub node_parent: Vec<i64>,
 }
 
-/// Pele's `placeOnGrid` of the model a source describes. A source that is no architecture
-/// diagram, or that Pele rejects, answers its error.
+/// Pele's `placeOnGrid` of the model a source of any length describes. A source that is no
+/// architecture diagram, or that Pele rejects, answers its error.
 pub fn grid(source: &str) -> Result<GridProbe, RenderError> {
-    let options = ParseOptions::default();
+    let mut options = ParseOptions::default();
+    options.limits.source_utf16 = usize::MAX;
     let front = crate::front(source, &options)?;
     let origin = crate::Origin { source };
     let model = super::parse(&front.context(&origin, options.limits))?;

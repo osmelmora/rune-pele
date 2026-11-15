@@ -7,9 +7,9 @@ import { placeOnGrid } from '../vendor/pele/src/diagrams/architecture/layout.ts'
 
 type Parsed = { db: ArchitectureDb } | { answer: string };
 
-function parsed(text: string): Parsed {
+function parsed(text: string, options = {}): Parsed {
   try {
-    const model = parse(text);
+    const model = parse(text, options);
     if (model.type !== 'architecture') return { answer: JSON.stringify({ type: model.type }) };
     return { db: model as unknown as ArchitectureDb };
   } catch (error) {
@@ -37,8 +37,9 @@ function architectureFront(text: string): string {
   });
 }
 
+// Pele's grid for a source of any length.
 function architectureGrid(text: string): string {
-  const found = parsed(text);
+  const found = parsed(text, { limit: Infinity });
   if ('answer' in found) return found.answer;
   const { db } = found;
   const grid = placeOnGrid([...db.nodes.values()], [...db.groups.values()], db.edges, db.layoutHints);
