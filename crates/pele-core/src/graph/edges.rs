@@ -350,6 +350,12 @@ pub(crate) fn route_path(route: &[RoutePoint], curve: Curve, trim: [f64; 2], rea
     }
 }
 
+/// How far from its node an edge starts to turn when no other edge on that side asks for more:
+/// far enough to clear its own marker. These are `routePath`'s default reaches.
+pub(crate) fn own_reach(trim: f64) -> f64 {
+    if trim > 0.0 { trim + LEAD } else { 0.0 }
+}
+
 /// Where a self-loop's label goes, and the loop itself.
 pub(crate) struct Loop {
     pub(crate) path: EdgePath,
@@ -658,6 +664,17 @@ fn over_tips(path: &EdgePath, tips: &[f64], fills: &[Fill<'_>], line: Option<&St
     }
 }
 
+/// The innermost fill that holds the whole of an edge and its marker tips, for an edge that
+/// [`over_fills`] puts in that fill's ink. Pele's `hollowOn` paints the inside of a hollow marker
+/// with this fill's colour in place of the page's.
+pub(crate) fn fill_holding<'f, 'a>(path: &EdgePath, fills: &'f [Fill<'a>]) -> Option<&'f Fill<'a>> {
+    let tips = [path.start.x, path.start.y, path.end.x, path.end.y];
+    match fill_under(&path.d, &tips, fills) {
+        Under::Fill(fill) => Some(fill),
+        Under::Page | Under::Border => None,
+    }
+}
+
 /// Pele's `casing`: a wider stroke in the page's colour under an edge, as faint as the edge,
 /// with the edge's markers. An edge whose own style draws no stroke gets none.
 pub(crate) fn draw_casing(
@@ -730,5 +747,66 @@ pub(crate) fn draw_edge_label(out: &mut SceneBuilder, part: PartId, label: &Labe
             .fill(Paint::Role(Role::Background))
             .finish();
         out.label(part, Facet::Label, label, at, LabelLook::default().style(text));
+    });
+}
+
+/// [`draw_casing`] for an edge whose markers are a diagram type's own: `markers` draws them in
+/// the page's colour, as part of the casing.
+pub(crate) fn draw_casing_with(
+    out: &mut SceneBuilder,
+    part: PartId,
+    path: &EdgePath,
+    line: Option<&Style>,
+    markers: impl FnOnce(&mut SceneBuilder),
+) {
+    let declared = |property: &str| line.and_then(|line| line.first(property));
+    let stroke = declared("stroke");
+    if stroke.as_deref().is_some_and(|stroke| stroke == "none" || stroke == "transparent") {
+        return;
+    }
+    let mut wider = None;
+    let mut style = Style::terminated();
+    match declared("stroke-width").as_deref().map(|width| (width, px(width))) {
+        Some((_, Some(width))) => {
+            if width != 1.0 {
+                wider = Some(Number::num(width + CASE));
+            }
+        }
+        Some((width, None)) => {
+            style.declare_written("stroke-width", format!("calc({width} + {}px)", js::to_string(CASE)));
+        }
+        None => {}
+    }
+    for property in ["opacity", "stroke-opacity"] {
+        if let Some(value) = declared(property) {
+            style.declare_written(property, value);
+        }
+    }
+    let body = |out: &mut SceneBuilder| {
+        out.element(part, Facet::Casing).path(path.d.clone()).finish();
+        markers(out);
+    };
+    if wider.is_none() && style.is_empty() {
+        body(out);
+        return;
+    }
+    let mut group = LayerSpec::group();
+    if let Some(wider) = wider {
+        group = group.stroke_width(wider);
+    }
+    out.layer(group.style((!style.is_empty()).then_some(style)), body);
+}
+
+/// [`draw_edge_label`] with a look of the caller's making, for a label that has a colour or a
+/// class of its own.
+pub(crate) fn draw_edge_label_as(out: &mut SceneBuilder, part: PartId, label: &Label, at: Point, look: LabelLook) {
+    let w = label.width + 8.0;
+    let h = label.height;
+    out.layer(LayerSpec::class("pele-edge-label").part(part, Facet::Label).data_id(), |out| {
+        out.element(part, Facet::Label)
+            .rect(pair(at.x - w / 2.0, at.y - h / 2.0), pair(w, h), Some(Number::raw(3.0)))
+            .fill(Paint::Role(Role::Background))
+            .finish();
+        out.label(part, Facet::Label, label, at, look);
     });
 }

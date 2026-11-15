@@ -41,9 +41,9 @@ fn every_drawing_has_a_key_of_its_own() {
     for want in [
         "node:Shape/annotation/0.0",
         "node:Shape/attribute/0.0",
-        "node:Shape/attribute/1.0",
+        "node:Shape/attribute/1/0.0",
         "node:Shape/method/0.0",
-        "node:Shape/method/1.0",
+        "node:Shape/method/1/0.0",
         "node:Shape/shape/1",
         "note:note0/shape",
         "node:note0/shape",
@@ -67,16 +67,20 @@ fn members_are_set_as_their_marks_say() {
     assert_eq!(name.font.weight, FontWeight::Bold, "a class's name is a heading");
     let abstract_member = run(&drawn, "node:Shape/method/0.0");
     assert!(abstract_member.font.italic && !abstract_member.underline, "an abstract member is italic");
-    let static_member = run(&drawn, "node:Shape/method/1.0");
+    let static_member = run(&drawn, "node:Shape/method/1/0.0");
     assert!(static_member.underline && !static_member.font.italic, "a static member is underlined");
     assert_eq!(static_member.text, "+count() : int");
-    let plain = run(&drawn, "node:Shape/attribute/1.0");
+    let plain = run(&drawn, "node:Shape/attribute/1/0.0");
     assert_eq!(plain.text, "-List<int> sides");
     assert_eq!(plain.font.family, FontFamily::Sans);
     assert_eq!(plain.font.size, 14.0, "members are set at seven eighths of the size");
 
     let mono = LayoutOptions { monospace: vec![MonospacePart::Members], ..LayoutOptions::default() };
     let drawn = drawings(&scene(SHAPES, &mono));
-    assert_eq!(run(&drawn, "node:Shape/attribute/1.0").font.family, FontFamily::Mono, "the host sets members in mono");
+    assert_eq!(
+        run(&drawn, "node:Shape/attribute/1/0.0").font.family,
+        FontFamily::Mono,
+        "the host sets members in mono"
+    );
     assert_eq!(run(&drawn, "node:Shape/label/0.0").font.family, FontFamily::Sans, "a class's name stays in its font");
 }

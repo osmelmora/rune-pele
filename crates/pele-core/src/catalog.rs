@@ -290,7 +290,11 @@ diagram_catalog! {
     Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
     Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },
-    Usecase => { name: "usecase", detectors: [(36, "usecase", starts(&["usecase-beta"]).then(End::Space))] },
+    Usecase => {
+        name: "usecase",
+        port: { diagram: diagrams::usecase::Usecase, section: "usecase", palette: PaletteRule::None },
+        detectors: [(36, "usecase", starts(&["usecase-beta"]).then(End::Space))],
+    },
 }
 
 /// Pele's `detectDiagram`, on text that preprocessing has cleaned.

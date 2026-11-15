@@ -38,6 +38,9 @@ pub enum FragmentDetail {
     Piece(u32),
     /// One run of a label: its line, and its place on the line.
     TextRun { line: u32, run: u32 },
+    /// One run of a further label of a part that draws several, such as the cells of a table:
+    /// the label, counted from 1 in paint order, then the run's line and its place on the line.
+    LaterTextRun { label: u32, line: u32, run: u32 },
 }
 
 /// One step of [`Scene::paint`].
@@ -374,13 +377,14 @@ impl PathProgram {
     }
 }
 
-/// What each part has drawn so far, so that each drawing of a part has a key of its own: its
-/// shapes, and the lines of its text. A part that draws several texts, such as the members of a
-/// class, numbers their lines on from one text to the next.
+/// How many shapes and how many labels each part has drawn so far, so that each drawing of a
+/// part has a key of its own. A part's later labels, such as a class's members or a table's
+/// cells, are counted by label rather than by line, so a label that wraps differently leaves the
+/// keys of the labels after it alone.
 #[derive(Default)]
 struct Pieces {
     shapes: HashMap<(PartId, Facet), u32>,
-    lines: HashMap<(PartId, Facet), u32>,
+    labels: HashMap<(PartId, Facet), u32>,
 }
 
 impl Scene {
@@ -494,12 +498,14 @@ impl Scene {
             NodeContent::Tooltip => {}
             NodeContent::Text(text) => {
                 let part = self.part_key(node).expect("every drawing is a part of an entity");
-                let before = pieces.lines.entry((node.part.expect("a part"), part.facet)).or_insert(0);
-                let first = *before;
-                *before += text.label.lines.len() as u32;
+                let label = pieces.labels.entry((node.part.expect("a part"), part.facet)).or_insert(0);
+                let label = std::mem::replace(label, *label + 1);
                 for (line, run, baseline) in runs(text, &inherited) {
-                    let line = first + line;
-                    let key = FragmentKey { part: part.clone(), detail: FragmentDetail::TextRun { line, run } };
+                    let detail = match label {
+                        0 => FragmentDetail::TextRun { line, run },
+                        label => FragmentDetail::LaterTextRun { label, line, run },
+                    };
+                    let key = FragmentKey { part: part.clone(), detail };
                     let geometry = Geometry::Text(baseline);
                     out.push(PaintVisit::Draw(Draw {
                         key,
@@ -611,11 +617,14 @@ impl std::fmt::Display for FragmentKey {
             Facet::Method => "/method",
             Facet::StartLabel => "/start-label",
             Facet::EndLabel => "/end-label",
+            Facet::Stereotype => "/stereotype",
+            Facet::Row => "/row",
         })?;
         match self.detail {
             FragmentDetail::Whole => Ok(()),
             FragmentDetail::Piece(piece) => write!(f, "/{piece}"),
             FragmentDetail::TextRun { line, run } => write!(f, "/{line}.{run}"),
+            FragmentDetail::LaterTextRun { label, line, run } => write!(f, "/{label}/{line}.{run}"),
         }
     }
 }

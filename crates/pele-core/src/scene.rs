@@ -173,6 +173,10 @@ pub enum Facet {
     StartLabel,
     /// The text where an edge ends.
     EndLabel,
+    /// The kind an element is tagged with, such as `«service»`, beside its label.
+    Stereotype,
+    /// The cells of a table inside a node, such as the keys and values of a JSON object.
+    Row,
 }
 
 /// Mermaid's palette theme variables for one diagram type: the name before the number, and the
@@ -630,6 +634,11 @@ impl PathProgram {
     /// An arc of less than half a turn.
     pub(crate) fn a(self, radii: [Number; 2], sweep: bool, end: [Number; 2]) -> Self {
         self.then(PathStep::Arc { radii, large: false, sweep, end })
+    }
+
+    /// An arc of more than half a turn.
+    pub(crate) fn a_large(self, radii: [Number; 2], sweep: bool, end: [Number; 2]) -> Self {
+        self.then(PathStep::Arc { radii, large: true, sweep, end })
     }
 
     pub(crate) fn z(self) -> Self {
@@ -1819,13 +1828,13 @@ impl ShapeElement<'_> {
         self.with(Field::StrokeWidth, |p| p.stroke_width = Some(width))
     }
 
+    pub(crate) fn join(self, join: LineJoin) -> Self {
+        self.with(Field::StrokeJoin, |p| p.join = Some(join))
+    }
+
     /// Dashes and the gaps between them, in turn.
     pub(crate) fn dash(self, pattern: &[Number]) -> Self {
         self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
-    }
-
-    pub(crate) fn join(self, join: LineJoin) -> Self {
-        self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {

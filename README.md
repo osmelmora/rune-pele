@@ -2,7 +2,7 @@
 
 Mermaid diagrams for [Rune](https://github.com/anomalyco/rune) apps. This is a native Rust port of [Pele](https://github.com/obsidianmd/pele), the fast Mermaid to SVG renderer, pinned at Pele 1.13.0.
 
-The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own text metrics. On top of that come a Rune adapter with live themes and streaming layouts. Pie and flowchart are the ported types: their output equals Pele's on the documentation corpus and on every source of theirs in Pele's own tests. `pele parity` shows where the port stands.
+The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own text metrics. On top of that come a Rune adapter with live themes and streaming layouts. The ported types are pie, flowchart, class, state, requirement, swimlane and usecase. Their output equals Pele's on the documentation corpus and on every source of theirs in Pele's own tests. `pele parity` shows where the port stands.
 
 ## Layout
 
@@ -14,7 +14,7 @@ The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own 
 | `crates/rune-pele` | The Rune adapter, and the only crate that depends on Rune. `Diagram::view` draws a Scene as native Rune elements. `examples/pie.rs` shows it. |
 | `harness/` | `oracle.ts`, bundled by esbuild into `harness/dist/oracle.mjs` and run by the pinned Node. |
 | `vendor/pele` | Pele's source at `scripts/pele-pin.txt`. Gitignored, and fetched by `mise run setup`. |
-| `tests/fixtures` | Sources for the CLI recipes, and `pie/` and `flowchart/` with the sources harvested from Pele's tests by `scripts/harvest-pie.mjs` and `scripts/harvest-flowchart.mjs`. |
+| `tests/fixtures` | Sources for the CLI recipes, and one folder per ported type with the sources harvested from Pele's tests by `scripts/harvest-<type>.mjs`. |
 
 ## Start
 
