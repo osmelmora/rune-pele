@@ -48,6 +48,30 @@ Preconditions:
 - **Harvest is current.** Run `$C $R parity-harvest node scripts/harvest-pie.mjs`, then `git status --short tests/fixtures/pie`. The status is empty at the Pele pin the harvest was made at, which `harvest.json` records as `pele`. Each other ported type has its own pair, `scripts/harvest-<type>.mjs` and `tests/fixtures/<type>`: flowchart, class, state, requirement, swimlane, usecase, er and agentflow. Swimlane's harvest also holds lane-layout calls recorded from real renders (`tests/fixtures/swimlane/`).
 - **Unknown type.** Run `$C $R parity-unknown-type target/debug/pele parity --type nope`. Exit 64, stderr names `vendor/pele/tests/corpus`.
 
+## Shared helpers for wave 2
+
+Each helper is ported once, in `crates/pele-core/src`, and held to Pele by a test in `crates/pele-core/tests/common.rs`. Run `$C $R parity-harvest cargo test -q -p pele-core --test common -- --nocapture`: exit 0, `18 passed`, every line ends in `0 different`. Each test meets seeded random inputs and every input Pele's renders of `tests/fixtures/common/harvest.json` give the helper (`scripts/harvest-common.mjs`, 1,656 sources, through the oracle's `common_record` op). `$C $R parity-harvest node scripts/break-common.mjs` prints seven lines that start `red` and one `green`. Labels hold no icons or math anywhere in this port.
+
+| Pele | Rust | Test |
+| --- | --- | --- |
+| `svg/palette.ts` `palette`, `withPalette`, `paletteStyle` | The kind's `palette:` in the catalog. `PaletteRule::Slots("git", 0)` gitGraph, `Slots("cScale", 0)` timeline, radar and treemap, `Slots("cScale", 1)` mindmap, `Repeated("venn", 1)`, `PlotColors` xychart. The Scene holds the palette and the root writes it. | `palette_matches_pele` |
+| `seriesInkFill(i)` | `Paint::OnSeries(SeriesSlot::new(i))` as a fill, which writes nothing where the palette knows no ink. For `seriesInkFill(i) \|\| fallback`, test `cx.palette.ink(slot)`. | the same |
+| `literal-label.ts` `literalLabel`, `breakLabel` | `measure::literal_label(text, measurer, size, room, style) -> Label`, `measure::break_label(&label, measurer, room) -> Label` | `literal_labels_match_pele`, `break_labels_match_pele` |
+| `leftLabelSvg(label, x, top, attrs)` | `SceneBuilder::left_label(part, facet, &label, x, top, look)`. Build `look` in Pele's attribute order with `LabelLook::class`, `weight`, `font_size(Number::raw(n))`, `fill`, `italic`, `mono` and `style`. | `left_labels_write_as_pele_writes_them`, `the_walk_places_left_label_runs_where_the_svg_does` |
+| `outline.ts` `tokenize`, `parseOutline`, `getType` | `diagrams::outline::{tokenize(src, kanban), parse_outline(src, &mut db, kanban), NodeShape::of}`. A db implements `OutlineDb` (`add_node` returns `Result<(), Self::Error>`, as Pele's dbs throw). | `outlines_tokenize_and_parse_as_pele_does` |
+| `icon.ts` `iconSvg(name, x, y, side)` | `SceneBuilder::icon(part, &name, [Number::num(x), Number::num(y)], Number::num(side))` | `icons_write_as_pele_writes_them` |
+| `scan.ts` `lineEnd`, `keywordAt`, `skipTrivia`, `accessibility` | `diagrams::scan::{line_end, keyword_at, skip_trivia, accessibility(src, at, emit)}`. `emit` gets an `AccPart`, whose `offset()` is Pele's number counted from `first`. | `scan_helpers_match_pele` |
+| `caseless.ts` `wordAt` | `diagrams::scan::word_at(src, at, word)` | the same |
+| `fit.ts` `plainLabel`, `fitLabel` | `measure::{plain_label, fit_label}(raw: Option<&[u16]>, measurer, size, max, base) -> Label`. `None` stands for `undefined`. | `plain_and_fit_labels_match_pele` |
+| `fit-text.ts` `fitText` | `measure::fit_text(text, max, size, min, measurer, style) -> Option<Fitted>` | `fit_text_matches_pele` |
+| `accDescr.ts` `accDescr(name)` | `diagrams::tokens::acc_descr_named(name)` | `acc_descr_scanner_matches_pele` |
+| `tokens.ts` `titleBefore(rest)`, `longer` | `tokens::title_before(rest)` with the `rest` of `dashed_name` (architecture, radar), `word_unit` (eventmodeling, treemap), `ref_name` (git) or `line_text` (treeview). `token(…).longer(&[kind])` names alternatives by their place in the table. | `title_before_matches_pele`, `longer_alternatives_lex_as_pele_does` |
+| `fit-width.ts` `capWidth` | `fit::cap_width(options, natural, least, around)`. Pass `0.0` where Pele leaves `around` out. | `cap_width_matches_pele` |
+| `util/chars.ts` | `input::{is_space, is_blank, is_line_end, is_digit, is_letter, is_hex, is_word}` | `char_classes_match_pele_for_every_code_unit` |
+| `svg/theme.ts` `var(--_c)`, `CRITICAL` | `Paint::Role(Role::Accent)` (gantt, kanban, treeview, wardley), `Paint::Role(Role::Critical)` (gantt, kanban) | `theme_roles_match_pele` |
+
+`pele_core::common::probe` holds the tests' entry points. Pele's tokenizer also tries a type only at the characters its `first` names, and this port has no `first`, so a table gives the same tokens only where its `first` is exact.
+
 ## Gotchas
 
 - Without `--out` the files go to `out/parity/`, which every run overwrites. Proof belongs under `out/verify/<run-id>/`.
