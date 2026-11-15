@@ -317,6 +317,21 @@ pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<Strin
     Ok(diagrams::flowchart::json::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
+/// The requirement front end's model and the graph it lays out as JSON, in the words of the
+/// oracle's `requirement_front` op, for the differential test. A source of another type
+/// answers only that type.
+#[doc(hidden)]
+pub fn requirement_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Requirement {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::requirement::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::requirement::json::front_json(&model, front.found.mermaid.name()))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
