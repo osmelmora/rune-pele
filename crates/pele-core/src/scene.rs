@@ -800,6 +800,9 @@ pub(crate) enum TextEmission {
     /// One line of runs at the text element's own point, as `leftLabelSvg` writes each line: a
     /// run with no emphasis beyond `shared` is bare text, and any other is a `tspan`.
     Line { x: Number, y: Number, shared: Emphasis },
+    /// Plain runs at the text element's own point, the last of them in a `tspan` with a class
+    /// and a fill of its own, as sankey writes a node's name and then its value.
+    Tailed { x: Number, y: Number, class: &'static str, fill: Paint },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -875,6 +878,8 @@ pub(crate) enum NodeContent {
     },
     /// The tooltip of the node's entity, at the place Pele writes it.
     Tooltip,
+    /// The definitions of the gradients the drawing paints with, which draw nothing themselves.
+    Gradients(Vec<GradientId>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -910,6 +915,11 @@ pub(crate) struct Properties {
     pub(crate) style: Option<Style>,
     /// Whether the text inside is set in the monospace font.
     pub(crate) mono: bool,
+    /// A gradient the fill runs along. The fill is then the colour drawn where the gradient
+    /// cannot be, and the SVG writes both in the one `fill`.
+    pub(crate) gradient: Option<GradientId>,
+    /// Whether the shape holds its entity's tooltip, as sankey's links do.
+    pub(crate) titled: bool,
 }
 
 /// A reference to one value of a node, in the order Pele writes its attributes.
@@ -1038,12 +1048,13 @@ pub(crate) struct Entity {
     key: EntityKey,
     author_text: JsText,
     tooltip: Option<JsText>,
+    decoded: bool,
 }
 
 impl Entity {
     fn named(kind: EntityKind, name: &JsText) -> Self {
         let key = EntityKey { kind, name: EntityName::Named(name.to_vec()), duplicate: 0 };
-        Entity { key, author_text: name.clone(), tooltip: None }
+        Entity { key, author_text: name.clone(), tooltip: None, decoded: false }
     }
 
     pub(crate) fn diagram() -> Self {
@@ -1085,7 +1096,7 @@ impl Entity {
     /// two ends, and `duplicate` the edge's place among those with the same name.
     pub(crate) fn edge(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
         let key = EntityKey { kind: EntityKind::Edge, name, duplicate };
-        Entity { key, author_text: written_id.clone(), tooltip: None }
+        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false }
     }
 
     /// A note the author gives no name, such as a sequence diagram's. `written_id` is the id
@@ -1093,11 +1104,19 @@ impl Entity {
     /// is what the note is attached to, and `duplicate` its place among those with the same name.
     pub(crate) fn note_between(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
         let key = EntityKey { kind: EntityKind::Note, name, duplicate };
-        Entity { key, author_text: written_id.clone(), tooltip: None }
+        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false }
     }
 
     pub(crate) fn tooltip(mut self, tooltip: Option<&JsText>) -> Self {
         self.tooltip = tooltip.cloned();
+        self
+    }
+
+    /// Marks the written name and the tooltip as text that already reads as the author meant
+    /// it, its entity codes decoded, so that the SVG only escapes them. Sankey decodes the parts
+    /// of a link's name and tooltip before it joins them.
+    pub(crate) fn decoded(mut self) -> Self {
+        self.decoded = true;
         self
     }
 }
@@ -1108,6 +1127,16 @@ pub(crate) struct EntityRecord {
     /// The name the author gave, which `data-id` carries.
     pub(crate) author_text: JsText,
     pub(crate) tooltip: Option<JsText>,
+    /// Whether `author_text` and `tooltip` have their entity codes decoded already.
+    pub(crate) decoded: bool,
+}
+
+impl EntityRecord {
+    /// The tooltip as it reads, its entity codes decoded.
+    pub(crate) fn tooltip_text(&self) -> Option<Vec<u16>> {
+        let tooltip = self.tooltip.as_ref()?;
+        Some(if self.decoded { tooltip.to_vec() } else { decode_entities(tooltip) })
+    }
 }
 
 /// The accessible title and description a source gives its diagram.
@@ -1124,6 +1153,20 @@ pub(crate) struct WrittenColour {
     pub(crate) instead_of: Role,
 }
 
+/// A gradient, by its place among those the Scene holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct GradientId(u32);
+
+/// A paint that runs from one colour to another between two places along x, in the coordinates
+/// of the shape it fills, as sankey's links run from the colour of their source to that of
+/// their target.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Gradient {
+    pub(crate) x: [Number; 2],
+    /// The colours at the start and at the end.
+    pub(crate) stops: [Paint; 2],
+}
+
 /// What the root element is written from.
 #[derive(Clone, Debug)]
 pub(crate) struct Document {
@@ -1136,6 +1179,7 @@ pub(crate) struct Document {
     pub(crate) palette: SourcePalette,
     pub(crate) colours: Vec<WrittenColour>,
     pub(crate) limit_utf16: usize,
+    pub(crate) gradients: Vec<Gradient>,
 }
 
 /// A finished drawing. Its nodes are in paint order and cannot change.
@@ -1166,6 +1210,10 @@ impl Scene {
         &self.document.colours[id.0 as usize]
     }
 
+    pub(crate) fn gradient(&self, id: GradientId) -> &Gradient {
+        &self.document.gradients[id.0 as usize]
+    }
+
     /// Every entity the drawing holds, in the order the diagram first drew each.
     pub fn entities(&self) -> impl Iterator<Item = &EntityKey> {
         self.entities.iter().map(|record| &record.key)
@@ -1174,7 +1222,7 @@ impl Scene {
     /// The text shown when the pointer rests on an entity.
     pub fn tooltip(&self, entity: &EntityKey) -> Option<String> {
         let record = self.entities.iter().find(|record| record.key == *entity)?;
-        record.tooltip.as_ref().map(|text| walk::drawable(&decode_entities(text)))
+        record.tooltip_text().map(|text| walk::drawable(&text))
     }
 
     /// The entities an entity is joined to: an edge's two ends, and a node's edges.
@@ -1440,6 +1488,10 @@ impl LayerSpec {
         self.with(Field::Fill, |p| p.fill = Some(paint))
     }
 
+    pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
+        self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
     /// Sets the text inside in the monospace font.
     pub(crate) fn mono(self) -> Self {
         self.with(Field::FontFamily, |p| p.mono = true)
@@ -1562,6 +1614,7 @@ impl SceneBuilder {
             palette: cx.palette.clone(),
             colours: Vec::new(),
             limit_utf16: cx.limits.svg_utf16,
+            gradients: Vec::new(),
         };
         SceneBuilder {
             document,
@@ -1588,7 +1641,12 @@ impl SceneBuilder {
     pub(crate) fn part(&mut self, entity: Entity) -> PartId {
         let entry = self.entities.entry(entity.key.clone());
         let index = entry.index();
-        entry.or_insert(EntityRecord { key: entity.key, author_text: entity.author_text, tooltip: entity.tooltip });
+        entry.or_insert(EntityRecord {
+            key: entity.key,
+            author_text: entity.author_text,
+            tooltip: entity.tooltip,
+            decoded: entity.decoded,
+        });
         PartId(index as u32)
     }
 
@@ -1675,6 +1733,17 @@ impl SceneBuilder {
     pub(crate) fn decoration(&mut self) -> ElementStart<'_> {
         let part = self.part(Entity::diagram());
         self.element(part, Facet::Shape)
+    }
+
+    /// A gradient to fill shapes with. It is defined where [`SceneBuilder::gradients`] is called.
+    pub(crate) fn gradient(&mut self, gradient: Gradient) -> GradientId {
+        self.document.gradients.push(gradient);
+        GradientId(self.document.gradients.len() as u32 - 1)
+    }
+
+    /// The definitions of `gradients`, written here.
+    pub(crate) fn gradients(&mut self, gradients: Vec<GradientId>) {
+        self.push(Attributes::default(), NodeContent::Gradients(gradients));
     }
 
     /// The entity's tooltip, written here.
@@ -2064,6 +2133,14 @@ impl TextStart<'_> {
         self.with(Field::Stroke, |p| p.stroke = Some(paint))
     }
 
+    pub(crate) fn stroke_width(self, width: Number) -> Self {
+        self.with(Field::StrokeWidth, |p| p.stroke_width = Some(width))
+    }
+
+    pub(crate) fn join(self, join: LineJoin) -> Self {
+        self.with(Field::StrokeJoin, |p| p.join = Some(join))
+    }
+
     /// Sets the run in italics, written here as an attribute.
     pub(crate) fn italic(mut self) -> Self {
         self.style.italic = true;
@@ -2090,6 +2167,18 @@ impl TextStart<'_> {
         self.builder
             .push(self.attributes, NodeContent::Text(PlacedText { label, emission: TextEmission::Plain { x, y } }));
     }
+
+    /// Plain runs, the last of them in a `tspan` with `class` and `fill`. Each run is given with
+    /// its width, and `width` is the width of the whole line as the diagram measured it.
+    pub(crate) fn finish_tailed(self, runs: &[(&[u16], f64)], class: &'static str, fill: Paint, width: f64, size: f64) {
+        let [x, y] = self.at.expect("a text element has a place");
+        let runs = runs.iter().map(|&(text, width)| LabelRun { text: text.into(), style: self.style, width }).collect();
+        let line = LabelLine { runs, width };
+        let label =
+            Label { lines: vec![line], width, height: js::round(size * 1.5), size, line_height: js::round(size * 1.5) };
+        let emission = TextEmission::Tailed { x, y, class, fill };
+        self.builder.push(self.attributes, NodeContent::Text(PlacedText { label, emission }));
+    }
 }
 
 /// A shape with its geometry, taking paint until it is finished.
@@ -2111,6 +2200,18 @@ impl ShapeElement<'_> {
 
     pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
         self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
+    /// Fills the shape along `gradient`, with its fill drawn where the gradient cannot be.
+    pub(crate) fn gradient(mut self, gradient: GradientId) -> Self {
+        self.attributes.properties.gradient = Some(gradient);
+        self
+    }
+
+    /// Writes the entity's tooltip inside the shape.
+    pub(crate) fn titled(mut self) -> Self {
+        self.attributes.properties.titled = true;
+        self
     }
 
     /// A class written after the geometry, where Pele's template puts it there.

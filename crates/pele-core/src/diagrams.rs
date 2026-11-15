@@ -11,6 +11,7 @@ pub(crate) mod git;
 pub(crate) mod outline;
 pub(crate) mod pie;
 pub(crate) mod requirement;
+pub(crate) mod sankey;
 pub(crate) mod scan;
 pub(crate) mod sequence;
 pub(crate) mod state;

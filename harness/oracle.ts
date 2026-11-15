@@ -404,6 +404,8 @@ import { ganttOps } from './gantt.ts';
 Object.assign(ops, ganttOps);
 import { gitOps } from './git.ts';
 Object.assign(ops, gitOps);
+import { sankeyOps } from './sankey.ts';
+Object.assign(ops, sankeyOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

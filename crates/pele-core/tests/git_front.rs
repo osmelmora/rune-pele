@@ -121,10 +121,12 @@ impl Tally {
                     self.other_types += 1;
                 } else {
                     self.identical += 1;
-                    let model: Value = serde_json::from_str(theirs).expect("the oracle answers JSON");
-                    for (feature, holds) in FEATURES {
-                        if holds(&model) {
-                            *self.holds.entry(feature).or_default() += 1;
+                    // serde_json reads no lone surrogate, which a model can hold; such a model counts no feature.
+                    if let Ok(model) = serde_json::from_str::<Value>(theirs) {
+                        for (feature, holds) in FEATURES {
+                            if holds(&model) {
+                                *self.holds.entry(feature).or_default() += 1;
+                            }
                         }
                     }
                 }
