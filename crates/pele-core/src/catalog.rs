@@ -295,12 +295,16 @@ diagram_catalog! {
         (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
     ] },
     Treemap => { name: "treemap", detectors: [(28, "treemap", starts(&["treemap"]))] },
-    Railroad => { name: "railroad", detectors: [
-        (29, "railroad", starts(&["railroad-beta"]).caseless()),
-        (30, "railroadEbnf", starts(&["railroad-ebnf-beta"]).caseless()),
-        (31, "railroadAbnf", starts(&["railroad-abnf-beta"]).caseless()),
-        (32, "railroadPeg", starts(&["railroad-peg-beta"]).caseless()),
-    ] },
+    Railroad => {
+        name: "railroad",
+        port: { diagram: diagrams::railroad::Railroad, section: "railroad", palette: PaletteRule::None },
+        detectors: [
+            (29, "railroad", starts(&["railroad-beta"]).caseless()),
+            (30, "railroadEbnf", starts(&["railroad-ebnf-beta"]).caseless()),
+            (31, "railroadAbnf", starts(&["railroad-abnf-beta"]).caseless()),
+            (32, "railroadPeg", starts(&["railroad-peg-beta"]).caseless()),
+        ],
+    },
     Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
     Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },

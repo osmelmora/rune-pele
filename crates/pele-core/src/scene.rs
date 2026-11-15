@@ -664,6 +664,9 @@ pub(crate) enum PathStep {
         sweep: bool,
         end: [Number; 2],
     },
+    VerticalBy(Number),
+    /// Pele's lowercase `z`, which closes the subpath as `Z` does.
+    CloseBy,
 }
 
 impl PathProgram {
@@ -800,6 +803,10 @@ pub(crate) enum TextEmission {
     /// One line of runs at the text element's own point, as `leftLabelSvg` writes each line: a
     /// run with no emphasis beyond `shared` is bare text, and any other is a `tspan`.
     Line { x: Number, y: Number, shared: Emphasis },
+    /// One line of runs at the text element's own point, as railroad writes a special sequence:
+    /// a run with a fill of its own is a `tspan` in that fill, and any other run is bare text.
+    /// `fills` holds one entry per run, and `shared` is the emphasis the text element carries.
+    Painted { x: Number, y: Number, fills: Vec<Option<Paint>>, shared: Emphasis },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -943,6 +950,8 @@ pub(crate) enum Field {
     Rel,
     /// The note an internal link names.
     DataHref,
+    /// `xml:space="preserve"`, where a template writes it among the other attributes.
+    PreserveSpace,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2054,6 +2063,41 @@ impl TextStart<'_> {
         let label = Label::single(text, self.style, width, size, js::round(size * 1.5));
         self.builder
             .push(self.attributes, NodeContent::Text(PlacedText { label, emission: TextEmission::Plain { x, y } }));
+    }
+
+    /// Sets the run in a weight the theme gives, written here as an attribute.
+    pub(crate) fn weight(self, weight: TextWeight) -> Self {
+        self.with(Field::FontWeight, |p| p.weight = Some(weight))
+    }
+
+    /// Sets the run in the monospace font, written here as an attribute.
+    pub(crate) fn mono(mut self) -> Self {
+        self.style.mono = true;
+        self.with(Field::FontFamily, |p| p.mono = true)
+    }
+
+    /// Keeps the spaces of the text as they are, written here as an attribute.
+    pub(crate) fn preserve_space(mut self) -> Self {
+        self.attributes.emission.push(Field::PreserveSpace);
+        self
+    }
+
+    /// Several runs on one line, each `(text, width, fill)`: a run with a fill of its own is
+    /// written as a `tspan` in it. Every run has the emphasis given so far.
+    pub(crate) fn finish_painted(self, runs: &[(&[u16], f64, Option<Paint>)], size: f64) {
+        let [x, y] = self.at.expect("a text element has a place");
+        let mut width = 0.0;
+        let mut line = LabelLine::default();
+        for &(text, run_width, _) in runs {
+            line.runs.push(LabelRun { text: text.into(), style: self.style, width: run_width });
+            width += run_width;
+        }
+        line.width = width;
+        let line_height = js::round(size * 1.5);
+        let label = Label { lines: vec![line], width, height: line_height, size, line_height };
+        let fills = runs.iter().map(|&(_, _, fill)| fill).collect();
+        let emission = TextEmission::Painted { x, y, fills, shared: self.style };
+        self.builder.push(self.attributes, NodeContent::Text(PlacedText { label, emission }));
     }
 }
 

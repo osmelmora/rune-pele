@@ -486,6 +486,8 @@ impl PathProgram {
                     sweep: *sweep,
                     end: by(here, end),
                 },
+                PathStep::VerticalBy(y) => PathCommand::Line(Point { x: here.x, y: here.y + y.effective() }),
+                PathStep::CloseBy => PathCommand::Close,
             };
             here = match command {
                 PathCommand::Move(to) | PathCommand::Line(to) => to,
@@ -651,12 +653,13 @@ impl Scene {
                     };
                     let key = FragmentKey { part: part.clone(), detail };
                     let geometry = Geometry::Text(baseline);
-                    out.push(PaintVisit::Draw(Draw {
-                        key,
-                        origin: inherited.origin,
-                        geometry,
-                        style: inherited.style(opacity),
-                    }));
+                    let mut style = inherited.style(opacity);
+                    if let TextEmission::Painted { fills, .. } = &text.emission
+                        && let Some(&Some(fill)) = fills.get(run as usize)
+                    {
+                        style.fill = fill;
+                    }
+                    out.push(PaintVisit::Draw(Draw { key, origin: inherited.origin, geometry, style }));
                 }
             }
         }
@@ -687,6 +690,7 @@ fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)
         // each run starts where the runs before it end.
         TextEmission::Line { x, y, shared } => line_runs(label, &[[*x, *y]], *shared, inherited),
         TextEmission::Rich { lines, shared } => line_runs(label, lines, *shared, inherited),
+        TextEmission::Painted { x, y, shared, .. } => line_runs(label, &[[*x, *y]], *shared, inherited),
     }
 }
 
