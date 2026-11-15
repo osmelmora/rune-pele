@@ -653,6 +653,11 @@ pub(crate) struct Preprocessed {
     pub(crate) text: JsText,
     pub(crate) title: Option<JsText>,
     pub(crate) config: JsObject,
+    /// The diagram text before its comment lines were removed, for a type that reports where
+    /// each statement sits in the source.
+    pub(crate) with_comments: JsText,
+    /// The number of front matter lines removed before that text.
+    pub(crate) line_offset: usize,
 }
 
 fn syntax(message: String) -> RenderError {
@@ -664,10 +669,28 @@ pub(crate) fn nested_too_deeply() -> RenderError {
 }
 
 /// Pele's `preprocess` followed by its `cleanupComments`.
-pub(crate) fn preprocess(source: &str, mut steps: Option<&mut Steps>) -> Result<Preprocessed, RenderError> {
+pub(crate) fn preprocess(source: &str, steps: Option<&mut Steps>) -> Result<Preprocessed, RenderError> {
+    preprocess_to(source, steps, false)
+}
+
+/// Pele's `preprocess` alone: `steps` map the source to `with_comments`, the text a type that
+/// keeps its comments parses.
+pub(crate) fn preprocess_keeping_comments(
+    source: &str,
+    steps: Option<&mut Steps>,
+) -> Result<Preprocessed, RenderError> {
+    preprocess_to(source, steps, true)
+}
+
+fn preprocess_to(
+    source: &str,
+    mut steps: Option<&mut Steps>,
+    keep_comments: bool,
+) -> Result<Preprocessed, RenderError> {
     let mut text = single_quote_attributes(normalize_line_breaks(&source.encode_utf16().collect::<Vec<_>>()));
     let mut config = JsObject::default();
     let mut title = None;
+    let mut line_offset = 0;
 
     if let Some(front) = text.has("---").then(|| match_front_matter(&text)).flatten() {
         let parsed = yaml::parse_yaml(&front.body)
@@ -685,12 +708,15 @@ pub(crate) fn preprocess(source: &str, mut steps: Option<&mut Steps>) -> Result<
                 config.set("gantt".into(), JsValue::Object(gantt));
             }
         }
+        line_offset = text[..front.length].iter().filter(|&&c| c == 10).count();
         text.drain(..front.length);
         record(&mut steps, vec![(0, front.length, 0)]);
     }
 
-    let text = directives(text, &mut config, &mut steps)?;
-    Ok(Preprocessed { text: cleanup_comments(text, &mut steps).into(), title, config })
+    let with_comments = directives(text, &mut config, &mut steps)?;
+    let mut unrecorded = None;
+    let cleaned = cleanup_comments(with_comments.clone(), if keep_comments { &mut unrecorded } else { &mut steps });
+    Ok(Preprocessed { text: cleaned.into(), title, config, with_comments: with_comments.into(), line_offset })
 }
 
 /// `text.replace(/\r\n?/g, '\n')`.

@@ -364,6 +364,13 @@ impl PathProgram {
                     mirrored = Some(control);
                     PathCommand::Quad { control, end: by(here, end) }
                 }
+                PathStep::ArcBy { radii, large, sweep, end } => PathCommand::Arc {
+                    rx: radii[0].effective(),
+                    ry: radii[1].effective(),
+                    large: *large,
+                    sweep: *sweep,
+                    end: by(here, end),
+                },
             };
             here = match command {
                 PathCommand::Move(to) | PathCommand::Line(to) => to,

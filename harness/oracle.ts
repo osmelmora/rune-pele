@@ -381,6 +381,8 @@ import { classOps } from './class.ts';
 Object.assign(ops, classOps);
 import { stateOps } from './state.ts';
 Object.assign(ops, stateOps);
+import { agentflowOps } from './agentflow.ts';
+Object.assign(ops, agentflowOps);
 
 import { requirementOps } from './requirement.ts';
 Object.assign(ops, requirementOps);
