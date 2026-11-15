@@ -6,7 +6,7 @@
 //! interpreter reads a drawing's effective style and where its origin sits, and never Pele's
 //! attributes.
 
-use super::style::{Meaning, Radius};
+use super::style::{Meaning, Radius, Style};
 use super::{
     AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, LineCap, LineJoin, Node, NodeContent,
     NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene, Size,
@@ -66,6 +66,8 @@ pub struct Group {
     pub opacity: f64,
     /// Where the group leads when it is activated.
     pub link: Option<LinkRef>,
+    /// The text shown while the pointer rests on anything the group draws.
+    pub tooltip: Option<String>,
     /// Whether the pointer passes through the group to what is under it.
     pub untouchable: bool,
 }
@@ -224,6 +226,96 @@ struct Inherited {
     anchor: AnchorKind,
     weight: Option<TextWeight>,
     mono: bool,
+    /// What the style declarations around a text say of it, which win over its attributes.
+    declared: Declared,
+}
+
+/// What style declarations say of the text they apply to, each where one says so.
+#[derive(Clone, Copy, Default)]
+struct Declared {
+    bold: Option<bool>,
+    italic: Option<bool>,
+    mono: Option<bool>,
+    underline: Option<bool>,
+}
+
+/// CSS's `font-weight` as Pele measures it: bold from 600 up.
+fn declared_bold(value: &str) -> Option<bool> {
+    match value {
+        "bold" | "bolder" => Some(true),
+        "normal" | "lighter" => Some(false),
+        _ => value.parse::<f64>().ok().filter(|weight| (1.0..=1000.0).contains(weight)).map(|weight| weight >= 600.0),
+    }
+}
+
+fn declared_italic(value: &str) -> Option<bool> {
+    match value {
+        "italic" | "oblique" => Some(true),
+        "normal" => Some(false),
+        _ => None,
+    }
+}
+
+/// Only the generic family is one every interpreter has.
+fn declared_mono(value: &str) -> Option<bool> {
+    (value == "monospace").then_some(true)
+}
+
+fn declared_underline(value: &str) -> Option<bool> {
+    match value {
+        "underline" => Some(true),
+        "none" => Some(false),
+        _ => None,
+    }
+}
+
+fn declared_cap(value: &str) -> Option<LineCap> {
+    match value {
+        "butt" => Some(LineCap::Butt),
+        "round" => Some(LineCap::Round),
+        _ => None,
+    }
+}
+
+fn declared_join(value: &str) -> Option<LineJoin> {
+    match value {
+        "miter" => Some(LineJoin::Miter),
+        "round" => Some(LineJoin::Round),
+        _ => None,
+    }
+}
+
+/// A declaration's value as CSS compares keywords: trimmed and in lowercase.
+fn keyword(written: &str) -> String {
+    written.trim().to_ascii_lowercase()
+}
+
+/// Whether the walk draws what one declaration says. `meaning` is what the node's style means
+/// where a builder read it; the rest is read here.
+fn reads(style: &Style, meaning: &Meaning, property: &str, written: &str) -> bool {
+    let value = keyword(written);
+    let nothing = matches!(value.as_str(), "0" | "0px" | "normal");
+    match property {
+        "fill" => meaning.fill.is_some(),
+        "stroke" => meaning.stroke.is_some(),
+        "stroke-width" => meaning.stroke_width.is_some(),
+        "opacity" => meaning.opacity.is_some(),
+        "fill-opacity" => meaning.fill_opacity.is_some(),
+        "stroke-opacity" => meaning.stroke_opacity.is_some(),
+        "stroke-dasharray" => meaning.dash.is_some(),
+        "rx" => meaning.radius.is_some(),
+        "font-size" => meaning.font_size.is_some(),
+        "font-weight" => declared_bold(&value).is_some(),
+        "font-style" => declared_italic(&value).is_some(),
+        "font-family" => declared_mono(&value).is_some(),
+        "text-decoration" => declared_underline(&value).is_some(),
+        "stroke-linecap" => declared_cap(&value).is_some(),
+        "stroke-linejoin" => declared_join(&value).is_some(),
+        "stroke-dashoffset" | "letter-spacing" | "word-spacing" => nothing,
+        // A corner is drawn with one radius.
+        "ry" => style.declarations.iter().any(|other| other.property == "rx" && keyword(&other.written) == value),
+        _ => false,
+    }
 }
 
 impl Inherited {
@@ -243,6 +335,7 @@ impl Inherited {
             anchor: AnchorKind::Start,
             weight: None,
             mono: false,
+            declared: Declared::default(),
         }
     }
 
@@ -267,6 +360,18 @@ impl Inherited {
         }
         self.cap = properties.cap.unwrap_or(self.cap);
         self.join = properties.join.unwrap_or(self.join);
+        for declaration in properties.style.iter().flat_map(|style| &style.declarations) {
+            let value = keyword(&declaration.written);
+            match declaration.property.as_str() {
+                "stroke-linecap" => self.cap = declared_cap(&value).unwrap_or(self.cap),
+                "stroke-linejoin" => self.join = declared_join(&value).unwrap_or(self.join),
+                "font-weight" => self.declared.bold = declared_bold(&value).or(self.declared.bold),
+                "font-style" => self.declared.italic = declared_italic(&value).or(self.declared.italic),
+                "font-family" => self.declared.mono = declared_mono(&value).or(self.declared.mono),
+                "text-decoration" => self.declared.underline = declared_underline(&value).or(self.declared.underline),
+                _ => {}
+            }
+        }
         self.font_size =
             styled.font_size.or(properties.font_size.map(|size| size.effective())).unwrap_or(self.font_size);
         self.anchor = properties.anchor.unwrap_or(self.anchor);
@@ -287,13 +392,23 @@ impl Inherited {
         PaintStyle { fill: self.fill, fill_opacity: self.fill_opacity, stroke, opacity }
     }
 
-    fn font(&self, style: Emphasis) -> Font {
+    /// The font of a run with emphasis `style`. `own` is the part of that emphasis the run
+    /// carries itself, which a declaration around it does not change; the rest is written on
+    /// the text element, where a declaration wins over it.
+    fn font(&self, style: Emphasis, own: Emphasis) -> Font {
+        let declared = self.declared;
+        let bold = own.bold || declared.bold.unwrap_or(style.bold || self.weight.is_some());
+        let mono = own.mono || declared.mono.unwrap_or(style.mono || self.mono);
         Font {
-            family: if style.mono || self.mono { FontFamily::Mono } else { FontFamily::Sans },
+            family: if mono { FontFamily::Mono } else { FontFamily::Sans },
             size: if style.script == Script::Normal { self.font_size } else { self.font_size / SMALLER },
-            weight: if style.bold || self.weight.is_some() { FontWeight::Bold } else { FontWeight::Normal },
-            italic: style.italic,
+            weight: if bold { FontWeight::Bold } else { FontWeight::Normal },
+            italic: own.italic || declared.italic.unwrap_or(style.italic),
         }
+    }
+
+    fn underline(&self, style: Emphasis, own: Emphasis) -> bool {
+        own.underline || self.declared.underline.unwrap_or(style.underline)
     }
 }
 
@@ -399,6 +514,22 @@ impl Scene {
         out.into_iter()
     }
 
+    /// The style declarations the walk does not draw, each as `property:value`: a colour only a
+    /// page can read, a font family, a line through text. Where there are any, an interpreter
+    /// that reads only the walk draws something other than the SVG shows.
+    pub fn unread_styles(&self) -> Vec<String> {
+        let mut unread = Vec::new();
+        for node in &self.arena {
+            let Some(style) = &node.properties.style else { continue };
+            for declaration in &style.declarations {
+                if !reads(style, &node.styled, &declaration.property, &declaration.written) {
+                    unread.push(format!("{}:{}", declaration.property, declaration.written));
+                }
+            }
+        }
+        unread
+    }
+
     fn part_key(&self, node: &Node) -> Option<PartKey> {
         let part = node.part?;
         let facet = node.facet.expect("a part of an entity has a facet");
@@ -422,7 +553,7 @@ impl Scene {
                 style: inherited.style(opacity),
             }));
         };
-        let group = |out: &mut Vec<PaintVisit>, link: Option<LinkRef>| {
+        let group = |out: &mut Vec<PaintVisit>, link: Option<LinkRef>, children: &[NodeId]| {
             let (translate, rotate) = match node.properties.transform {
                 Some(Transform::Translate(x, y)) => (Point { x: x.effective(), y: y.effective() }, None),
                 Some(Transform::Rotate { degrees, centre }) => {
@@ -433,11 +564,17 @@ impl Scene {
             };
             let untouchable = node.properties.untouchable;
             let part = self.part_key(node);
-            out.push(PaintVisit::Begin(Group { part, translate, rotate, opacity, link, untouchable }));
+            // Pele writes a tooltip as the first thing in the group it is for.
+            let tooltip = children.iter().find_map(|&child| {
+                let child = self.node(child);
+                let entity = matches!(child.content, NodeContent::Tooltip).then_some(child.part?)?;
+                Some(drawable(&crate::input::decode_entities(self.entity(entity).tooltip.as_ref()?)))
+            });
+            out.push(PaintVisit::Begin(Group { part, translate, rotate, opacity, link, tooltip, untouchable }));
         };
         match &node.content {
             NodeContent::Group(children) => {
-                group(out, None);
+                group(out, None, children);
                 for &child in children {
                     self.visit(child, &inherited, pieces, out);
                 }
@@ -446,7 +583,7 @@ impl Scene {
             NodeContent::Link { link, children } => {
                 let href = link.note.as_ref().or(link.href.as_ref()).expect("a link leads somewhere");
                 let link = LinkRef { href: drawable(href), internal: link.note.is_some(), target: link.target };
-                group(out, Some(link));
+                group(out, Some(link), children);
                 for &child in children {
                     self.visit(child, &inherited, pieces, out);
                 }
@@ -533,28 +670,35 @@ fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)
                 baseline: Point { x: x.effective(), y: y.effective() },
                 anchor: inherited.anchor,
                 advance: line.width,
-                font: inherited.font(style),
+                font: inherited.font(style, Emphasis::default()),
                 script: Script::Normal,
-                underline: style.underline,
+                underline: inherited.underline(style, Emphasis::default()),
             };
             vec![(0, 0, run)]
         }
         // A line's first run carries the line's point and the anchor places the whole line, so
         // each run starts where the runs before it end.
-        TextEmission::Rich { lines, .. } => {
+        TextEmission::Rich { lines, shared } => {
             let mut out = Vec::new();
             for (index, (line, at)) in label.lines.iter().zip(lines).enumerate() {
                 let mut left = at[0].effective() - lead(inherited.anchor, line.width);
                 for (place, run) in line.runs.iter().enumerate() {
                     if !run.text.is_empty() {
+                        let own = Emphasis {
+                            bold: run.style.bold && !shared.bold,
+                            italic: run.style.italic && !shared.italic,
+                            mono: run.style.mono && !shared.mono,
+                            underline: run.style.underline,
+                            ..Emphasis::default()
+                        };
                         let baseline = BaselineRun {
                             text: drawable(&run.text),
                             baseline: Point { x: left, y: at[1].effective() },
                             anchor: AnchorKind::Start,
                             advance: run.width,
-                            font: inherited.font(run.style),
+                            font: inherited.font(run.style, own),
                             script: run.style.script,
-                            underline: run.style.underline,
+                            underline: inherited.underline(run.style, own),
                         };
                         out.push((index as u32, place as u32, baseline));
                     }
