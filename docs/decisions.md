@@ -414,3 +414,34 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - **Thin coverage.** A break of the `\r` escape in railroad is caught by only 1 case and 1 harvested source.
 - **Merge.** Sequence and railroad each added `TextStart::weight` with the same body, and one was kept.
 - The "uncommitted edit in `c4/render.rs`" the worker saw on main was the C4 break script running at the time. The tree was clean afterwards.
+
+## 2026-11-15 Wave 2b: architecture, cynefin, wardley and xychart merged
+
+**Result (measured, rerun by the parent after each merge).**
+- Corpus: architecture 6 of 6, cynefin 3 of 3, wardley 19 of 19 and xychart 8 of 8, with every earlier type unchanged. Total `522 396 0 126 0`, from 19 types.
+- `mise run check`, every test of the four types and the doctor all pass.
+- `mise run rune-corpus` is unchanged. That shows the new icon glyph field and the turned-text reporting leave the eight native graph types as they were.
+
+| Test | Inputs | Gate |
+|---|---|---|
+| `architecture_front` | 15,766 | |
+| `architecture_layout` | 14,746 grid placements | 9 of 9 placement rules |
+| `architecture_parity` | 23,741 | 33 paths |
+| `cynefin_front` | 9,545 | |
+| `cynefin_parity` | 10,238 | 21 paths |
+| `wardley_front` | 10,030 | |
+| `wardley_parity` | 14,464 | 38 paths |
+| `xychart_front` | 14,256 | |
+| `xychart_ticks` | about 72,000 tick computations, compared as raw bits | |
+| `xychart_parity` | 20,423 | 34 paths |
+
+All are 0 different, except one `log10` result (below).
+
+- Cost: 1,983 TS lines (architecture and cynefin) and 2,263 TS lines (wardley and xychart), one run each.
+
+**Decisions.**
+- **xychart `log10`, accepted.** V8's fdlibm `log10` is ported into `diagrams/xychart/ticks.rs`, and it is 1 ulp off Node on 1 of 24,432 inputs. Only the integer part reaches the output, so no SVG differs. The `libm` crate's version was off on 49. A Node bump could move it. It is outside `js.rs`, so the Kani skill does not cover it.
+- **Icon glyphs.** Pele's five built-in architecture icons are a named enum (`scene/glyph.rs`). `Geometry::Icon` carries the glyph. The writer holds Pele's path spelling, which the Scene's path type cannot reproduce.
+- **Turned text.** `Transform::TranslateRotate` is new. The walk reports a drawing with its own rotate inside a turned group. The Rune lowering applies rotation only, so xychart's translate+rotate must also be lowered before xychart's gate opens.
+
+**Merges.** Duplicate additions were kept once: `PathStep::VerticalBy` with its writer and walk arms (railroad and wardley), and `ShapeElement::cap` (cynefin and wardley). In `svg.rs`, railroad's `write_text(scene, …)` and architecture's icon glyph were combined in one arm.
