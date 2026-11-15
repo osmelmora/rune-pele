@@ -6,6 +6,7 @@ pub(crate) mod er;
 pub(crate) mod flowchart;
 pub(crate) mod pie;
 pub(crate) mod requirement;
+pub(crate) mod scan;
 pub(crate) mod state;
 pub(crate) mod swimlane;
 pub(crate) mod tokens;

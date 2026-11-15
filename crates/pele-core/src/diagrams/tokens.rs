@@ -1,10 +1,14 @@
 //! The tokenizer for the diagram types Mermaid defines with Langium grammars, ported from Pele's
-//! `src/diagrams/common/tokens.ts`. Token types are tried in order and the first match wins.
+//! `src/diagrams/common/tokens.ts` and `accDescr.ts`. Token types are tried in order and the first
+//! match wins, unless the winner names longer alternatives.
+//!
+//! Pele also tries a type only at the characters its `first` names. A table whose `first` is
+//! exact matches the same tokens without it, so this port has none.
 //!
 //! Each pattern function answers for the sticky regular expression its comment quotes: given a
 //! position, it returns where the match ends.
 
-use crate::input::{Units, is_blank, is_line_end, is_space};
+use crate::input::{Units, is_blank, is_line_end, is_space, is_word};
 
 /// Where parsing stopped, in the text the parser was given.
 #[derive(Debug)]
@@ -31,20 +35,32 @@ pub(crate) enum Matcher {
     },
     /// A matcher that remembers what it has scanned. It is made once per text.
     Scanner(fn() -> Scanner),
+    /// Pele's `titleBefore(rest)`: `TITLE`, except that the bare word does not match where
+    /// `rest`, the suffix of a longer name, matches right after it.
+    TitleBefore(fn(&[u16], usize) -> bool),
 }
 
 pub(crate) struct TokenType {
     pub(crate) name: &'static str,
     pub(crate) matcher: Matcher,
     pub(crate) hidden: bool,
+    /// Chevrotain's `LONGER_ALT`, as places in the same table. When this type matches, these are
+    /// tried at the same place, and the first that matches more text becomes the token.
+    pub(crate) longer: &'static [usize],
+}
+
+impl TokenType {
+    pub(crate) const fn longer(self, alternatives: &'static [usize]) -> Self {
+        TokenType { longer: alternatives, ..self }
+    }
 }
 
 pub(crate) const fn token(name: &'static str, matcher: Matcher) -> TokenType {
-    TokenType { name, matcher, hidden: false }
+    TokenType { name, matcher, hidden: false, longer: &[] }
 }
 
-const fn hidden(name: &'static str, matcher: Matcher) -> TokenType {
-    TokenType { name, matcher, hidden: true }
+pub(crate) const fn hidden(name: &'static str, matcher: Matcher) -> TokenType {
+    TokenType { name, matcher, hidden: true, longer: &[] }
 }
 
 pub(crate) const fn keyword(word: &'static str) -> TokenType {
@@ -106,12 +122,51 @@ fn acc_title(src: &[u16], at: usize) -> Option<usize> {
 
 /// `[\t ]*title(?:[\t ][^\n\r]*?(?=%%)|[\t ][^\n\r]*|)`
 fn title(src: &[u16], at: usize) -> Option<usize> {
+    title_ending(src, at, |_, _| false)
+}
+
+/// `[\t ]*title(?:[\t ][^\n\r]*?(?=%%)|[\t ][^\n\r]*|(?!rest))`
+pub(crate) fn title_ending(src: &[u16], at: usize, rest: fn(&[u16], usize) -> bool) -> Option<usize> {
     let word = src.run(at, is_blank);
     if !src.starts_at(word, "title") {
         return None;
     }
     let after = word + 5;
-    Some(if src.at(after).is_some_and(is_blank) { line_value(src, after + 1) } else { after })
+    if src.at(after).is_some_and(is_blank) {
+        return Some(line_value(src, after + 1));
+    }
+    (!rest(src, after)).then_some(after)
+}
+
+/// Pele's `titleBefore(rest)`, the `TITLE` terminal of a grammar where a name can start with the
+/// word `title`. `rest` answers whether the suffix of such a name matches at a position.
+pub(crate) const fn title_before(rest: fn(&[u16], usize) -> bool) -> TokenType {
+    token("TITLE", Matcher::TitleBefore(rest))
+}
+
+fn is_dash_or_word(c: u16) -> bool {
+    c == unit(b'-') || is_word(c)
+}
+
+/// The `rest` `[-\w]*\w`, of architecture and radar.
+pub(crate) fn dashed_name(src: &[u16], at: usize) -> bool {
+    (at..src.run(at, is_dash_or_word)).any(|i| is_word(src[i]))
+}
+
+/// The `rest` `\w`, of eventmodeling and treemap.
+pub(crate) fn word_unit(src: &[u16], at: usize) -> bool {
+    src.at(at).is_some_and(is_word)
+}
+
+/// The `rest` `[-./\w]*[-\w]`, of git.
+pub(crate) fn ref_name(src: &[u16], at: usize) -> bool {
+    let end = src.run(at, |c| c == unit(b'.') || c == unit(b'/') || is_dash_or_word(c));
+    (at..end).any(|i| is_dash_or_word(src[i]))
+}
+
+/// The `rest` `(?!%%)[^\n\r]`, of treeview.
+pub(crate) fn line_text(src: &[u16], at: usize) -> bool {
+    !src.starts_at(at, "%%") && src.at(at).is_some_and(not_line_break)
 }
 
 /// `"([^"\\]|\\.)*"|'([^'\\]|\\.)*'`
@@ -193,6 +248,38 @@ fn single_line_comment(src: &[u16], at: usize) -> Option<usize> {
 }
 
 pub(crate) const ACC_DESCR: TokenType = token("ACC_DESCR", Matcher::Pattern(acc_descr));
+
+/// Pele's `accDescr(name)` (`common/accDescr.ts`): `ACC_DESCR` for a grammar that goes on lexing
+/// after an `accDescr {` that never closes, because `accDescr` is also a name there. Once a braced
+/// description finds no closing brace there is none further on, so a later one fails without
+/// reading the rest of the text again.
+pub(crate) const fn acc_descr_named(name: &'static str) -> TokenType {
+    token(name, Matcher::Scanner(acc_descr_scanner))
+}
+
+/// `[\t ]*accDescr(?:[\t ]*:(?:[^\n\r]*?(?=%%)|[^\n\r]*)|\s*({))`, then for a brace the text up to
+/// the next closing one.
+fn acc_descr_scanner() -> Scanner {
+    let mut unclosed = false;
+    Box::new(move |src, at| {
+        let word = src.run(at, is_blank);
+        if !src.starts_at(word, "accDescr") {
+            return None;
+        }
+        let after = word + 8;
+        let colon = src.run(after, is_blank);
+        if src.at(colon) == Some(unit(b':')) {
+            return Some(line_value(src, colon + 1));
+        }
+        let brace = src.run(after, is_space);
+        if src.at(brace) != Some(unit(b'{')) || unclosed {
+            return None;
+        }
+        let close = src.find_unit(unit(b'}'), brace + 1);
+        unclosed = close.is_none();
+        close.map(|close| close + 1)
+    })
+}
 pub(crate) const ACC_TITLE: TokenType = token("ACC_TITLE", Matcher::Pattern(acc_title));
 pub(crate) const TITLE: TokenType = token("TITLE", Matcher::Pattern(title));
 pub(crate) const STRING: TokenType = token("STRING", Matcher::Pattern(string));
@@ -205,39 +292,47 @@ pub(crate) const SINGLE_LINE_COMMENT: TokenType = hidden("SINGLE_LINE_COMMENT", 
 
 /// The visible tokens of a text. The last one is the end of input, whose kind is `None`.
 pub(crate) struct Tokens {
-    kinds: Vec<Option<usize>>,
-    starts: Vec<usize>,
-    ends: Vec<usize>,
+    pub(crate) kinds: Vec<Option<usize>>,
+    pub(crate) starts: Vec<usize>,
+    pub(crate) ends: Vec<usize>,
 }
 
 pub(crate) fn tokenize(src: &[u16], types: &[TokenType]) -> Result<Tokens, SyntaxError> {
     let mut tokens = Tokens { kinds: Vec::new(), starts: Vec::new(), ends: Vec::new() };
     let mut dead = vec![false; types.len()];
     let mut scanners: Vec<Option<Scanner>> = types.iter().map(|_| None).collect();
+    let mut matched = |kind: usize, at: usize| match &types[kind].matcher {
+        Matcher::Literal(text) => src.starts_at(at, text).then_some(at + text.len()),
+        Matcher::Keyword(word) => {
+            let end = at + word.len();
+            let ends = src.starts_at(end, "%%") || src.at(end).is_none_or(is_space);
+            (src.starts_at(at, word) && ends).then_some(end)
+        }
+        Matcher::Pattern(scan) => scan(src, at),
+        Matcher::Closed { .. } if dead[kind] => None,
+        Matcher::Closed { pattern, opener } => {
+            let end = pattern(src, at);
+            dead[kind] = end.is_none() && opener(src, at).is_some();
+            end
+        }
+        Matcher::Scanner(make) => scanners[kind].get_or_insert_with(make)(src, at),
+        Matcher::TitleBefore(rest) => title_ending(src, at, *rest),
+    };
     let mut at = 0;
     'scan: while at < src.len() {
-        for (kind, token_type) in types.iter().enumerate() {
-            let end = match &token_type.matcher {
-                Matcher::Literal(text) => src.starts_at(at, text).then_some(at + text.len()),
-                Matcher::Keyword(word) => {
-                    let end = at + word.len();
-                    let ends = src.starts_at(end, "%%") || src.at(end).is_none_or(is_space);
-                    (src.starts_at(at, word) && ends).then_some(end)
-                }
-                Matcher::Pattern(scan) => scan(src, at),
-                Matcher::Closed { .. } if dead[kind] => None,
-                Matcher::Closed { pattern, opener } => {
-                    let end = pattern(src, at);
-                    dead[kind] = end.is_none() && opener(src, at).is_some();
-                    end
-                }
-                Matcher::Scanner(make) => scanners[kind].get_or_insert_with(make)(src, at),
-            };
-            let Some(end) = end.filter(|&end| end > at) else {
+        for kind in 0..types.len() {
+            let Some(mut end) = matched(kind, at).filter(|&end| end > at) else {
                 continue;
             };
-            if !token_type.hidden {
-                tokens.kinds.push(Some(kind));
+            let mut found = kind;
+            for &alternative in types[kind].longer {
+                if let Some(longer) = matched(alternative, at).filter(|&longer| longer > end) {
+                    (found, end) = (alternative, longer);
+                    break;
+                }
+            }
+            if !types[found].hidden {
+                tokens.kinds.push(Some(found));
                 tokens.starts.push(at);
                 tokens.ends.push(end);
             }
