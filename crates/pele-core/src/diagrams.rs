@@ -2,6 +2,7 @@
 
 pub(crate) mod agentflow;
 pub(crate) mod block;
+pub(crate) mod c4;
 pub(crate) mod class;
 pub(crate) mod er;
 pub(crate) mod flowchart;

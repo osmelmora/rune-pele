@@ -237,9 +237,11 @@ diagram_catalog! {
         port: { diagram: diagrams::agentflow::Agentflow, section: "agentflow", palette: PaletteRule::None },
         detectors: [(3, "agentflow", starts(&["agentflow-beta"]).then(End::WordBoundary))],
     },
-    C4 => { name: "c4", detectors: [
-        (4, "c4", starts(&["C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment"])),
-    ] },
+    C4 => {
+        name: "c4",
+        port: { diagram: diagrams::c4::C4, section: "c4", palette: PaletteRule::None },
+        detectors: [(4, "c4", starts(&["C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment"]))],
+    },
     Kanban => { name: "kanban", detectors: [(5, "kanban", starts(&["kanban"]))] },
     Class => {
         name: "class",

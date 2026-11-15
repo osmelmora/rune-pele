@@ -1214,6 +1214,9 @@ impl Attributes {
         if let Some(stroke) = look.stroke {
             self = self.set(Field::Stroke, |p| p.stroke = Some(stroke));
         }
+        if !look.dash.is_empty() {
+            self = self.set(Field::DashArray, |p| p.dash = look.dash);
+        }
         self.style(look.style)
     }
 
@@ -1225,21 +1228,23 @@ impl Attributes {
     }
 }
 
-/// The paint a shape is written with: a fill, how opaque the fill is, a stroke and style
-/// declarations, in that order. Only [`ShapeLook`] and [`LineLook`] make one, so a look is
+/// The paint a shape is written with: a fill, how opaque the fill is, a stroke, its dashes and
+/// style declarations, in that order. Only [`ShapeLook`] and [`LineLook`] make one, so a look is
 /// rewritten at most once.
 #[derive(Clone, Debug)]
 pub(crate) struct Look {
     fill: Option<Paint>,
     fill_opacity: Option<Number>,
     stroke: Option<Paint>,
+    /// Empty for a solid stroke.
+    dash: Vec<Number>,
     style: Option<Style>,
 }
 
 impl Look {
     /// No fill and no stroke: a shape that only holds its place.
     pub(crate) fn unseen() -> Self {
-        Look { fill: Some(Paint::None), fill_opacity: None, stroke: Some(Paint::None), style: None }
+        Look { fill: Some(Paint::None), fill_opacity: None, stroke: Some(Paint::None), dash: Vec::new(), style: None }
     }
 }
 
@@ -1250,19 +1255,27 @@ pub(crate) struct ShapeLook {
     fill: Paint,
     fill_opacity: Option<Number>,
     stroke: Paint,
+    dash: Vec<Number>,
     style: Option<Style>,
 }
 
 impl ShapeLook {
     pub(crate) fn new(fill: Role, stroke: Role, style: Option<&Style>) -> Self {
-        ShapeLook { fill: Paint::Role(fill), fill_opacity: None, stroke: Paint::Role(stroke), style: style.cloned() }
+        let (fill, stroke) = (Paint::Role(fill), Paint::Role(stroke));
+        ShapeLook { fill, fill_opacity: None, stroke, dash: Vec::new(), style: style.cloned() }
     }
 
     /// One colour as an outline with a wash of the same colour inside, `wash` opaque. A fill
     /// the node's style sets replaces the wash and stays opaque.
     pub(crate) fn tinted(colour: Paint, wash: f64, style: Option<&Style>) -> Self {
         let fill_opacity = if style.is_some_and(Style::sets_fill) { None } else { Some(Number::raw(wash)) };
-        ShapeLook { fill: colour, fill_opacity, stroke: colour, style: style.cloned() }
+        ShapeLook { fill: colour, fill_opacity, stroke: colour, dash: Vec::new(), style: style.cloned() }
+    }
+
+    /// With its outline dashed, written after the stroke.
+    pub(crate) fn dashed(mut self, pattern: &[Number]) -> Self {
+        self.dash = pattern.to_vec();
+        self
     }
 
     /// As it is.
@@ -1271,6 +1284,7 @@ impl ShapeLook {
             fill: Some(self.fill),
             fill_opacity: self.fill_opacity,
             stroke: Some(self.stroke),
+            dash: self.dash.clone(),
             style: self.style.clone(),
         }
     }
@@ -1292,17 +1306,24 @@ impl ShapeLook {
 #[derive(Clone, Debug)]
 pub(crate) struct LineLook {
     stroke: Paint,
+    dash: Vec<Number>,
     style: Option<Style>,
 }
 
 impl LineLook {
     pub(crate) fn new(stroke: Role, style: Option<&Style>) -> Self {
-        LineLook { stroke: Paint::Role(stroke), style: style.cloned() }
+        LineLook { stroke: Paint::Role(stroke), dash: Vec::new(), style: style.cloned() }
     }
 
     /// A line in a colour that is no theme role, such as a series colour.
     pub(crate) fn painted(stroke: Paint, style: Option<&Style>) -> Self {
-        LineLook { stroke, style: style.cloned() }
+        LineLook { stroke, dash: Vec::new(), style: style.cloned() }
+    }
+
+    /// With the line dashed, written after the stroke.
+    pub(crate) fn dashed(mut self, pattern: &[Number]) -> Self {
+        self.dash = pattern.to_vec();
+        self
     }
 
     /// A line with nothing inside it.
@@ -1312,7 +1333,8 @@ impl LineLook {
 
     /// A line around a fill of its own.
     pub(crate) fn filled(&self, fill: Paint) -> Look {
-        Look { fill: Some(fill), fill_opacity: None, stroke: Some(self.stroke), style: self.style.clone() }
+        let (stroke, dash, style) = (Some(self.stroke), self.dash.clone(), self.style.clone());
+        Look { fill: Some(fill), fill_opacity: None, stroke, dash, style }
     }
 }
 

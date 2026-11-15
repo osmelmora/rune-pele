@@ -204,7 +204,7 @@ fn invalid_protocol(protocol: &[u16]) -> bool {
 
 /// Pele's `sanitizeUrl`: refuses what `@braintree/sanitize-url` refuses, but keeps percent
 /// escapes.
-fn sanitize_url(url: &[u16]) -> JsText {
+pub(crate) fn sanitize_url(url: &[u16]) -> JsText {
     if url.is_empty() {
         return BLANK.into();
     }
