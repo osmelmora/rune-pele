@@ -686,3 +686,24 @@ fn worst_cases_match_pele() {
     let cases: Vec<(String, Value)> = worst_cases().into_iter().map(|source| (source, options.clone())).collect();
     run("worst case", &cases).finish("Pele's worst-case block diagrams");
 }
+
+/// Self-loops on a block in a filled composite, with the composite's padding swept in quarter
+/// pixels, so that its border passes through each loop's arc. Whether an edge is cased or inked
+/// then turns on the points Pele samples along the arc.
+#[test]
+fn self_loops_against_a_fill_border_match_pele() {
+    let mut cases = Vec::new();
+    for loops in 1..=4 {
+        let source = format!(
+            "block\n block:g\n  a[\"A block\"] b((\"round\")) c{{\"diamond\"}}\n end\n{}style g fill:#036",
+            ["a", "b", "c"].iter().map(|id| format!(" {id} --> {id}\n").repeat(loops)).collect::<String>()
+        );
+        for quarter in 0..120 {
+            let padding = f64::from(quarter) / 4.0;
+            cases.push((source.clone(), json!({ "config": { "block": { "padding": padding } } })));
+        }
+    }
+    let tally = run("self-loop", &cases).finish("self-loops against a fill's border");
+    assert!(tally.reached.contains("an edge cased over a fill's border"), "some loops cross the fill's border");
+    assert!(tally.reached.contains("an edge in a fill's ink"), "some loops stay inside the fill");
+}
