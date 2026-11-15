@@ -398,3 +398,19 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - Tick steps use `libm::log10` and `js::pow`. Every tick input matched, but that is not a proof.
 
 **Wave 2a cost.** Four types (sequence, gantt, block, c4), about 9,220 TS lines, in four runs. Two runs needed a resend after ending a turn to wait on a background job.
+
+## 2026-11-15 Wave 2b: railroad and info merged
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: railroad 14 of 14 and info 2 of 2, with every earlier type unchanged. Total `522 360 0 162 0`, from 15 types.
+- `railroad_front`: 15,068 inputs, one line per notation. `railroad_parity`: 26,675 renders, with a 42-path coverage gate. `railroad_walk`: Scene keys are unique.
+- `info_front`: 2,942 inputs. `info_parity`: 3,071 inputs.
+- All 0 different.
+- Cost: 1,789 TS lines in one run.
+
+**Notes.**
+- Railroad has four notations, not three: Pele's own constructor calls (`railroad-beta`), EBNF, ABNF and PEG. All four lower to one rule model, and each has its own front-end test.
+- **Key policy, accepted.** Each rule is a group entity, ranked by duplicate name. Every reference to nonterminal X shares `node:X`. Terminals, specials and counts are parts of their rule.
+- **Thin coverage.** A break of the `\r` escape in railroad is caught by only 1 case and 1 harvested source.
+- **Merge.** Sequence and railroad each added `TextStart::weight` with the same body, and one was kept.
+- The "uncommitted edit in `c4/render.rs`" the worker saw on main was the C4 break script running at the time. The tree was clean afterwards.
