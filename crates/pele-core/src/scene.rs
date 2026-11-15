@@ -144,6 +144,8 @@ pub enum AnchorKind {
 pub(crate) enum TextWeight {
     Title,
     Bold,
+    /// The weight of a heading inside a node, such as the name of a table.
+    Heading,
 }
 
 /// Which part of an entity a node draws.
@@ -605,6 +607,11 @@ impl PathProgram {
     /// An arc of less than half a turn.
     pub(crate) fn a(self, radii: [Number; 2], sweep: bool, end: [Number; 2]) -> Self {
         self.then(PathStep::Arc { radii, large: false, sweep, end })
+    }
+
+    /// An arc of more than half a turn.
+    pub(crate) fn a_large(self, radii: [Number; 2], sweep: bool, end: [Number; 2]) -> Self {
+        self.then(PathStep::Arc { radii, large: true, sweep, end })
     }
 
     pub(crate) fn z(self) -> Self {
@@ -1266,6 +1273,11 @@ impl LabelLook {
         LabelLook(self.0.set(Field::FontWeight, |p| p.weight = Some(weight)))
     }
 
+    /// A size of its own, for text smaller or larger than its group's.
+    pub(crate) fn font_size(self, size: Number) -> Self {
+        LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
+    }
+
     pub(crate) fn fill(self, paint: Option<Paint>) -> Self {
         match paint {
             Some(paint) => LabelLook(self.0.set(Field::Fill, |p| p.fill = Some(paint))),
@@ -1620,6 +1632,10 @@ impl ShapeElement<'_> {
 
     pub(crate) fn stroke_width(self, width: Number) -> Self {
         self.with(Field::StrokeWidth, |p| p.stroke_width = Some(width))
+    }
+
+    pub(crate) fn join(self, join: LineJoin) -> Self {
+        self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
     /// Dashes and the gaps between them, in turn.

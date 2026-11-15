@@ -10,6 +10,7 @@ mod graph;
 pub(crate) mod json;
 mod lexer;
 mod parser;
+mod render;
 pub(crate) mod view;
 
 use crate::catalog::ParseContext;
@@ -19,6 +20,7 @@ use indexmap::IndexMap;
 use std::cell::OnceCell;
 
 pub(crate) use graph::build_usecase_graph;
+pub(crate) use render::Usecase;
 
 /// Start and end offsets in the text the parser reads, end exclusive.
 pub(crate) type Span = [usize; 2];

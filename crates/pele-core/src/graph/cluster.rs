@@ -30,6 +30,12 @@ impl Crossings {
     fn at(&self, y: f64) -> Option<&Vec<f64>> {
         self.by_y.get(&key(y))
     }
+
+    /// The x of every route point at the rounded `y`, in the order the routes were marked,
+    /// for a diagram type that places its titles by a rule of its own.
+    pub(crate) fn xs(&self, y: f64) -> Option<&[f64]> {
+        self.at(y).map(Vec::as_slice)
+    }
 }
 
 /// Pele's `clusterTitleX`: where a group's title, `width` wide, sits along the top edge so that

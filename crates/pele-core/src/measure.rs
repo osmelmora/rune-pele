@@ -195,6 +195,25 @@ impl Label {
     }
 }
 
+impl Label {
+    /// Pele's `labelLine`: one line of the label as a label of its own.
+    pub(crate) fn line(&self, i: usize) -> Label {
+        let line = self.lines[i].clone();
+        Label {
+            width: line.width,
+            height: self.line_height,
+            size: self.size,
+            line_height: self.line_height,
+            lines: vec![line],
+        }
+    }
+
+    /// Pele's `lineMiddle`: how far below the top of the label the middle of line `i` is.
+    pub(crate) fn line_middle(&self, i: usize) -> f64 {
+        (i as f64 + 0.5) * self.line_height
+    }
+}
+
 const LINE_HEIGHT: f64 = 1.5;
 // Lines of one wrapped label sit closer, so the label reads as one block.
 const WRAPPED_LINE_HEIGHT: f64 = 1.3;

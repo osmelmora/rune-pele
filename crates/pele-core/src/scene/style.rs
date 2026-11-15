@@ -93,6 +93,14 @@ impl Style {
         !declared(&self.css(), &["stroke"]).is_empty()
     }
 
+    /// The fill the style gives, trimmed, as Pele's `hollowOn` reads a shape style: what follows
+    /// the first `fill:`, or nothing where that is empty.
+    pub(crate) fn fill_value(&self) -> Option<String> {
+        let css = self.css();
+        let found = declared(&css, &["fill"]).into_iter().next()?;
+        Some(js_trim(found.value).to_owned()).filter(|value| !value.is_empty())
+    }
+
     /// The first value the style declares for `property` that is not empty, trimmed. This is
     /// how Pele's `casing` reads a line style.
     pub(crate) fn first(&self, property: &str) -> Option<String> {

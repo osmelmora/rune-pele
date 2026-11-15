@@ -425,6 +425,7 @@ fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderE
     prepare(source, ParseOptions::default()).map(|prepared| match prepared.model {
         catalog::PreparedModel::Pie(model) => model,
         catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
+        catalog::PreparedModel::Usecase(_) => panic!("{source:?} is a use case diagram"),
     })
 }
 
