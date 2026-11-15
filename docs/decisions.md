@@ -312,3 +312,32 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - Kanban and wardley each write text their own way (`textStyle`, `sharedStyle`, `spanStyle`), and both may need to grow the Scene's text forms. They sit in different waves (2c and 2b), so they never run in parallel.
 - Sankey's `replacements` stays with the sankey worker.
 - `rune-pele` must map `Role::Accent` and `Role::Critical` to app tokens. `rune-graph` branched before these roles existed, so the parent checks that at the `rune-graph` merge.
+
+## 2026-11-15 Graph types drawn natively in Rune (`rune-graph` merged)
+
+**Result (measured, rerun by the parent after the merge).**
+- `mise run check`: 255 passed, 0 failed. `pele parity` is unchanged at `522 259 0 263 0`.
+- `mise run rune-corpus` (release): 237 of 239 corpus sources of the eight graph types are drawn natively. Every one is within the preset 2× limits: largest unexplained patch 12 px, 5 unexplained px per 10,000, flat-colour error 4 levels. Text boxes are masked, since Rune draws Inter and resvg draws Arial.
+- The two flowchart sources that fall back use a picture and a `stroke-dashoffset`.
+- `break-lowering.sh` breaks six lowerings (dash, arc direction, hole, translucent stroke, group fade, text turn), and each one's test fails.
+- For every opened type, keys are unique and survive an `idPrefix` change and a value edit. A palette change keeps layouts and measurements and adds one paint.
+- Links reach the app's handler, and tooltips show on hover.
+- Speed: a 401-node flowchart takes 3.5 ms to lay out, 1.1 ms to lower and 0.8 ms to paint. A state diagram of 3,000 nested composites takes 16.3 ms, 6.2 ms and 5.0 ms.
+
+**Decisions.**
+- **1× hairlines accepted.** At 1×, 146 sources exceed the preset limits, only along slanted or curved 1 px lines. Rune takes a stroke's coverage from distance to its centre line, and resvg from area. At 2× every source passes. 2× stays the gate. 1× is held to a looser bound (patch ≤ 30 px), listed in `DIVERGENCES.md`.
+- **Agentflow opened at the merge.** rune-mermaid has no agentflow, so keeping it closed would mean an error. Its 12 corpus sources pass the 2× limits, and its keys and theme test pass with a new fixture, `tests/fixtures/rune/agentflow.mmd`.
+- **Accent and critical roles.** The Rune palette maps `Role::Accent` to Rune's first accent at the theme's lightness. Rune has no danger colour, so `Role::Critical` keeps Pele's red.
+- **Release corpus run.** It is the `rune-corpus` mise task and stays out of `mise run check`, which runs debug, where the comparison takes minutes.
+- **Icons.** A host hook on `ViewOptions` is an API decision, deferred. Icons draw nothing, as Pele's SVG leaves the box empty.
+
+**Merge.** The wave 2 foundation had moved rich and line text into a shared `line_runs`. `rune-graph` had changed how each run's font is chosen from its own emphasis over the shared emphasis. Both changes are kept, in one `line_runs` that takes the shared emphasis.
+
+**What later types will need from the lowering** (from `rune-graph`'s survey of Pele's drawing code):
+- xychart and quadrant need a group with both translate and rotate.
+- Wardley needs a rotate on a text element.
+- Git turns labels by ±45°.
+- Sankey uses `linearGradient` on paths.
+- Sankey, treemap, journey and c4 put a `<title>` inside a shape.
+- Sequence and architecture use icons.
+- Math labels have no walk geometry yet.
