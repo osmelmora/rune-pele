@@ -492,6 +492,21 @@ pub fn agentflow_front_json(source: &str, options: ParseOptions) -> Result<Strin
     Ok(diagrams::agentflow::json::front_json(&model, front.found.mermaid.name()))
 }
 
+/// The gantt front end's model and each task's schedule against `now`, in milliseconds since
+/// 1970, as JSON in the words of the oracle's `gantt_front` op, for the differential test. A
+/// source of another type answers only that type.
+#[doc(hidden)]
+pub fn gantt_front_json(source: &str, options: ParseOptions, now: f64) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Gantt {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::gantt::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::gantt::json::front_json(&model, now))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

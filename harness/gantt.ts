@@ -6,7 +6,8 @@
 // travel as 16 hex digits of their bits, and a NaN answers as "NaN".
 import { autoTicks, intervalTicks, timeFormat } from '../vendor/pele/src/diagrams/gantt/axis.ts';
 import { add, format, isoDate, parseStrict, type Unit } from '../vendor/pele/src/diagrams/gantt/dates.ts';
-import { parseDuration } from '../vendor/pele/src/diagrams/gantt/db.ts';
+import { parseDuration, type GanttDb } from '../vendor/pele/src/diagrams/gantt/db.ts';
+import { PeleError, parse } from '../vendor/pele/src/index.ts';
 
 type Json = Record<string, unknown>;
 
@@ -105,6 +106,71 @@ function dateCall(call: Json): unknown {
   }
 }
 
+// The clock the parity runs give Pele.
+const NOW = Date.UTC(2026, 0, 15, 12);
+
+const when = (date: Date | null | undefined): string | null => (date ? bits(date.getTime()) : null);
+
+// Pele's gantt model for a source and parse options, then each task's schedule against `now`
+// (the parity clock when unset), or Pele's error with its position. A source of another type
+// answers only that type.
+function ganttFront(text: string, options: { config?: Json; now?: number }): string {
+  let db: GanttDb;
+  try {
+    const model = parse(text, options);
+    if (model.type !== 'gantt') return JSON.stringify({ type: model.type });
+    db = model as unknown as GanttDb;
+  } catch (error) {
+    if (!(error instanceof PeleError)) return JSON.stringify({ error: String(error) });
+    if (error.type !== null && error.type !== 'gantt') return JSON.stringify({ type: error.type });
+    const { code, type, mermaidType, line, column, snippet } = error;
+    return JSON.stringify({ error: String(error), code, type, mermaidType, line, column, snippet });
+  }
+  const out: Json = {
+    title: db.title ?? null,
+    accTitle: db.accTitle ?? null,
+    accDescr: db.accDescr ?? null,
+    dateFormat: db.dateFormat,
+    axisFormat: db.axisFormat,
+    tickInterval: db.tickInterval ?? null,
+    todayMarker: db.todayMarker,
+    includes: db.includes,
+    excludes: db.excludes,
+    inclusiveEndDates: db.inclusiveEndDates,
+    topAxis: db.topAxis,
+    displayMode: db.displayMode,
+    weekday: db.weekday ?? null,
+    weekend: db.weekend,
+    sections: db.sections,
+    links: [...db.links],
+    tasks: db.tasks.map((task) => ({
+      id: task.id,
+      task: task.task,
+      section: task.section,
+      active: task.active,
+      done: task.done,
+      crit: task.crit,
+      milestone: task.milestone,
+      vert: task.vert,
+      order: task.order,
+      classes: task.classes,
+      prevTaskId: task.prevTaskId ?? null,
+      raw: { data: task.raw.data, start: task.raw.start ?? null, end: task.raw.end },
+    })),
+    schedule: null,
+  };
+  try {
+    out.schedule = db
+      .getTasks(options.now ?? NOW)
+      .map((task) => [when(task.startTime), when(task.endTime), when(task.renderEndTime), task.manualEndTime, task.processed]);
+  } catch (error) {
+    if (!(error instanceof PeleError)) throw error;
+    out.schedule = { error: String(error), code: error.code };
+  }
+  return JSON.stringify(out);
+}
+
 export const ganttOps: Record<string, (args: string[]) => string> = {
   gantt_date: ([call]) => JSON.stringify(dateCall(JSON.parse(call) as Json)),
+  gantt_front: ([source, options]) => ganttFront(JSON.parse(source) as string, options ? JSON.parse(options) : {}),
 };
