@@ -398,6 +398,8 @@ import { blockOps } from './block.ts';
 Object.assign(ops, blockOps);
 import { c4Ops } from './c4.ts';
 Object.assign(ops, c4Ops);
+import { railroadOps } from './railroad.ts';
+Object.assign(ops, railroadOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
