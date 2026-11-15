@@ -173,3 +173,18 @@ Grouped into waves of 3–4 parallel workers on disjoint types, that is about 6 
 **Decision.** The one real change to shared code is in `scene/walk.rs`. When one part draws several texts in one facet, their lines now number on from each other. No earlier type draws two texts in one part and facet, so no existing key changes. Accepted.
 
 **Fix.** The oracle bundle's stamp hashed only `oracle.ts`, so editing a per-type op file such as `harness/class.ts` left a stale bundle that the doctor passed. The stamp now hashes every `harness/*.ts` in name order, and the doctor checks the same. A deliberate edit to `harness/class.ts` now fails the doctor.
+
+## 2026-11-15 State merged
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: state 22 of 22, with class 38 of 38, flowchart 114 of 114 and pie 2 of 2. Total `522 176 0 346 0`.
+- `state_front.rs`: 14,209 inputs, 0 different. `state_parity.rs`: 25,058 inputs, 0 different, including Pele's 29 stress cases and a 32-path coverage gate.
+- Cost: 2,291 TS lines in one run. That gave 3,531 Rust lines and about 70 lines of shared growth, all additions.
+
+**Merge.** Class and state each added the same `LabelLook::font_size`, so one copy was dropped. Every other conflict held two additions side by side, and both were kept. The parity feature doc now gives one harvest line for every ported type, and the oracle stamp gotcha now covers every `harness/*.ts`.
+
+**Shared additions from state.**
+- `Number::minus_num`, written as `-${num(x)}`. It differs from `num(-x)` on half-hundredth ties.
+- Dashes on layers.
+- A class and a corner radius placed after a rectangle's geometry.
+- `over_fills_at_end` in `graph/edges.rs`, because state checks only the end tip against fills.
