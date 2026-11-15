@@ -36,6 +36,8 @@ pub use diagrams::c4::probe as c4_probe;
 pub use diagrams::info::front_json as info_front_json;
 #[doc(hidden)]
 pub use diagrams::railroad::probe as railroad_probe;
+#[doc(hidden)]
+pub use diagrams::venn::probe as venn_probe;
 pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
 pub use scene::Scene;
 
@@ -623,6 +625,34 @@ pub fn xychart_front_json(source: &str, options: ParseOptions) -> Result<String,
     let model = diagrams::xychart::parse(&front.context(&origin, options.limits))
         .map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::xychart::json::front_json(&model))
+}
+
+/// The venn front end's model as JSON, in the words of the oracle's `venn_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn venn_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Venn {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::venn::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::venn::json::front_json(&model))
+}
+
+/// The quadrant chart front end's model as JSON, in the words of the oracle's `quadrant_front`
+/// op, for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn quadrant_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::QuadrantChart {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::quadrant::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::quadrant::json::front_json(&model))
 }
 
 impl Prepared {

@@ -295,7 +295,11 @@ diagram_catalog! {
         detectors: [(17, "stateDiagram", starts(&["stateDiagram"]))],
     },
     Journey => { name: "journey", detectors: [(18, "journey", starts(&["journey"]))] },
-    QuadrantChart => { name: "quadrantChart", detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))] },
+    QuadrantChart => {
+        name: "quadrantChart",
+        port: { diagram: diagrams::quadrant::Quadrant, section: "quadrantChart", palette: PaletteRule::None },
+        detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))],
+    },
     Sankey => { name: "sankey", detectors: [(20, "sankey", starts(&["sankey"]))] },
     Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },
     Xychart => {
@@ -325,7 +329,11 @@ diagram_catalog! {
             (32, "railroadPeg", starts(&["railroad-peg-beta"]).caseless()),
         ],
     },
-    Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
+    Venn => {
+        name: "venn",
+        port: { diagram: diagrams::venn::Venn, section: "venn", palette: PaletteRule::Repeated("venn", 1) },
+        detectors: [(33, "venn", starts(&["venn-beta"]))],
+    },
     Wardley => {
         name: "wardley",
         port: { diagram: diagrams::wardley::Wardley, section: "wardley-beta", palette: PaletteRule::None },
