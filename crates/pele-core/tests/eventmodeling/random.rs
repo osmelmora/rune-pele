@@ -79,6 +79,9 @@ fn text(rng: &mut Rng, lines: usize) -> Vec<String> {
 }
 
 fn block(rng: &mut Rng) -> String {
+    if rng.chance(8) {
+        return "{\n}\n".to_owned();
+    }
     let indent = *rng.pick(&["", " ", "  ", "\t", "    "]);
     let count = 1 + rng.below(4);
     let lines = text(rng, count);

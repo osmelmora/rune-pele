@@ -95,7 +95,10 @@ fn run(what: &str, sources: &[String]) -> Counts {
             Ok(Err(error)) => Some(format!("ours fails with {error}, pele answers {theirs}")),
         };
         if let Some(problem) = problem {
-            failures.push(format!("{what} {index}: {problem}\n    source: {:?}", &source[..source.len().min(300)]));
+            failures.push(format!(
+                "{what} {index}: {problem}\n    source: {:?}",
+                source.chars().take(300).collect::<String>()
+            ));
         }
     }
     println!(
@@ -178,6 +181,8 @@ fn cases() -> Vec<String> {
         "treeView-beta x\n├── a\n",
         "%% c\ntreeView-beta\n├── a\n│   ├── b ## d\n",
         "treeView-beta\n├── a\n    \n├── b\n",
+        "treeView-beta\n├── a\n  ├── b\n     ├── c\n   └── d\n",
+        "treeView-beta\n├── a\n │ ├── b\n │ │  └── c\n",
     ]
     .into_iter()
     .map(str::to_owned)

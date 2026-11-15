@@ -164,7 +164,7 @@ pub fn source(rng: &mut Rng) -> String {
             }
             let mut prefix = String::new();
             for _ in 1..depth {
-                prefix.push_str(rng.pick(&["│   ", "│   ", "┃   ", "    ", "\t"]));
+                prefix.push_str(rng.pick(&["│   ", "│   ", "┃   ", "    ", "\t", "│ ", "│  ", "   "]));
             }
             let branch = rng.pick(&["├── ", "└── ", "├─ ", "┣━━ ", "┗━━ ", "├──", "└"]);
             out.push_str(&format!("{prefix}{branch}{text}\n"));

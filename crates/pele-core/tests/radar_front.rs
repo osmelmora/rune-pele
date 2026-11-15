@@ -85,7 +85,10 @@ fn run(what: &str, sources: &[String]) -> Counts {
             Ok(Err(error)) => Some(format!("ours fails with {error}, pele answers {theirs}")),
         };
         if let Some(problem) = problem {
-            failures.push(format!("{what} {index}: {problem}\n    source: {:?}", &source[..source.len().min(300)]));
+            failures.push(format!(
+                "{what} {index}: {problem}\n    source: {:?}",
+                source.chars().take(300).collect::<String>()
+            ));
         }
     }
     println!(

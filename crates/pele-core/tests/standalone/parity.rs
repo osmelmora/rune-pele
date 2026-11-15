@@ -141,7 +141,9 @@ impl Parity {
             }
         };
         if let Some(problem) = problem {
-            tally.failures.push(format!("{name}: {problem}\n    source: {:?}", &source[..source.len().min(600)]));
+            tally
+                .failures
+                .push(format!("{name}: {problem}\n    source: {:?}", source.chars().take(600).collect::<String>()));
         }
     }
 

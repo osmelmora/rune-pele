@@ -86,7 +86,10 @@ fn run(what: &str, sources: &[String]) -> Counts {
             Ok(Err(error)) => Some(format!("ours fails with {error}, pele answers {theirs}")),
         };
         if let Some(problem) = problem {
-            failures.push(format!("{what} {index}: {problem}\n    source: {:?}", &source[..source.len().min(300)]));
+            failures.push(format!(
+                "{what} {index}: {problem}\n    source: {:?}",
+                source.chars().take(300).collect::<String>()
+            ));
         }
     }
     println!(
@@ -140,6 +143,8 @@ fn cases() -> Vec<String> {
         "eventmodeling\ntf 01 evt A [[D]]\ndata D {\r\n  a\r\n}\r\n",
         "eventmodeling\ntf 01 evt A [[D]]\ndata D {\n}x\n}\n",
         "eventmodeling\ntf 01 evt A [[D]]\ndata D {\n}",
+        "eventmodeling\ndata D {\n}\ndata E {\n x\n}\ntf 01 evt A [[D]]\ntf 02 evt B [[E]]\n",
+        "eventmodeling\nnote 01 {\n}\nnote 02 {\n y\n}\n",
         "eventmodeling\ntf 01 evt A [[D]]\ndata D {\n x\n} ",
         "eventmodeling\ntf 01 evt A [[D]]\ndata D {\u{a0}\n x\n}\n",
         "eventmodeling\ntf 01 evt A { x }\u{2028}}\n",
