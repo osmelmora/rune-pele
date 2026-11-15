@@ -381,3 +381,21 @@ pub fn run_at_width(kind: &str, name: &str, sources: &[String], width: f64, path
 pub fn plain(sources: Vec<String>) -> Vec<(String, Value)> {
     sources.into_iter().map(|source| (source, json!({}))).collect()
 }
+
+/// The Scene of a source as Pele draws it with the host options given, where it draws.
+pub fn scene(source: &str, options: &LayoutOptions) -> Option<pele_core::Scene> {
+    let parity = pele_core::parity_scene_with(source, ParseOptions::default(), options).ok()?;
+    Some(parity.scene().clone())
+}
+
+/// Every drawing's key, failing on one that is drawn twice.
+pub fn drawn_keys(scene: &pele_core::Scene, source: &str) -> BTreeSet<String> {
+    let mut seen = BTreeSet::new();
+    for visit in scene.paint() {
+        if let pele_core::scene::PaintVisit::Draw(draw) = visit {
+            let key = draw.key.to_string();
+            assert!(seen.insert(key.clone()), "{key} is drawn twice in {source:?}");
+        }
+    }
+    seen
+}

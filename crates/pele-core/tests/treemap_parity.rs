@@ -136,6 +136,7 @@ fn cases() -> Vec<(String, Value)> {
         (fixed.to_owned(), json!({})),
         (styled.to_owned(), json!({})),
         ("treemap\n\"big\": 1000\n\"small\": 4".to_owned(), json!({})),
+        ("treemap\n\"big\": 1000\n\"&amp;lt;b&amp;gt; #35;\": 1".to_owned(), json!({})),
         ("---\ntitle: From front matter\n---\n".to_owned() + basic, json!({})),
         ("---\ntitle: A title much wider than the whole diagram so that it is wider than six hundred and forty pixels\n---\n".to_owned() + basic, json!({})),
         ("treemap\naccTitle: Name\naccDescr: Text\n\"a\": 1".to_owned(), json!({ "idPrefix": "x\"y" })),
