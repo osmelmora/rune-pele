@@ -312,7 +312,7 @@ pub fn fit_text(text: &[u16], max: f64, size: f64, min: f64, style: u8) -> Optio
     Some((fitted.text.to_vec(), fitted.size, fitted.width))
 }
 
-const ROLES: [Role; 9] = [
+const ROLES: [Role; 11] = [
     Role::Background,
     Role::Foreground,
     Role::Border,
@@ -322,7 +322,14 @@ const ROLES: [Role; 9] = [
     Role::Surface,
     Role::SurfaceAlt,
     Role::Muted,
+    Role::Accent,
+    Role::Critical,
 ];
+
+/// How the SVG writes a role's colour.
+pub fn role_paint(role: Role) -> &'static str {
+    svg::role(role)
+}
 
 /// The look a type gives a label for the attributes it hands Pele's `leftLabelSvg`, or the
 /// attribute no type hands it.

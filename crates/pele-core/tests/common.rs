@@ -1147,3 +1147,15 @@ fn outlines_tokenize_and_parse_as_pele_does() {
     compare("harvested outline tokenizations", &tokenizations, outline_ours);
     compare("harvested outline parses", parses, outline_ours);
 }
+
+#[test]
+fn theme_roles_match_pele() {
+    use pele_core::scene::Role;
+    let theme = ask(&[json!({ "fn": "theme" })]).remove(0);
+    let root = theme["root"].as_str().expect("Pele's root style");
+    let drawn = probe::palette(probe::Palette::None, "{}").svg;
+    assert!(drawn.contains(root), "the root sets Pele's aliases: {drawn}");
+    assert!(root.contains("--_c:"), "Pele's root sets the accent alias");
+    assert_eq!(probe::role_paint(Role::Accent), "var(--_c)");
+    assert_eq!(probe::role_paint(Role::Critical), theme["critical"].as_str().expect("Pele's critical colour"));
+}

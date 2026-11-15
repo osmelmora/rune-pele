@@ -59,6 +59,8 @@ pub(crate) fn role(role: Role) -> &'static str {
         Role::Surface => "var(--_s)",
         Role::SurfaceAlt => "var(--_a)",
         Role::Muted => "var(--_m)",
+        Role::Accent => "var(--_c)",
+        Role::Critical => "var(--pele-critical,#e45756)",
     }
 }
 
@@ -588,6 +590,8 @@ mod tests {
             Role::Surface,
             Role::SurfaceAlt,
             Role::Muted,
+            Role::Accent,
+            Role::Critical,
         ];
         for named in roles {
             let spelled = fallback(role(named));

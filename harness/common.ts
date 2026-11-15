@@ -25,6 +25,7 @@ import type { Label } from '../vendor/pele/src/text/label.ts';
 import { metricsMeasurer } from '../vendor/pele/src/text/measurer.ts';
 import type { DiagramType } from '../vendor/pele/src/detect.ts';
 import { isBlank, isDigit, isHex, isLetter, isLineEnd, isSpace, isWord } from '../vendor/pele/src/util/chars.ts';
+import { CRITICAL, ROOT_STYLE } from '../vendor/pele/src/svg/theme.ts';
 
 type Json = Record<string, unknown>;
 type Tap = Record<string, (real: (...args: never[]) => unknown, args: never[]) => unknown>;
@@ -158,6 +159,8 @@ const CHAR_TESTS = [isSpace, isBlank, isLineEnd, isDigit, isLetter, isHex, isWor
 const helpers: Record<string, (input: Json) => unknown> = {
   // For every UTF-16 code unit, a bit for each class of util/chars.ts it is in, in CHAR_TESTS order.
   chars: () => Array.from({ length: 0x10000 }, (_, c) => CHAR_TESTS.reduce((bits, test, bit) => bits | (Number(test(c)) << bit), 0)),
+  // The root's private aliases, and the colour of what a diagram marks as critical.
+  theme: () => ({ root: ROOT_STYLE, critical: CRITICAL }),
   scan: ({ src, calls }) => (calls as ScanCall[]).map((call) => scan(src as string, call)),
   // The ends a fresh `accDescr` scanner answers at each position in turn, or null for no match.
   acc_descr: ({ src, at }) => {

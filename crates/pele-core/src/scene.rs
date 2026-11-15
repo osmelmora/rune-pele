@@ -77,6 +77,11 @@ pub enum Role {
     SurfaceAlt,
     /// Text that stands back, such as a group's title.
     Muted,
+    /// What a diagram picks out, such as a gantt's tasks or a treeview's selected row.
+    Accent,
+    /// What a diagram marks as critical, such as a gantt's critical tasks. It is no series
+    /// colour, as a theme may put those in any order.
+    Critical,
 }
 
 /// One of the eight series colours. A position past the eighth wraps around.
