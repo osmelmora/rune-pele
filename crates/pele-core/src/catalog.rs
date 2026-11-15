@@ -305,7 +305,11 @@ diagram_catalog! {
         (31, "railroadAbnf", starts(&["railroad-abnf-beta"]).caseless()),
         (32, "railroadPeg", starts(&["railroad-peg-beta"]).caseless()),
     ] },
-    Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
+    Venn => {
+        name: "venn",
+        port: { diagram: diagrams::venn::Venn, section: "venn", palette: PaletteRule::Repeated("venn", 1) },
+        detectors: [(33, "venn", starts(&["venn-beta"]))],
+    },
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
     Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },
     Usecase => {

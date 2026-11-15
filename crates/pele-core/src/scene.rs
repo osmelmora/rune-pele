@@ -1090,6 +1090,14 @@ impl Entity {
         Entity { key, author_text: written_id.clone(), tooltip: None }
     }
 
+    /// A region of the diagram's area that several sets share, such as an overlap of a venn
+    /// diagram's circles. `written_id` is the id Pele writes, which may be the same for two
+    /// regions; `name` tells them apart.
+    pub(crate) fn overlap(written_id: &JsText, name: &JsText) -> Self {
+        let key = EntityKey { kind: EntityKind::Section, name: EntityName::Named(name.to_vec()), duplicate: 0 };
+        Entity { key, author_text: written_id.clone(), tooltip: None }
+    }
+
     pub(crate) fn tooltip(mut self, tooltip: Option<&JsText>) -> Self {
         self.tooltip = tooltip.cloned();
         self
@@ -1467,6 +1475,12 @@ impl LabelLook {
 
     pub(crate) fn weight(self, weight: TextWeight) -> Self {
         LabelLook(self.0.set(Field::FontWeight, |p| p.weight = Some(weight)))
+    }
+
+    /// Writes the name of the entity the label is a part of, where this is called.
+    pub(crate) fn data_id(mut self) -> Self {
+        self.0.emission.push(Field::DataId);
+        self
     }
 
     pub(crate) fn font_size(self, size: Number) -> Self {
