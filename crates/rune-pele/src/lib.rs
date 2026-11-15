@@ -16,7 +16,10 @@
 //! repaints without parsing, laying out or measuring anything.
 
 pub mod capture;
+pub mod fill;
+pub mod geometry;
 pub mod lower;
+pub mod stroke;
 pub mod text;
 
 use std::cell::RefCell;
