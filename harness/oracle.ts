@@ -388,6 +388,8 @@ import { swimlaneOps } from './swimlane.ts';
 Object.assign(ops, swimlaneOps);
 import { usecaseOps } from './usecase.ts';
 Object.assign(ops, usecaseOps);
+import { erOps } from './er.ts';
+Object.assign(ops, erOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

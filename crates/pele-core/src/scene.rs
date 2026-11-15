@@ -8,7 +8,7 @@
 
 use crate::catalog::DrawContext;
 use crate::input::{JsObject, JsText, JsValue, Units, decimal, decode_entities, is_digit, is_space, is_word};
-use crate::measure::{Emphasis, Label};
+use crate::measure::{Emphasis, Label, LabelLine, LabelRun};
 use crate::{DiagramKind, RenderError, js};
 use indexmap::IndexMap;
 use std::sync::LazyLock;
@@ -833,6 +833,8 @@ pub(crate) struct Properties {
     pub(crate) join: Option<LineJoin>,
     /// Whether the pointer passes through to what is underneath.
     pub(crate) untouchable: bool,
+    /// How opaque a group is as a whole, written as an attribute.
+    pub(crate) opacity: Option<Number>,
     pub(crate) font_size: Option<Number>,
     pub(crate) weight: Option<TextWeight>,
     pub(crate) anchor: Option<AnchorKind>,
@@ -851,6 +853,8 @@ pub(crate) enum Field {
     Geometry(GeometryField),
     Fill,
     FillOpacity,
+    /// The opacity of a group as a whole.
+    Opacity,
     Stroke,
     StrokeWidth,
     DashArray,
@@ -1286,6 +1290,11 @@ impl LayerSpec {
         self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
+    /// Makes the group as a whole this opaque, composited once.
+    pub(crate) fn opacity(self, opacity: Number) -> Self {
+        self.with(Field::Opacity, |p| p.opacity = Some(opacity))
+    }
+
     /// Lets the pointer through to what is under the group.
     pub(crate) fn untouchable(self) -> Self {
         self.with(Field::PointerEvents, |p| p.untouchable = true)
@@ -1628,6 +1637,79 @@ impl SceneBuilder {
         self.push(attributes.set(Field::Anchor, start), NodeContent::Text(text));
     }
 
+    /// Pele's `textLeft` (`er/render.ts`): a measured label that starts at `x`, with the baseline
+    /// of its first line at `y`. One plain run, or one run that is only `mono` when that is set,
+    /// is written as plain text, unless monospace would collapse its repeated spaces. Anything
+    /// else is written as runs, where a line places its first run that holds text.
+    #[allow(clippy::too_many_arguments, reason = "the arguments of Pele's textLeft, plus the part it draws")]
+    pub(crate) fn label_from(
+        &mut self,
+        part: PartId,
+        facet: Facet,
+        label: &Label,
+        x: f64,
+        y: f64,
+        look: LabelLook,
+        mono: bool,
+    ) {
+        if label.lines.is_empty() {
+            return;
+        }
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let only = match label.lines.as_slice() {
+            [line] if line.runs.len() == 1 => Some(&line.runs[0]),
+            _ => None,
+        };
+        let collapses = |text: &[u16]| text.windows(2).any(|pair| pair == [32, 32]);
+        if let Some(run) = only
+            && run.style == (Emphasis { mono, ..Emphasis::default() })
+            && !(mono && collapses(&run.text))
+        {
+            if mono {
+                attributes = attributes.set(Field::FontFamily, |p| p.mono = true);
+            }
+            let attributes = attributes.geometry(&[GeometryField::X, GeometryField::Y]);
+            let text = PlacedText {
+                label: label.clone(),
+                emission: TextEmission::Plain { x: Number::num(x), y: Number::num(y) },
+            };
+            self.push(attributes, NodeContent::Text(text));
+            return;
+        }
+        let runs = || label.lines.iter().flat_map(|line| &line.runs).filter(|run| !run.text.is_empty());
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let shared = if runs().next().is_some() { shared } else { Emphasis::default() };
+        if shared.bold && attributes.properties.weight.is_none() {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono {
+            attributes = attributes.set(Field::FontFamily, |p| p.mono = true);
+        }
+        let shift = label.size * 0.35;
+        let top = y - shift - label.line_height / 2.0;
+        let mut placed = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        for (i, line) in label.lines.iter().enumerate() {
+            let runs: Vec<LabelRun> = line.runs.iter().filter(|run| !run.text.is_empty()).cloned().collect();
+            if runs.is_empty() {
+                continue;
+            }
+            let middle = top + (i as f64 + 0.5) * label.line_height;
+            lines.push([Number::num(x), Number::num(middle + shift)]);
+            placed.lines.push(LabelLine { runs, width: line.width });
+        }
+        let text = PlacedText { label: placed, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes, NodeContent::Text(text));
+    }
+
     /// Plain text at a baseline point, for text whose group sets its anchor and size.
     pub(crate) fn baseline_text(&mut self, part: PartId, label: Label, at: [Number; 2], fill: Option<Paint>) {
         let mut attributes = Attributes::of(part, Facet::Label).geometry(&[GeometryField::X, GeometryField::Y]);
@@ -1690,6 +1772,14 @@ impl<'a> ElementStart<'a> {
         use GeometryField::{Height, Rx, Width, X, Y};
         let fields: &[GeometryField] = if rx.is_some() { &[X, Y, Width, Height, Rx] } else { &[X, Y, Width, Height] };
         self.shape(content, fields)
+    }
+
+    /// A rectangle whose attributes are written x, width, y, height, as a row of an ER entity's
+    /// table is.
+    pub(crate) fn row_rect(self, origin: [Number; 2], size: [Number; 2]) -> ShapeElement<'a> {
+        let content = NodeContent::Rect { x: origin[0], y: origin[1], width: size[0], height: size[1], rx: None };
+        use GeometryField::{Height, Width, X, Y};
+        self.shape(content, &[X, Width, Y, Height])
     }
 
     /// A circle centred on its group's origin.

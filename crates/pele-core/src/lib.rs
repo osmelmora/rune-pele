@@ -442,6 +442,21 @@ pub fn usecase_front_json(source: &str, options: ParseOptions) -> Result<String,
     Ok(diagrams::usecase::view::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
+/// The ER front end's model and ER graph as JSON, in the words of the oracle's `er_front` op,
+/// for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn er_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Er {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::er::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    let graph = diagrams::er::build_er_graph(&model);
+    Ok(diagrams::er::json::front_json(&model, &graph, front.found.mermaid.name()))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

@@ -492,6 +492,15 @@ fn sample(path: &PathProgram) -> Vec<f64> {
     let (mut x, mut y) = (0.0, 0.0);
     for step in &path.steps {
         let (first, second, end) = match step {
+            PathStep::Horizontal(to) | PathStep::Vertical(to) => {
+                if matches!(step, PathStep::Horizontal(_)) {
+                    x = to.effective();
+                } else {
+                    y = to.effective();
+                }
+                out.extend([x, y]);
+                continue;
+            }
             PathStep::Move(to) | PathStep::Line(to) => {
                 if matches!(step, PathStep::Move(_)) && !out.is_empty() {
                     out.extend([f64::NAN, f64::NAN]);
@@ -573,7 +582,7 @@ pub(crate) struct Fill<'a> {
 }
 
 /// Where an edge runs, as far as fills go.
-enum Under<'f, 'a> {
+pub(crate) enum Under<'f, 'a> {
     /// Over no fill.
     Page,
     /// Across the border of a fill.
@@ -627,6 +636,11 @@ fn fill_under<'f, 'a>(path: &PathProgram, tips: &[f64], fills: &'f [Fill<'a>]) -
         }
     }
     holder
+}
+
+/// Pele's `fillUnder` for a path alone, with no marker tips to hold, as an ER edge asks it.
+pub(crate) fn fill_under_path<'f, 'a>(path: &PathProgram, fills: &'f [Fill<'a>]) -> Under<'f, 'a> {
+    fill_under(path, &[], fills)
 }
 
 /// What an edge needs to stay legible where it runs.

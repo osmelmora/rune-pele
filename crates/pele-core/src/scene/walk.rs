@@ -408,7 +408,7 @@ impl Scene {
     fn visit(&self, id: NodeId, outer: &Inherited, pieces: &mut Pieces, out: &mut Vec<PaintVisit>) {
         let node = self.node(id);
         let inherited = outer.clone().within(&node.properties, &node.styled);
-        let opacity = node.styled.opacity.unwrap_or(1.0);
+        let opacity = node.styled.opacity.or(node.properties.opacity.map(|opacity| opacity.effective())).unwrap_or(1.0);
         let mut shape = |out: &mut Vec<PaintVisit>, geometry: Geometry| {
             let part = self.part_key(node).expect("every drawing is a part of an entity");
             let drawn = pieces.shapes.entry((node.part.expect("a part"), part.facet)).or_insert(0);
