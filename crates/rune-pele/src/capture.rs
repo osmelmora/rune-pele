@@ -102,6 +102,22 @@ impl<S: 'static> Window<'_, S> {
         &self.runtime
     }
 
+    /// Presses and releases the pointer at a point of the window, then runs the handlers that
+    /// queued.
+    pub fn press(&mut self, x: f32, y: f32) {
+        self.runtime.pointer_move(x, y);
+        self.runtime.pointer_down(x, y);
+        self.runtime.pointer_up(x, y);
+        self.runtime.frame(0.0);
+    }
+
+    /// Rests the pointer at a point of the window for `seconds`, as long as a tooltip waits.
+    pub fn rest(&mut self, x: f32, y: f32, seconds: f64) {
+        self.runtime.pointer_move(x, y);
+        self.runtime.frame(0.0);
+        self.runtime.frame(seconds);
+    }
+
     /// The window once what moves has come to rest.
     pub fn capture(&mut self) -> Pixels {
         let gpu = &self.capturer.gpu;
