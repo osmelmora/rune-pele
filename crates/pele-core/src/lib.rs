@@ -22,6 +22,8 @@ pub mod svg;
 
 pub use catalog::{DiagramKind, MermaidType};
 #[doc(hidden)]
+pub use diagrams::architecture::probe as architecture_probe;
+#[doc(hidden)]
 pub use diagrams::c4::probe as c4_probe;
 pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
 pub use scene::Scene;
@@ -521,6 +523,20 @@ pub fn c4_front_json(source: &str, options: ParseOptions) -> Result<String, Rend
     let model =
         diagrams::c4::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::c4::json::front_json(&model, front.found.mermaid.name()))
+}
+
+/// The architecture front end's model as JSON, in the words of the oracle's `architecture_front`
+/// op, for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn architecture_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Architecture {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::architecture::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::architecture::json::front_json(&model))
 }
 
 impl Prepared {
