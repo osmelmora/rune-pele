@@ -8,7 +8,7 @@ This directory is the maintained source for verifying what users of rune-pele ca
 - `.agents/skills/verify-rune-pele/scripts/doctor.sh` prints `doctor: ok`.
 - `target/debug/pele` is built from the working tree under test (`mise exec -- cargo build -p pele-cli`).
 - `target/debug/examples/pie` and `target/debug/examples/diagram` are built from the same tree (`mise exec -- cargo build -p rune-pele --example pie --example diagram`).
-- The fixtures `tests/fixtures/pie-pets.mmd` and `tests/fixtures/flow.mmd` (ported types: a pie and a flowchart) `tests/fixtures/sequence.mmd` (a ported type the Rune view does not draw natively yet) and `tests/fixtures/not-ported.mmd` (a mindmap, a type that is not ported) are unchanged. When the type of `not-ported.mmd` is ported, give that file a source of a type `pele parity` still shows as `not ported` and that rune-mermaid draws.
+- The fixtures `tests/fixtures/pie-pets.mmd` and `tests/fixtures/flow.mmd` (ported types: a pie and a flowchart) `tests/fixtures/sequence.mmd` (a ported type the Rune view does not draw natively yet) and `tests/fixtures/not-ported.mmd` (a timeline, a type that is not ported) are unchanged. When the type of `not-ported.mmd` is ported, give that file a source of a type `pele parity` still shows as `not ported` and that rune-mermaid draws.
 - Each run picks a fresh `<run-id>` and writes only under `out/verify/<run-id>/`.
 
 ## Driving conventions
