@@ -406,6 +406,8 @@ import { railroadOps } from './railroad.ts';
 Object.assign(ops, railroadOps);
 import { eventmodelingOps } from './eventmodeling.ts';
 Object.assign(ops, eventmodelingOps);
+import { treeviewOps } from './treeview.ts';
+Object.assign(ops, treeviewOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

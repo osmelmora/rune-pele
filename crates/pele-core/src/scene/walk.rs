@@ -633,7 +633,7 @@ impl Scene {
                 };
                 shape(out, geometry);
             }
-            NodeContent::Icon { name, x, y, size } => {
+            NodeContent::Icon { name, x, y, size, .. } => {
                 let geometry = Geometry::Icon {
                     name: drawable(&crate::input::decode_entities(name)),
                     origin: Point { x: x.effective(), y: y.effective() },

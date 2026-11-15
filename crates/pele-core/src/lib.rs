@@ -32,6 +32,8 @@ pub use diagrams::eventmodeling::json::front_json as eventmodeling_front_json;
 pub use diagrams::info::front_json as info_front_json;
 #[doc(hidden)]
 pub use diagrams::railroad::probe as railroad_probe;
+#[doc(hidden)]
+pub use diagrams::treeview::front_json as treeview_front_json;
 pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
 pub use scene::Scene;
 

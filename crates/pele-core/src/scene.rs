@@ -695,6 +695,10 @@ impl PathProgram {
         self.then(PathStep::Cubic([first, second, end]))
     }
 
+    pub(crate) fn q(self, handle: [Number; 2], end: [Number; 2]) -> Self {
+        self.then(PathStep::Quad([handle, end]))
+    }
+
     /// An arc of less than half a turn.
     pub(crate) fn a(self, radii: [Number; 2], sweep: bool, end: [Number; 2]) -> Self {
         self.then(PathStep::Arc { radii, large: false, sweep, end })
@@ -873,15 +877,39 @@ pub(crate) enum NodeContent {
         height: Number,
         aspect: Aspect,
     },
-    /// The box of an icon the host draws. In parity mode no host does, so the box is empty.
+    /// The box of an icon the host draws. In parity mode no host does, so the box is empty, or
+    /// holds the drawing the diagram gives in place of the host's.
     Icon {
         name: JsText,
         x: Number,
         y: Number,
         size: Number,
+        glyph: Option<IconGlyph>,
     },
     /// The tooltip of the node's entity, at the place Pele writes it.
     Tooltip,
+}
+
+/// A drawing a diagram puts in an icon's box when no host draws the icon: treeview's own folder
+/// and file, outlined in the muted colour on the box's 24 by 24 grid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum IconGlyph {
+    Folder,
+    File,
+}
+
+impl IconGlyph {
+    /// The outline as Pele spells it (`treeview/icons.ts`).
+    pub(crate) fn path(self) -> &'static str {
+        match self {
+            IconGlyph::Folder => {
+                "M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2.4 2.5h8A1.5 1.5 0 0 1 21 9v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"
+            }
+            IconGlyph::File => {
+                "M6.5 3h7L19 8.5v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3zM13.5 3v5.5H19"
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1693,11 +1721,27 @@ impl SceneBuilder {
 
     /// The box of an icon, `size` on each side, with its top left corner at `origin`.
     pub(crate) fn icon(&mut self, part: PartId, name: &JsText, origin: [Number; 2], size: Number) {
+        self.icon_box(part, name, origin, size, None);
+    }
+
+    /// The box of an icon with the drawing it shows when no host draws the icon.
+    pub(crate) fn icon_with_glyph(
+        &mut self,
+        part: PartId,
+        name: &JsText,
+        origin: [Number; 2],
+        size: Number,
+        glyph: IconGlyph,
+    ) {
+        self.icon_box(part, name, origin, size, Some(glyph));
+    }
+
+    fn icon_box(&mut self, part: PartId, name: &JsText, origin: [Number; 2], size: Number, glyph: Option<IconGlyph>) {
         use GeometryField::{Height, Icon, Width, X, Y};
         let attributes = Attributes::of(part, Facet::Shape)
             .set(Field::Class, |p| p.class = Some("pele-icon".to_owned()))
             .geometry(&[Icon, X, Y, Width, Height]);
-        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size });
+        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size, glyph });
     }
 
     /// A picture from an address the host's policy has passed.
