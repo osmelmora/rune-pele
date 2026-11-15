@@ -245,6 +245,7 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
         Field::FontWeight => match properties.weight {
             Some(TextWeight::Title) => out.push_str(" font-weight=\"var(--_tw)\""),
             Some(TextWeight::Bold) => out.push_str(BOLD),
+            Some(TextWeight::Heading) => out.push_str(" font-weight=\"var(--_hw)\""),
             None => {}
         },
         Field::FontStyle => out.push_str(ITALIC),

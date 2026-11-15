@@ -88,6 +88,20 @@ impl Style {
         !declared(&self.css(), &["fill"]).is_empty()
     }
 
+    /// Whether the style declares `property`, as Pele asks `/[";]property:/` of its text.
+    pub(crate) fn sets(&self, property: &str) -> bool {
+        !declared(&self.css(), &[property]).is_empty()
+    }
+
+    /// Text style declarations with `text-decoration:underline` added after them, as Pele adds it
+    /// to an underlined member's: the list is no longer terminated.
+    pub(crate) fn underlined(style: Option<&Style>) -> Style {
+        let mut underlined = Style { declarations: Vec::new(), terminated: false };
+        underlined.declarations.extend(style.into_iter().flat_map(|style| style.declarations.iter().cloned()));
+        underlined.declare("text-decoration", "underline");
+        underlined
+    }
+
     /// Whether the style gives a stroke.
     pub(crate) fn sets_stroke(&self) -> bool {
         !declared(&self.css(), &["stroke"]).is_empty()

@@ -218,6 +218,11 @@ fn pair(x: f64, y: f64) -> [Number; 2] {
     [Number::num(x), Number::num(y)]
 }
 
+/// Pele's default reach for an end of `routePath`: as far as its marker takes, and a little more.
+pub(crate) fn default_reach(trim: f64) -> f64 {
+    if trim > 0.0 { trim + LEAD } else { 0.0 }
+}
+
 /// Pele's `routePath`: the path for a route, with both ends trimmed to leave room for markers.
 /// Between two points that are not in line, a route is one S that leaves and arrives along the
 /// flow, or a step in a stepped route. Where the route itself turns a corner, a stepped route

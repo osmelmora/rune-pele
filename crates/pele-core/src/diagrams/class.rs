@@ -6,8 +6,10 @@ mod db;
 mod graph;
 pub(crate) mod json;
 mod lexer;
+mod markers;
 mod members;
 mod parser;
+mod render;
 
 use crate::RenderError;
 use crate::catalog::ParseContext;
@@ -15,7 +17,8 @@ use crate::input::{JsObject, JsText, JsValue};
 use indexmap::{IndexMap, IndexSet};
 
 pub(crate) use graph::build_class_graph;
-pub(crate) use members::{ClassMember, MemberType};
+pub(crate) use members::{ClassMember, Classifier, MemberType};
+pub(crate) use render::Class;
 
 /// The way a class diagram runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -151,6 +151,19 @@ pub struct LayoutOptions {
     /// The width under which that is done. Unset, it is 640 pixels.
     pub direction_breakpoint: Option<f64>,
     pub resources: ResourcePolicy,
+    /// Pele's `monospace`: the parts of diagrams the host sets in the monospace font.
+    pub monospace: Vec<MonospacePart>,
+}
+
+/// A part of a diagram the host may set in the monospace font: Pele's `MonospacePart`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonospacePart {
+    /// A class's attributes and methods.
+    Members,
+    /// An entity's attributes.
+    Attributes,
+    Files,
+    Messages,
 }
 
 /// What a diagram may link to and load. A source cannot change it.
@@ -192,6 +205,7 @@ impl Default for LayoutOptions {
             auto_direction: true,
             direction_breakpoint: None,
             resources: ResourcePolicy::default(),
+            monospace: Vec::new(),
         }
     }
 }
@@ -394,6 +408,7 @@ fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderE
     prepare(source, ParseOptions::default()).map(|prepared| match prepared.model {
         catalog::PreparedModel::Pie(model) => model,
         catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
+        catalog::PreparedModel::Class(_) => panic!("{source:?} is a class diagram"),
     })
 }
 
