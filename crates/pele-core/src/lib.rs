@@ -489,6 +489,20 @@ pub fn agentflow_front_json(source: &str, options: ParseOptions) -> Result<Strin
     Ok(diagrams::agentflow::json::front_json(&model, front.found.mermaid.name()))
 }
 
+/// The C4 front end's model as JSON, in the words of the oracle's `c4_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn c4_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::C4 {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::c4::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::c4::json::front_json(&model, front.found.mermaid.name()))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

@@ -394,6 +394,8 @@ import { erOps } from './er.ts';
 Object.assign(ops, erOps);
 import { commonOps } from './common.ts';
 Object.assign(ops, commonOps);
+import { c4Ops } from './c4.ts';
+Object.assign(ops, c4Ops);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

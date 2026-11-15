@@ -1,6 +1,7 @@
 //! One module per ported diagram type, each owning its whole pipeline.
 
 pub(crate) mod agentflow;
+pub(crate) mod c4;
 pub(crate) mod class;
 pub(crate) mod er;
 pub(crate) mod flowchart;
