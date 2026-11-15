@@ -400,6 +400,8 @@ import { c4Ops } from './c4.ts';
 Object.assign(ops, c4Ops);
 import { sequenceOps } from './sequence.ts';
 Object.assign(ops, sequenceOps);
+import { vennOps } from './venn.ts';
+Object.assign(ops, vennOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
