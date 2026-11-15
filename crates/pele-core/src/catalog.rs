@@ -297,7 +297,11 @@ diagram_catalog! {
         port: { diagram: diagrams::sankey::Sankey, section: "sankey", palette: PaletteRule::None },
         detectors: [(20, "sankey", starts(&["sankey"]))],
     },
-    Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },
+    Packet => {
+        name: "packet",
+        port: { diagram: diagrams::packet::Packet, section: "packet", palette: PaletteRule::None },
+        detectors: [(21, "packet", starts(&["packet"]))],
+    },
     Xychart => { name: "xychart", detectors: [(22, "xychart", starts(&["xychart"]))] },
     Block => {
         name: "block",

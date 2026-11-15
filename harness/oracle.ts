@@ -406,6 +406,8 @@ import { gitOps } from './git.ts';
 Object.assign(ops, gitOps);
 import { sankeyOps } from './sankey.ts';
 Object.assign(ops, sankeyOps);
+import { packetOps } from './packet.ts';
+Object.assign(ops, packetOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

@@ -591,6 +591,20 @@ pub fn sankey_front_json(source: &str, options: ParseOptions) -> Result<String, 
     Ok(diagrams::sankey::json::front_json(&model))
 }
 
+/// The packet front end's model as JSON, in the words of the oracle's `packet_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn packet_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Packet {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::packet::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::packet::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
