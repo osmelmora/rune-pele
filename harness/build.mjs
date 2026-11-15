@@ -15,12 +15,13 @@ const TAPPED = {
   compound: ['compoundLayout', 'shiftLayout', 'inheritCrossedDirections'],
   components: ['wrapComponents'],
   layered: ['layered'],
+  lanes: ['laneLayout'],
 };
 const layoutDir = resolve(here, '../vendor/pele/src/layout');
 const layoutTap = {
   name: 'layout-tap',
   setup(b) {
-    b.onResolve({ filter: /(^|\/)(compound|layered|components)\.js$/ }, (args) => {
+    b.onResolve({ filter: /(^|\/)(compound|layered|components|lanes)\.js$/ }, (args) => {
       const name = basename(args.path, '.js');
       if (args.namespace === 'layout-tap') return { path: join(layoutDir, `${name}.ts`) };
       if (resolve(args.resolveDir, args.path) !== join(layoutDir, `${name}.js`)) return undefined;

@@ -16,6 +16,7 @@
 
 pub mod components;
 pub mod compound;
+pub mod lanes;
 pub mod layered;
 pub mod num;
 
@@ -23,4 +24,5 @@ pub use components::wrap_components;
 pub use compound::{
     Axis, CEdge, CNode, Dir, RoutePoint, Size, compound_layout, inherit_crossed_directions, shift_layout,
 };
+pub use lanes::lane_layout;
 pub use layered::{EdgeStyle, LayeredOptions, ease};
