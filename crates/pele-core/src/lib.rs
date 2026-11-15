@@ -346,6 +346,21 @@ pub fn class_front_json(source: &str, options: ParseOptions) -> Result<String, R
     Ok(diagrams::class::json::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
+/// The state diagram front end's statement tree, db and graph as JSON, in the words of the
+/// oracle's `state_front` op, for the differential test. A source of another type answers only
+/// that type.
+#[doc(hidden)]
+pub fn state_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::State {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::state::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::state::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
@@ -409,6 +424,7 @@ fn prepare_pie_for_test(source: &str) -> Result<diagrams::pie::PieModel, RenderE
         catalog::PreparedModel::Pie(model) => model,
         catalog::PreparedModel::Flowchart(_) => panic!("{source:?} is a flowchart"),
         catalog::PreparedModel::Class(_) => panic!("{source:?} is a class diagram"),
+        catalog::PreparedModel::State(_) => panic!("{source:?} is a state diagram"),
     })
 }
 
