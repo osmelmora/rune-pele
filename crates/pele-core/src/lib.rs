@@ -32,6 +32,8 @@ pub use diagrams::c4::probe as c4_probe;
 pub use diagrams::info::front_json as info_front_json;
 #[doc(hidden)]
 pub use diagrams::railroad::probe as railroad_probe;
+#[doc(hidden)]
+pub use diagrams::treemap::probe as treemap_probe;
 pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
 pub use scene::Scene;
 
@@ -171,6 +173,9 @@ pub struct LayoutOptions {
     /// Pele's `now`: the time a gantt chart treats as now, in milliseconds since 1970. Unset or
     /// not finite, it is the current time; a parity draw pins it to Pele's corpus clock.
     pub now: Option<f64>,
+    /// Whether the host gave `padding` itself. Pele's `padding` option may be left out, and a
+    /// treemap whose host leaves it out takes its config's `diagramPadding` instead.
+    pub padding_given: bool,
 }
 
 /// A part of a diagram the host may set in the monospace font: Pele's `MonospacePart`.
@@ -225,6 +230,7 @@ impl Default for LayoutOptions {
             resources: ResourcePolicy::default(),
             monospace: Vec::new(),
             now: None,
+            padding_given: false,
         }
     }
 }
@@ -591,6 +597,20 @@ pub fn cynefin_front_json(source: &str, options: ParseOptions) -> Result<String,
     let model = diagrams::cynefin::parse(&front.context(&origin, options.limits))
         .map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::cynefin::json::front_json(&model))
+}
+
+/// The treemap front end's model as JSON, in the words of the oracle's `treemap_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn treemap_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Treemap {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::treemap::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::treemap::json::front_json(&model))
 }
 
 impl Prepared {

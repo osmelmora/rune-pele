@@ -310,7 +310,11 @@ diagram_catalog! {
     Ishikawa => { name: "ishikawa", detectors: [
         (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
     ] },
-    Treemap => { name: "treemap", detectors: [(28, "treemap", starts(&["treemap"]))] },
+    Treemap => {
+        name: "treemap",
+        port: { diagram: diagrams::treemap::Treemap, section: "treemap", palette: PaletteRule::Slots("cScale", 0) },
+        detectors: [(28, "treemap", starts(&["treemap"]))],
+    },
     Railroad => {
         name: "railroad",
         port: { diagram: diagrams::railroad::Railroad, section: "railroad", palette: PaletteRule::None },

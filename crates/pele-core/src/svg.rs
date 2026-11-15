@@ -486,9 +486,7 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
         }
         NodeContent::Tooltip => {
             out.push('>');
-            if let Some(tooltip) = node.part.and_then(|part| scene.entity(part).tooltip.as_ref()) {
-                esc_text(tooltip, out);
-            }
+            write_tooltip_text(scene, node, out);
             out.push_str("</title>");
         }
         NodeContent::Path(_)
@@ -497,6 +495,13 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
         | NodeContent::Ellipse { .. }
         | NodeContent::Polygon(_)
         | NodeContent::Image { .. } => out.push_str("/>"),
+    }
+}
+
+/// The tooltip of the node's entity, escaped once it is text.
+fn write_tooltip_text(scene: &Scene, node: &Node, out: &mut String) {
+    if let Some(text) = node.part.and_then(|part| scene.entity(part).tooltip_text()) {
+        esc(&text, out);
     }
 }
 

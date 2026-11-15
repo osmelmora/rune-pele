@@ -583,7 +583,7 @@ impl Scene {
             let tooltip = children.iter().find_map(|&child| {
                 let child = self.node(child);
                 let entity = matches!(child.content, NodeContent::Tooltip).then_some(child.part?)?;
-                Some(drawable(&crate::input::decode_entities(self.entity(entity).tooltip.as_ref()?)))
+                Some(drawable(&self.entity(entity).tooltip_text()?))
             });
             out.push(PaintVisit::Begin(Group { part, translate, rotate, opacity, link, tooltip, untouchable }));
         };
@@ -608,6 +608,7 @@ impl Scene {
             NodeContent::Rect { x, y, width, height, rx } => {
                 let radius = match node.styled.radius {
                     Some(Radius::Theme) => THEME_RADIUS,
+                    Some(Radius::ThemeAtMost(cap)) => crate::js::min(THEME_RADIUS, cap),
                     Some(Radius::Px(radius)) => radius,
                     None => rx.map_or(0.0, |rx| rx.effective()),
                 };

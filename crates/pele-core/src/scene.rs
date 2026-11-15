@@ -1066,12 +1066,21 @@ pub(crate) struct Entity {
     key: EntityKey,
     author_text: JsText,
     tooltip: Option<JsText>,
+    tooltip_decoded: bool,
 }
 
 impl Entity {
     fn named(kind: EntityKind, name: &JsText) -> Self {
         let key = EntityKey { kind, name: EntityName::Named(name.to_vec()), duplicate: 0 };
-        Entity { key, author_text: name.clone(), tooltip: None }
+        Entity { key, author_text: name.clone(), tooltip: None, tooltip_decoded: false }
+    }
+
+    /// A tooltip the diagram has already turned into text, as treemap's path of section names
+    /// is, so that its entity codes are not read again.
+    pub(crate) fn decoded_tooltip(mut self, tooltip: JsText) -> Self {
+        self.tooltip = Some(tooltip);
+        self.tooltip_decoded = true;
+        self
     }
 
     pub(crate) fn diagram() -> Self {
@@ -1113,7 +1122,7 @@ impl Entity {
     /// two ends, and `duplicate` the edge's place among those with the same name.
     pub(crate) fn edge(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
         let key = EntityKey { kind: EntityKind::Edge, name, duplicate };
-        Entity { key, author_text: written_id.clone(), tooltip: None }
+        Entity { key, author_text: written_id.clone(), tooltip: None, tooltip_decoded: false }
     }
 
     /// A note the author gives no name, such as a sequence diagram's. `written_id` is the id
@@ -1121,7 +1130,7 @@ impl Entity {
     /// is what the note is attached to, and `duplicate` its place among those with the same name.
     pub(crate) fn note_between(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
         let key = EntityKey { kind: EntityKind::Note, name, duplicate };
-        Entity { key, author_text: written_id.clone(), tooltip: None }
+        Entity { key, author_text: written_id.clone(), tooltip: None, tooltip_decoded: false }
     }
 
     pub(crate) fn tooltip(mut self, tooltip: Option<&JsText>) -> Self {
@@ -1136,6 +1145,17 @@ pub(crate) struct EntityRecord {
     /// The name the author gave, which `data-id` carries.
     pub(crate) author_text: JsText,
     pub(crate) tooltip: Option<JsText>,
+    /// Whether `tooltip` is text already, rather than written with entity codes.
+    pub(crate) tooltip_decoded: bool,
+}
+
+impl EntityRecord {
+    /// The tooltip as text: Pele's `escText` reads the entity codes of a tooltip as written, and a
+    /// decoded one is text already.
+    pub(crate) fn tooltip_text(&self) -> Option<Vec<u16>> {
+        let tooltip = self.tooltip.as_ref()?;
+        Some(if self.tooltip_decoded { tooltip.to_vec() } else { decode_entities(tooltip) })
+    }
 }
 
 /// The accessible title and description a source gives its diagram.
@@ -1202,7 +1222,7 @@ impl Scene {
     /// The text shown when the pointer rests on an entity.
     pub fn tooltip(&self, entity: &EntityKey) -> Option<String> {
         let record = self.entities.iter().find(|record| record.key == *entity)?;
-        record.tooltip.as_ref().map(|text| walk::drawable(&decode_entities(text)))
+        record.tooltip_text().map(|text| walk::drawable(&text))
     }
 
     /// The entities an entity is joined to: an edge's two ends, and a node's edges.
@@ -1616,7 +1636,12 @@ impl SceneBuilder {
     pub(crate) fn part(&mut self, entity: Entity) -> PartId {
         let entry = self.entities.entry(entity.key.clone());
         let index = entry.index();
-        entry.or_insert(EntityRecord { key: entity.key, author_text: entity.author_text, tooltip: entity.tooltip });
+        entry.or_insert(EntityRecord {
+            key: entity.key,
+            author_text: entity.author_text,
+            tooltip: entity.tooltip,
+            tooltip_decoded: entity.tooltip_decoded,
+        });
         PartId(index as u32)
     }
 
