@@ -76,13 +76,13 @@ fn not_line_break(c: u16) -> bool {
 }
 
 /// `\r?\n`
-fn newline(src: &[u16], at: usize) -> Option<usize> {
+pub(crate) fn newline(src: &[u16], at: usize) -> Option<usize> {
     let line_feed = at + usize::from(src.at(at) == Some(13));
     (src.at(line_feed) == Some(10)).then_some(line_feed + 1)
 }
 
 /// `(?:\r?\n|(?!\S))`
-fn line_break_or_space(src: &[u16], at: usize) -> Option<usize> {
+pub(crate) fn line_break_or_space(src: &[u16], at: usize) -> Option<usize> {
     newline(src, at).or_else(|| src.at(at).is_none_or(is_space).then_some(at))
 }
 
@@ -478,6 +478,11 @@ impl<'a> Reader<'a> {
 
     pub(crate) fn skip(&mut self) {
         self.i += 1;
+    }
+
+    /// Where the current token starts in the text.
+    pub(crate) fn start(&self) -> usize {
+        self.tokens.starts[self.i]
     }
 
     pub(crate) fn take(&mut self) -> &'a [u16] {

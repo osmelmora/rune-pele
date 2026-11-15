@@ -27,6 +27,8 @@ pub use catalog::{DiagramKind, MermaidType};
 #[doc(hidden)]
 pub use diagrams::c4::probe as c4_probe;
 #[doc(hidden)]
+pub use diagrams::eventmodeling::json::front_json as eventmodeling_front_json;
+#[doc(hidden)]
 pub use diagrams::info::front_json as info_front_json;
 #[doc(hidden)]
 pub use diagrams::railroad::probe as railroad_probe;

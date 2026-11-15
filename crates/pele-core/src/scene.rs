@@ -1927,6 +1927,28 @@ impl SceneBuilder {
         self.push(attributes, NodeContent::Text(text));
     }
 
+    /// Pele's eventmodeling `lines`: one text element whose lines each start at their own
+    /// baseline point, written as `tspan`s with no anchor of the element's own. A line with no
+    /// text is left out, and nothing is drawn when none is left. Every line is one run with the
+    /// emphasis the look writes.
+    pub(crate) fn rows(&mut self, part: PartId, facet: Facet, label: &Label, at: &[[Number; 2]], look: LabelLook) {
+        let mut kept = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        for (line, &point) in label.lines.iter().zip(at) {
+            if line.runs.iter().all(|run| run.text.is_empty()) {
+                continue;
+            }
+            kept.lines.push(line.clone());
+            lines.push(point);
+        }
+        let Some(shared) = kept.lines.first().and_then(|line| line.runs.first()).map(|run| run.style) else {
+            return;
+        };
+        let attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes, NodeContent::Text(text));
+    }
+
     /// Plain text at a baseline point, for text whose group sets its anchor and size.
     pub(crate) fn baseline_text(&mut self, part: PartId, label: Label, at: [Number; 2], fill: Option<Paint>) {
         let mut attributes = Attributes::of(part, Facet::Label).geometry(&[GeometryField::X, GeometryField::Y]);

@@ -1,0 +1,120 @@
+// Collects every event modeling source in Pele's test suite into
+// tests/fixtures/eventmodeling/harvest.json, so that crates/pele-core/tests/eventmodeling_front.rs
+// and eventmodeling_parity.rs can put each one through Pele and through this port.
+//
+//   mise exec -- node scripts/harvest-eventmodeling.mjs
+//
+// `sources` are the string literals of vendor/pele/tests that have a line starting
+// `eventmodeling`, each also with a line break after it, then the corpus, valid and invalid seeds
+// of tests/eventmodeling/oracle.test.ts, then each template of
+// tests/render/eventmodeling-security.test.ts with each of Pele's hostile payloads, and its
+// sources whose names are object keys. `mutated` are the inputs of the seeded mutation runs of
+// those two tests. Rerunning at the same Pele pin writes the same file.
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { loadCorpus, mutator, random } from '../vendor/pele/tests/support/corpus.ts';
+
+const root = join(import.meta.dirname, '..');
+const pele = join(root, 'vendor/pele');
+const tests = join(pele, 'tests');
+
+function files(dir) {
+  return readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => (a.name < b.name ? -1 : 1))
+    .flatMap((entry) =>
+      entry.isDirectory() ? files(join(dir, entry.name)) : /\.[jt]s$/.test(entry.name) ? [join(dir, entry.name)] : []
+    );
+}
+
+// A string literal's value, as Pele's loadCorpus reads it: a `${...}` stays as written.
+function value(raw) {
+  try {
+    return new Function('return `' + raw.replace(/`/g, '\\`').replace(/\$\{/g, '\\${') + '`')();
+  } catch {
+    return undefined;
+  }
+}
+
+function read(file) {
+  return readFileSync(join(tests, file), 'utf8');
+}
+
+function constant(file, name) {
+  const found = new RegExp(`const ${name}[^=\\n]* = (\\[[\\s\\S]*?\\n\\]);`).exec(read(file));
+  if (found === null) throw new Error(`${file} no longer declares ${name}`);
+  return found[1];
+}
+
+const startsType = (text) => /(?:^|\n)\s*eventmodeling/.test(text);
+const RE_LITERAL = /`((?:[^`\\]|\\.)*)`|'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g;
+
+const sources = new Set();
+const origin = new Map();
+let illFormed = 0;
+function add(text, from) {
+  if (typeof text !== 'string' || sources.has(text)) return;
+  if (!text.isWellFormed()) {
+    illFormed++;
+    return;
+  }
+  sources.add(text);
+  origin.set(from, (origin.get(from) ?? 0) + 1);
+}
+
+for (const file of files(tests)) {
+  const from = relative(tests, file);
+  for (const match of readFileSync(file, 'utf8').matchAll(RE_LITERAL)) {
+    const text = value(match[1] ?? match[2] ?? match[3]);
+    if (text === undefined || !startsType(text)) continue;
+    add(text, from);
+    add(text + '\n', from);
+  }
+}
+
+process.chdir(pele);
+const FRAGMENTS = new Function('return ' + constant('eventmodeling/oracle.test.ts', 'FRAGMENTS'))();
+const VALID = new Function('return ' + constant('eventmodeling/oracle.test.ts', 'VALID'))();
+const INVALID = new Function('return ' + constant('eventmodeling/oracle.test.ts', 'INVALID'))();
+const corpus = [...loadCorpus('eventmodeling', /eventmodeling/), ...VALID, ...INVALID];
+for (const text of corpus) add(text, 'eventmodeling/oracle.test.ts corpus');
+
+const PAYLOADS = new Function('return ' + constant('support/inert.ts', 'PAYLOADS'))();
+const security = read('render/eventmodeling-security.test.ts');
+const line = (p) => p.replace(/[\n\r]/g, ' ');
+const templates = /const TEMPLATES[^\n]*= (\[[\s\S]*?\n\]);/.exec(security);
+if (templates === null) throw new Error('render/eventmodeling-security.test.ts no longer lists its templates');
+for (const template of new Function('line', 'return ' + templates[1])(line)) {
+  for (const payload of PAYLOADS) add(template(payload), 'render/eventmodeling-security.test.ts templates');
+}
+for (const key of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+  const text = `eventmodeling\ntf 01 cmd ${key}.${key} [[${key}]]\ntf 02 evt ${key}\ndata ${key} {\n x\n}\nentity ${key}\ngwt 01 given evt ${key} then evt ${key}\n`;
+  add(text, 'render/eventmodeling-security.test.ts object keys');
+}
+
+// The mutation runs of tests/eventmodeling/oracle.test.ts (seed 7, 3000 inputs) and of
+// tests/render/eventmodeling-security.test.ts (seed 19, 2000 inputs), each of at most 4000 characters.
+const mutated = new Set();
+let illFormedMutations = 0;
+function mutate(seeds, fragments, seed, count) {
+  const next = mutator(seeds, fragments, random(seed));
+  for (let i = 0; i < count; i++) {
+    const text = next();
+    if (text.length > 4000 || sources.has(text)) continue;
+    if (text.isWellFormed()) mutated.add(text);
+    else illFormedMutations++;
+  }
+}
+mutate(corpus, FRAGMENTS, 7, 3000);
+const hostile = /mutator\(corpus, (\[\.\.\.PAYLOADS, [^\n]*\]), random\(19\)\)/.exec(security);
+if (hostile === null) throw new Error('render/eventmodeling-security.test.ts no longer mutates the corpus');
+mutate(loadCorpus('eventmodeling', /eventmodeling/), new Function('PAYLOADS', 'return ' + hostile[1])(PAYLOADS), 19, 2000);
+
+const pin = execFileSync('git', ['-C', pele, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+mkdirSync(join(root, 'tests/fixtures/eventmodeling'), { recursive: true });
+const out = join(root, 'tests/fixtures/eventmodeling/harvest.json');
+writeFileSync(out, JSON.stringify({ pele: pin, sources: [...sources], mutated: [...mutated] }, null, 1) + '\n');
+
+for (const [from, count] of origin) console.log(`${String(count).padStart(5)} ${from}`);
+console.log(`${sources.size} sources and ${mutated.size} mutated inputs written to ${relative(root, out)}`);
+console.log(`${illFormed + illFormedMutations} inputs left out: a lone surrogate cannot cross into Rust as a string`);
