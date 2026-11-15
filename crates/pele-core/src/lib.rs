@@ -7,6 +7,9 @@ mod diagrams;
 mod fit;
 mod graph;
 mod input;
+// The gantt chart's date helpers, reached by `tests/gantt_dates.rs`. Hidden: no part of the API.
+#[doc(hidden)]
+pub use diagrams::gantt::probe as gantt_probe;
 pub mod js;
 // Renderers inside this crate are the callers. It is public so that `tests/layout_replay.rs` can
 // hold it to Pele, and hidden because it is no part of the API.
@@ -159,6 +162,9 @@ pub struct LayoutOptions {
     pub resources: ResourcePolicy,
     /// Pele's `monospace`: the parts of diagrams the host sets in the monospace font.
     pub monospace: Vec<MonospacePart>,
+    /// Pele's `now`: the time a gantt chart treats as now, in milliseconds since 1970. Unset or
+    /// not finite, it is the current time; a parity draw pins it to Pele's corpus clock.
+    pub now: Option<f64>,
 }
 
 /// A part of a diagram the host may set in the monospace font: Pele's `MonospacePart`.
@@ -212,6 +218,7 @@ impl Default for LayoutOptions {
             direction_breakpoint: None,
             resources: ResourcePolicy::default(),
             monospace: Vec::new(),
+            now: None,
         }
     }
 }
@@ -537,6 +544,21 @@ pub fn c4_front_json(source: &str, options: ParseOptions) -> Result<String, Rend
     Ok(diagrams::c4::json::front_json(&model, front.found.mermaid.name()))
 }
 
+/// The gantt front end's model and each task's schedule against `now`, in milliseconds since
+/// 1970, as JSON in the words of the oracle's `gantt_front` op, for the differential test. A
+/// source of another type answers only that type.
+#[doc(hidden)]
+pub fn gantt_front_json(source: &str, options: ParseOptions, now: f64) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Gantt {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::gantt::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::gantt::json::front_json(&model, now))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
@@ -573,6 +595,9 @@ impl ParityScene {
     }
 }
 
+/// The clock Pele's corpus test and the oracle give a render: `Date.UTC(2026, 0, 15, 12)`.
+const PARITY_NOW: f64 = 1_768_478_400_000.0;
+
 /// Draws a source as Pele does with its default options.
 pub fn parity_scene(source: &str) -> Result<ParityScene, RenderError> {
     parity_scene_with(source, ParseOptions::default(), &LayoutOptions::default())
@@ -585,7 +610,8 @@ pub fn parity_scene_with(
     layout: &LayoutOptions,
 ) -> Result<ParityScene, RenderError> {
     let prepared = prepare(source, parse)?;
-    let scene = prepared.scene(NativeInputs { measure: &measure::ArialMetrics, options: layout })?;
+    let layout = LayoutOptions { now: layout.now.or(Some(PARITY_NOW)), ..layout.clone() };
+    let scene = prepared.scene(NativeInputs { measure: &measure::ArialMetrics, options: &layout })?;
     Ok(ParityScene { scene })
 }
 

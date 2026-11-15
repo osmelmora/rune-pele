@@ -1059,6 +1059,12 @@ impl Entity {
         Entity::named(EntityKind::Node, id)
     }
 
+    /// A node keyed by `name` that Pele writes as `written`, such as a gantt task with no id of
+    /// its own, which Pele numbers in source order.
+    pub(crate) fn node_written_as(name: &JsText, written: &JsText) -> Self {
+        Entity { author_text: written.clone(), ..Entity::named(EntityKind::Node, name) }
+    }
+
     pub(crate) fn note(id: &JsText) -> Self {
         Entity::named(EntityKind::Note, id)
     }
@@ -1467,6 +1473,12 @@ impl LabelLook {
 
     pub(crate) fn weight(self, weight: TextWeight) -> Self {
         LabelLook(self.0.set(Field::FontWeight, |p| p.weight = Some(weight)))
+    }
+
+    /// Writes the name of the entity the label belongs to, as `data-id`.
+    pub(crate) fn data_id(mut self) -> Self {
+        self.0.emission.push(Field::DataId);
+        self
     }
 
     pub(crate) fn font_size(self, size: Number) -> Self {
