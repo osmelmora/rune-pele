@@ -83,8 +83,10 @@ fn harvested(helper: &str) -> &'static [Value] {
         let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         let harvest: Value = serde_json::from_str(&text).expect("the harvest is JSON");
         let sources = harvest["sources"].as_array().expect("a list of sources");
-        // Each source as Pele draws it by default, and in a host 320 and 640 pixels wide.
-        let requests: Vec<String> = [json!({}), json!({ "maxWidth": 320 }), json!({ "maxWidth": 640 })]
+        // Each source as Pele draws it by default, in a host 320 and 640 pixels wide, and in a host
+        // with icons, the one kind where Pele draws an icon's box.
+        let options = [json!({}), json!({ "maxWidth": 320 }), json!({ "maxWidth": 640 }), json!({ "icons": true })];
+        let requests: Vec<String> = options
             .iter()
             .flat_map(|options| {
                 sources.iter().map(move |source| format!("{}\t{options}", line("common_record", source)))
@@ -805,4 +807,183 @@ fn fit_text_matches_pele() {
     assert!(reach.iter().all(|&count| count > 500), "fitText misses a path: {reach:?}");
     compare("random fitText calls", &inputs, ours);
     compare("harvested fitText calls", harvested("fit_text"), ours);
+}
+
+/// The attributes each caller of Pele's `leftLabelSvg` hands it.
+fn left_label_attributes(rng: &mut Rng) -> Vec<(String, String)> {
+    let pair = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+    let fills = ["var(--_m)", "var(--pele-fg-on-light,#1f1f1f)", "var(--pele-fg-on-dark,#fff)", "#ff0000", "red"];
+    let mut attributes = match rng.below(5) {
+        0 => vec![pair("class", "pele-cluster-label"), pair("font-weight", "var(--_hw)")],
+        1 => vec![pair("class", "pele-c4-type"), pair("font-size", rng.pick(&["12", "11.2", "13.333333333333334"]))],
+        2 => vec![pair("class", "pele-label")],
+        3 => vec![pair("class", "pele-tree-description"), pair("font-style", "italic"), pair("fill", "var(--_m)")],
+        _ => vec![
+            pair("class", "pele-cluster-label"),
+            pair("font-size", "11.2"),
+            pair("font-weight", "var(--_hw)"),
+            pair("fill", "var(--_m)"),
+        ],
+    };
+    let extras = [
+        pair("font-weight", "var(--_hw)"),
+        pair("font-family", "var(--_fm)"),
+        pair("fill", rng.pick(&fills)),
+        pair("style", rng.pick(&["color:red", "fill:#f00;", "color:blue;font-weight:bold"])),
+    ];
+    for extra in extras {
+        // An element has each attribute once.
+        if rng.below(3) == 0 && attributes.iter().all(|(name, _)| *name != extra.0) {
+            attributes.push(extra);
+        }
+    }
+    attributes
+}
+
+fn attribute_pairs(value: &Value) -> Vec<(String, String)> {
+    let pair =
+        |item: &Value| (item[0].as_str().expect("a name").to_owned(), item[1].as_str().expect("a value").to_owned());
+    value.as_array().expect("attribute pairs").iter().map(pair).collect()
+}
+
+fn left_label_ours(input: &Value) -> Value {
+    let attributes = attribute_pairs(&input["attrs"]);
+    let svg =
+        probe::left_label_svg(&label_of(&input["label"]), double(&input["x"]), double(&input["top"]), &attributes)
+            .unwrap_or_else(|attribute| panic!("no caller hands leftLabelSvg {attribute}"));
+    json!(units(&svg))
+}
+
+#[test]
+fn left_labels_write_as_pele_writes_them() {
+    let pieces = [
+        "a",
+        " ",
+        "  ",
+        "<b>bold</b>",
+        "<i>it</i>",
+        "<code>m</code>",
+        "<sub>s</sub>",
+        "<u>u</u>",
+        "\n",
+        "<br>",
+        "word",
+        "&amp;",
+        "\u{1}",
+        "😀",
+        "\"q\"",
+    ];
+    let mut rng = Rng(0x1ef7_1abe);
+    let mut inputs = Vec::new();
+    for _ in 0..8000 {
+        let raw = rng.text(&pieces, 10);
+        let size = *rng.pick(&SIZES);
+        let mut label = match rng.below(3) {
+            0 => probe::literal_label(&raw, size, *rng.pick(&ROOMS), style(&mut rng)),
+            1 => probe::layout_label(&raw, rng.below(3) == 0, size, *rng.pick(&ROOMS), rng.below(4) as u8),
+            _ => probe::break_label(
+                &probe::layout_label(&raw, false, size, 4000.0, rng.below(8) as u8),
+                *rng.pick(&ROOMS),
+            ),
+        };
+        if rng.below(10) == 0 {
+            label.lines.push(Vec::new());
+            label.widths.push(0.0);
+        }
+        let (x, top) = ((rng.below(4000) as f64 - 1000.0) / 7.0, (rng.below(4000) as f64 - 1000.0) / 3.0);
+        let attrs: Vec<Value> =
+            left_label_attributes(&mut rng).into_iter().map(|(name, value)| json!([name, value])).collect();
+        inputs.push(
+            json!({ "fn": "left_label", "label": label_json(&label), "x": bits(x), "top": bits(top), "attrs": attrs }),
+        );
+    }
+    let written = inputs.iter().filter(|input| !left_label_ours(input).as_array().is_some_and(Vec::is_empty)).count();
+    println!("leftLabelSvg wrote text for {written} labels");
+    assert!(written > 6000, "leftLabelSvg wrote text for only {written} labels");
+    compare("random leftLabelSvg calls", &inputs, left_label_ours);
+    compare("harvested leftLabelSvg calls", harvested("left_label"), left_label_ours);
+}
+
+#[test]
+fn icons_write_as_pele_writes_them() {
+    let names = ["fa:fa-user", "fa fa-book", "mdi:home", "&amp;", "&#35;", "<", ">", "\"", "'", "x\u{1}y", "😀", " "];
+    let mut rng = Rng(0x1c0_75e7);
+    let mut inputs = Vec::new();
+    for _ in 0..5000 {
+        let name = rng.text(&names, 3);
+        let coordinate = |rng: &mut Rng| bits((rng.below(200_000) as f64 - 100_000.0) / 997.0);
+        let (x, y, side) = (coordinate(&mut rng), coordinate(&mut rng), coordinate(&mut rng));
+        inputs.push(json!({ "fn": "icon", "name": text_value(&name), "x": x, "y": y, "side": side }));
+    }
+    let ours = |input: &Value| {
+        let svg = probe::icon_svg(
+            &units_of(&input["name"]),
+            double(&input["x"]),
+            double(&input["y"]),
+            double(&input["side"]),
+        );
+        json!(units(&svg))
+    };
+    compare("random iconSvg calls", &inputs, ours);
+    compare("harvested iconSvg calls", harvested("icon"), ours);
+}
+
+/// The numbers of each `name="…"` in an SVG fragment, in order.
+fn attribute_numbers(svg: &str, name: &str) -> Vec<f64> {
+    let marker = format!(" {name}=\"");
+    svg.match_indices(&marker)
+        .map(|(at, _)| {
+            let value = &svg[at + marker.len()..];
+            value[..value.find('"').expect("the value ends")].parse().expect("a number")
+        })
+        .collect()
+}
+
+#[test]
+fn the_walk_places_left_label_runs_where_the_svg_does() {
+    let pieces = ["a", " ", "<b>bold</b>", "<i>it</i>", "<code>m</code>", "<u>u</u>", "\n", "word", "😀", "\u{1}"];
+    let mut rng = Rng(0x3a1c_1ef7);
+    let mut runs = 0;
+    for _ in 0..2000 {
+        let raw = rng.text(&pieces, 10);
+        let label = probe::layout_label(&raw, false, *rng.pick(&SIZES), *rng.pick(&ROOMS), rng.below(8) as u8);
+        let (x, top) = ((rng.below(4000) as f64 - 1000.0) / 7.0, (rng.below(4000) as f64 - 1000.0) / 3.0);
+        let class = [("class".to_owned(), "pele-label".to_owned())];
+        let svg = probe::left_label_svg(&label, x, top, &class).expect("a class is a look");
+        let points: Vec<(f64, f64)> =
+            attribute_numbers(&svg, "x").into_iter().zip(attribute_numbers(&svg, "y")).collect();
+        // Each line the SVG writes starts at its text element's point, and each run follows the
+        // runs before it on that line.
+        // A line is written when a run has text XML keeps or emphasis its element does not carry.
+        let texts = || label.lines.iter().flatten().filter(|run| !run.text.is_empty());
+        let shared = if texts().next().is_some() { texts().fold(7, |shared, run| shared & run.style) } else { 0 };
+        let kept = |run: &probe::RunProbe| {
+            let keeps = |c: char| (c >= ' ' && !matches!(c, '\u{7f}' | '\u{fffe}' | '\u{ffff}')) || c == '\t';
+            char::decode_utf16(run.text.iter().copied()).any(|c| c.is_ok_and(keeps))
+        };
+        let written: Vec<&Vec<probe::RunProbe>> = label
+            .lines
+            .iter()
+            .filter(|line| line.iter().any(|run| kept(run) || run.style & !shared & 0x3f != 0))
+            .collect();
+        assert_eq!(written.len(), points.len(), "one text element per written line: {svg}");
+        let mut want = Vec::new();
+        for (line, &(left, baseline)) in written.iter().zip(&points) {
+            let mut at = left;
+            for run in line.iter() {
+                if !run.text.is_empty() {
+                    want.push((at, baseline, run.width));
+                }
+                at += run.width;
+            }
+        }
+        let got: Vec<(f64, f64, f64)> = probe::left_label_runs(&label, x, top)
+            .iter()
+            .map(|run| (run.baseline.x, run.baseline.y, run.advance))
+            .collect();
+        assert_eq!(got, want, "{svg}");
+        runs += got.len();
+    }
+    println!("the walk placed {runs} runs where the SVG does");
+    assert!(runs > 3000, "the walk placed only {runs} runs");
 }

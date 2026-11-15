@@ -6,7 +6,8 @@
 // ways. Doubles travel as 16 hex digits of their bits, as in oracle.ts.
 //
 // `common_record` renders a source as the corpus test does, with any render options laid over, and
-// answers every distinct input the render gave the helpers, in the form `common` takes. harness/build.mjs routes the helpers through
+// answers every distinct input the render gave the helpers, in the form `common` takes. The option
+// `icons: true` gives the render a host that resolves every icon name. harness/build.mjs routes the helpers through
 // `globalThis.peleCommonTap`, which is how a call made by a real render is seen.
 import { PeleError, render } from '../vendor/pele/src/index.ts';
 import { ACC_TITLE, DIRECTIVE, NEWLINE, SINGLE_LINE_COMMENT, STRING, WHITESPACE, YAML, keyword, titleBefore, tokenize, type TokenType } from '../vendor/pele/src/diagrams/common/tokens.ts';
@@ -240,8 +241,9 @@ const RECORD: Record<string, (args: never[]) => Json | undefined> = {
     least: bits(least),
     around: around === undefined ? null : bits(around),
   }),
-  'icon.iconSvg': ([name, x, y, side, icons]: [string, number, number, number, unknown]) =>
-    icons === undefined ? { fn: 'icon', name, x: bits(x), y: bits(y), side: bits(side) } : undefined,
+  // Pele draws an icon only where the host resolves it. This port's Scene draws the box, and the
+  // host's interpreter what goes in it, so the input is the box alone.
+  'icon.iconSvg': ([name, x, y, side]: [string, number, number, number]) => ({ fn: 'icon', name, x: bits(x), y: bits(y), side: bits(side) }),
   'outline.tokenize': ([src, kanban]: [string, boolean]) => ({ fn: 'outline_tokenize', src, kanban }),
   'outline.parseOutline': ([src, , kanban]: [string, unknown, boolean]) => ({ fn: 'outline_parse', src, kanban }),
   'palette.palette': ([type, config]: [string, Json]) => ({ fn: 'palette', type, config }),
@@ -256,7 +258,10 @@ function wellFormed(value: unknown): boolean {
   return true;
 }
 
-function record(source: string, options: Json): Json {
+// What a host's resolver puts in an icon's box, for a render with `icons: true` in its options.
+const ICON = '<circle cx="12" cy="12" r="9"/>';
+
+function record(source: string, { icons, ...options }: Json): Json {
   const seen = new Set<string>();
   const inputs: Json[] = [];
   const skipped: Record<string, number> = {};
@@ -264,7 +269,13 @@ function record(source: string, options: Json): Json {
   const tap: Tap = {};
   for (const [name, input] of Object.entries(RECORD)) {
     tap[name] = (real, args) => {
-      const found = input(args);
+      let found: Json | undefined;
+      try {
+        found = input(args);
+      } catch {
+        // A label that holds an icon, which only a host with icons draws.
+        found = undefined;
+      }
       if (found === undefined || !wellFormed(found)) {
         skipped[name] = (skipped[name] ?? 0) + 1;
       } else {
@@ -294,7 +305,8 @@ function record(source: string, options: Json): Json {
   let type: string | null = null;
   (globalThis as { peleCommonTap?: Tap }).peleCommonTap = tap;
   try {
-    type = render(source, { measurer: metricsMeasurer, now: Date.UTC(2026, 0, 15, 12), ...options }).type;
+    const resolver = icons ? { icons: () => ICON } : {};
+    type = render(source, { measurer: metricsMeasurer, now: Date.UTC(2026, 0, 15, 12), ...options, ...resolver }).type;
   } catch (error) {
     type = error instanceof PeleError ? error.type : null;
   } finally {

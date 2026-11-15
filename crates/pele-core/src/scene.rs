@@ -784,7 +784,7 @@ pub(crate) struct PlacedText {
     pub(crate) emission: TextEmission,
 }
 
-/// The two forms Pele writes text in.
+/// The forms Pele writes text in.
 #[derive(Clone, Debug)]
 pub(crate) enum TextEmission {
     /// One plain run, written as the text element's own content at one baseline point.
@@ -792,6 +792,9 @@ pub(crate) enum TextEmission {
     /// Lines of runs. Each line's first run carries the line's point, and `shared` is the
     /// emphasis every run has, which the text element carries once.
     Rich { lines: Vec<[Number; 2]>, shared: Emphasis },
+    /// One line of runs at the text element's own point, as `leftLabelSvg` writes each line: a
+    /// run with no emphasis beyond `shared` is bare text, and any other is a `tspan`.
+    Line { x: Number, y: Number, shared: Emphasis },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1171,7 +1174,7 @@ impl Scene {
 }
 
 /// Properties with the order they were set in. The builders below add to it at each call.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Attributes {
     part: Option<PartId>,
     facet: Option<Facet>,
@@ -1435,6 +1438,17 @@ impl LabelLook {
         LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
     }
 
+    /// Writes `font-style="italic"`. The label's runs say what an interpreter sets in italic.
+    pub(crate) fn italic(mut self) -> Self {
+        self.0.emission.push(Field::FontStyle);
+        self
+    }
+
+    /// Sets the text in the monospace font.
+    pub(crate) fn mono(self) -> Self {
+        LabelLook(self.0.set(Field::FontFamily, |p| p.mono = true))
+    }
+
     pub(crate) fn fill(self, paint: Option<Paint>) -> Self {
         match paint {
             Some(paint) => LabelLook(self.0.set(Field::Fill, |p| p.fill = Some(paint))),
@@ -1453,6 +1467,17 @@ impl LabelLook {
 
     pub(crate) fn style(self, style: Option<&Style>) -> Self {
         LabelLook(self.0.style(style.cloned()))
+    }
+}
+
+/// The emphasis of a run that its text element does not already carry: Pele's
+/// `span.style & ~shared`.
+pub(crate) fn own_emphasis(style: Emphasis, shared: Emphasis) -> Emphasis {
+    Emphasis {
+        bold: style.bold && !shared.bold,
+        italic: style.italic && !shared.italic,
+        mono: style.mono && !shared.mono,
+        ..style
     }
 }
 
@@ -1719,6 +1744,52 @@ impl SceneBuilder {
         let start = |p: &mut Properties| p.anchor = Some(AnchorKind::Start);
         let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
         self.push(attributes.set(Field::Anchor, start), NodeContent::Text(text));
+    }
+
+    /// Pele's `leftLabelSvg` (`common/literal-label.ts`): a label with every line starting at `x`,
+    /// the top of its first line at `top`. Each line is a text element of its own, anchored at
+    /// its start and keeping its spaces, so that where it begins does not depend on how its text
+    /// was measured. A line that writes no text is left out. The emphasis every run has is
+    /// written once on each element, unless the look already writes that attribute.
+    pub(crate) fn left_label(&mut self, part: PartId, facet: Facet, label: &Label, x: f64, top: f64, look: LabelLook) {
+        let runs = || label.lines.iter().flat_map(|line| &line.runs).filter(|run| !run.text.is_empty());
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let shared = if runs().next().is_some() { shared } else { Emphasis::default() };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let gives = |attributes: &Attributes, field: Field| attributes.emission.contains(&field);
+        if shared.bold && !gives(&attributes, Field::FontWeight) {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic && !gives(&attributes, Field::FontStyle) {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono && !gives(&attributes, Field::FontFamily) {
+            attributes = attributes.set(Field::FontFamily, |p| p.mono = true);
+        }
+        let attributes = attributes
+            .geometry(&[GeometryField::X, GeometryField::Y])
+            .set(Field::Anchor, |p| p.anchor = Some(AnchorKind::Start));
+        for (index, line) in label.lines.iter().enumerate() {
+            let writes = |run: &LabelRun| {
+                let mut escaped = String::new();
+                esc(&run.text, &mut escaped);
+                !escaped.is_empty() || !own_emphasis(run.style, shared).is_plain()
+            };
+            if !line.runs.iter().any(writes) {
+                continue;
+            }
+            let middle = top + (index as f64 + 0.5) * label.line_height;
+            let (x, y) = (Number::num(x), Number::num(middle + label.size * 0.35));
+            let one =
+                Label { lines: vec![line.clone()], width: line.width, height: label.line_height, ..label.clone() };
+            let text = PlacedText { label: one, emission: TextEmission::Line { x, y, shared } };
+            self.push(attributes.clone(), NodeContent::Text(text));
+        }
     }
 
     /// Pele's `textLeft` (`er/render.ts`): a measured label that starts at `x`, with the baseline

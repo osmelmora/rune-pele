@@ -8,7 +8,11 @@ use crate::diagrams::scan;
 use crate::diagrams::tokens::{self, Matcher, TokenType};
 use crate::input::{self, JsObject, JsValue, Units};
 use crate::measure::{self, ArialMetrics, Emphasis, Label, LabelLine, LabelRun};
-use crate::scene::{Accessible, Paint, PaletteRule, Scene, SceneBuilder, SeriesSlot, Size, SourcePalette};
+use crate::scene::{
+    Accessible, Entity, Facet, LabelLook, Number, Paint, PaletteRule, Role, Scene, SceneBuilder, SeriesSlot, Size,
+    SourcePalette, Style, TextWeight,
+};
+use crate::scene::{BaselineRun, Draw, Geometry, PaintVisit};
 use crate::{DiagramKind, LayoutOptions, Limits, ParityScene, fit, svg};
 
 /// The classes of `util/chars.ts` a UTF-16 code unit is in, one bit each: `isSpace` 1, `isBlank`
@@ -306,4 +310,89 @@ pub fn break_label(label: &LabelProbe, room: f64) -> LabelProbe {
 pub fn fit_text(text: &[u16], max: f64, size: f64, min: f64, style: u8) -> Option<(Vec<u16>, f64, f64)> {
     let fitted = measure::fit_text(text, max, size, min, &ArialMetrics, emphasis(style))?;
     Some((fitted.text.to_vec(), fitted.size, fitted.width))
+}
+
+const ROLES: [Role; 9] = [
+    Role::Background,
+    Role::Foreground,
+    Role::Border,
+    Role::OnLight,
+    Role::OnDark,
+    Role::Line,
+    Role::Surface,
+    Role::SurfaceAlt,
+    Role::Muted,
+];
+
+/// The look a type gives a label for the attributes it hands Pele's `leftLabelSvg`, or the
+/// attribute no type hands it.
+fn label_look(out: &mut SceneBuilder, attributes: &[(String, String)]) -> Result<LabelLook, String> {
+    let mut look = LabelLook::default();
+    for (index, (name, value)) in attributes.iter().enumerate() {
+        if attributes[..index].iter().any(|(given, _)| given == name) {
+            return Err(format!("{name} twice"));
+        }
+        look = match (name.as_str(), value.as_str()) {
+            ("class", class) if index == 0 => LabelLook::class(class),
+            ("font-weight", "var(--_hw)") => look.weight(TextWeight::Heading),
+            ("font-weight", "var(--_tw)") => look.weight(TextWeight::Title),
+            ("font-weight", "var(--_w)") => look.weight(TextWeight::Bold),
+            ("font-size", size) => look.font_size(Number::raw(size.parse().map_err(|_| format!("font-size {size}"))?)),
+            ("font-style", "italic") => look.italic(),
+            ("font-family", "var(--_fm)") => look.mono(),
+            ("fill", fill) => match ROLES.iter().find(|&&role| svg::role(role) == fill) {
+                Some(&role) => look.fill(Some(Paint::Role(role))),
+                None => look.fill(Some(out.colour(&fill.encode_utf16().collect::<Vec<_>>(), Role::Foreground))),
+            },
+            ("style", declarations) => {
+                let mut style = if declarations.ends_with(';') { Style::terminated() } else { Style::unterminated() };
+                for declaration in declarations.split(';').filter(|declaration| !declaration.is_empty()) {
+                    let (property, value) =
+                        declaration.split_once(':').ok_or_else(|| format!("style {declarations}"))?;
+                    style.declare_written(property, value.to_owned());
+                }
+                look.style(Some(&style))
+            }
+            _ => return Err(format!("{name}=\"{value}\"")),
+        };
+    }
+    Ok(look)
+}
+
+/// Pele's `leftLabelSvg` as this port's Scene writes it, or the attribute this port's caller
+/// would never pass.
+pub fn left_label_svg(label: &LabelProbe, x: f64, top: f64, attributes: &[(String, String)]) -> Result<String, String> {
+    let mut look = Err(String::new());
+    let scene = drawn(&SourcePalette::default(), |out| {
+        look = label_look(out, attributes).map(|look| {
+            let part = out.part(Entity::diagram());
+            out.left_label(part, Facet::Label, &label.into(), x, top, look);
+        });
+    });
+    look.map(|()| svg::write_fragment(&scene))
+}
+
+/// Pele's `iconSvg` for a host with no icons, as this port's Scene writes it.
+pub fn icon_svg(name: &[u16], x: f64, y: f64, side: f64) -> String {
+    let scene = drawn(&SourcePalette::default(), |out| {
+        let part = out.part(Entity::diagram());
+        out.icon(part, &name.into(), [Number::num(x), Number::num(y)], Number::num(side));
+    });
+    svg::write_fragment(&scene)
+}
+
+/// The runs the Scene's paint walk gives for a label `leftLabelSvg` draws, in paint order, as an
+/// interpreter without SVG reads them.
+pub fn left_label_runs(label: &LabelProbe, x: f64, top: f64) -> Vec<BaselineRun> {
+    let scene = drawn(&SourcePalette::default(), |out| {
+        let part = out.part(Entity::diagram());
+        out.left_label(part, Facet::Label, &label.into(), x, top, LabelLook::class("pele-label"));
+    });
+    scene
+        .paint()
+        .filter_map(|visit| match visit {
+            PaintVisit::Draw(Draw { geometry: Geometry::Text(run), .. }) => Some(run),
+            _ => None,
+        })
+        .collect()
 }
