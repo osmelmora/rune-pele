@@ -11,6 +11,7 @@ pub(crate) mod flowchart;
 pub(crate) mod gantt;
 pub(crate) mod info;
 pub(crate) mod kanban;
+pub(crate) mod mindmap;
 pub(crate) mod outline;
 pub(crate) mod pie;
 pub(crate) mod railroad;

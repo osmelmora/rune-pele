@@ -639,6 +639,20 @@ pub fn kanban_front_json(source: &str, options: ParseOptions) -> Result<String, 
     Ok(diagrams::kanban::json::front_json(&model))
 }
 
+/// The mindmap front end's map as JSON, in the words of the oracle's `mindmap_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn mindmap_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Mindmap {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::mindmap::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::mindmap::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

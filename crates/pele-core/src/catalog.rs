@@ -230,7 +230,11 @@ diagram_catalog! {
             (14, "flowchart-v2", starts(&["graph", "flowchart"])),
         ],
     },
-    Mindmap => { name: "mindmap", detectors: [(1, "mindmap", starts(&["mindmap"]))] },
+    Mindmap => {
+        name: "mindmap",
+        port: { diagram: diagrams::mindmap::Mindmap, section: "mindmap", palette: PaletteRule::Slots("cScale", 1) },
+        detectors: [(1, "mindmap", starts(&["mindmap"]))],
+    },
     Architecture => {
         name: "architecture",
         port: { diagram: diagrams::architecture::Architecture, section: "architecture", palette: PaletteRule::None },
