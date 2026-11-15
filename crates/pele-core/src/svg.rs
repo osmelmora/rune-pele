@@ -445,9 +445,15 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
             out.push('>');
         }
         NodeContent::Text(text) => write_text(text, out),
-        NodeContent::Icon { .. } => {
+        NodeContent::Icon { glyph, .. } => {
             out.push_str(ICON_FRAME);
-            out.push_str("></svg>");
+            out.push('>');
+            if let Some(glyph) = glyph {
+                out.push_str("<path d=\"");
+                out.push_str(glyph.path_data());
+                out.push_str("\" stroke=\"var(--_fg)\" stroke-width=\"1.5\"/>");
+            }
+            out.push_str("</svg>");
         }
         NodeContent::Tooltip => {
             out.push('>');

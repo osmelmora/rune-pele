@@ -7,10 +7,13 @@ pub(crate) mod json;
 mod layout;
 mod parser;
 pub mod probe;
+mod render;
 
 use crate::RenderError;
 use crate::catalog::ParseContext;
 use crate::input::JsText;
+
+pub(crate) use render::Architecture;
 
 /// The side of a service or junction an edge leaves or enters by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

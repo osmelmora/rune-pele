@@ -231,7 +231,11 @@ diagram_catalog! {
         ],
     },
     Mindmap => { name: "mindmap", detectors: [(1, "mindmap", starts(&["mindmap"]))] },
-    Architecture => { name: "architecture", detectors: [(2, "architecture", starts(&["architecture"]))] },
+    Architecture => {
+        name: "architecture",
+        port: { diagram: diagrams::architecture::Architecture, section: "architecture", palette: PaletteRule::None },
+        detectors: [(2, "architecture", starts(&["architecture"]))],
+    },
     Agentflow => {
         name: "agentflow",
         port: { diagram: diagrams::agentflow::Agentflow, section: "agentflow", palette: PaletteRule::None },

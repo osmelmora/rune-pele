@@ -13,9 +13,12 @@ use crate::{DiagramKind, RenderError, js};
 use indexmap::IndexMap;
 use std::sync::LazyLock;
 
+mod glyph;
 mod palette;
 mod style;
 mod walk;
+
+pub use glyph::IconGlyph;
 
 pub(crate) use palette::PELE_SERIES;
 pub use palette::{Palette, ResolvedPaints, Rgba};
@@ -866,12 +869,14 @@ pub(crate) enum NodeContent {
         height: Number,
         aspect: Aspect,
     },
-    /// The box of an icon the host draws. In parity mode no host does, so the box is empty.
+    /// The box of an icon the host draws. In parity mode no host does, so the box is empty, or
+    /// holds the glyph Pele draws for the name itself.
     Icon {
         name: JsText,
         x: Number,
         y: Number,
         size: Number,
+        glyph: Option<IconGlyph>,
     },
     /// The tooltip of the node's entity, at the place Pele writes it.
     Tooltip,
@@ -1662,7 +1667,28 @@ impl SceneBuilder {
         let attributes = Attributes::of(part, Facet::Shape)
             .set(Field::Class, |p| p.class = Some("pele-icon".to_owned()))
             .geometry(&[Icon, X, Y, Width, Height]);
-        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size });
+        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size, glyph: None });
+    }
+
+    /// [`SceneBuilder::icon`] with the glyph Pele draws in the box where no host draws the icon.
+    pub(crate) fn icon_with(
+        &mut self,
+        part: PartId,
+        name: &JsText,
+        origin: [Number; 2],
+        size: Number,
+        glyph: Option<IconGlyph>,
+    ) {
+        self.icon(part, name, origin, size);
+        if let Some(Node { content: NodeContent::Icon { glyph: slot, .. }, .. }) = self.arena.last_mut() {
+            *slot = glyph;
+        }
+    }
+
+    /// The root's font size, for a type whose config can set its own in place of the host's.
+    pub(crate) fn root_font_size(mut self, size: f64) -> Self {
+        self.document.font_size = size;
+        self
     }
 
     /// A picture from an address the host's policy has passed.
@@ -1954,6 +1980,13 @@ impl<'a> ElementStart<'a> {
         use GeometryField::{Height, Rx, Width, X, Y};
         let fields: &[GeometryField] = if rx.is_some() { &[X, Y, Width, Height, Rx] } else { &[X, Y, Width, Height] };
         self.shape(content, fields)
+    }
+
+    /// A rectangle whose top is its group's origin, written without a `y`.
+    pub(crate) fn rect_from_top(self, x: Number, size: [Number; 2]) -> ShapeElement<'a> {
+        let content = NodeContent::Rect { x, y: Number::raw(0.0), width: size[0], height: size[1], rx: None };
+        use GeometryField::{Height, Width, X};
+        self.shape(content, &[X, Width, Height])
     }
 
     /// A rectangle whose attributes are written x, width, y, height, as a row of an ER entity's
