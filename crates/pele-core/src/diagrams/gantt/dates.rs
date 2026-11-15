@@ -54,9 +54,30 @@ fn units(text: &str) -> Vec<u16> {
     text.encode_utf16().collect()
 }
 
+/// `String(value)`, with whole numbers written directly: scheduling writes one date a day.
+fn number(value: f64) -> Vec<u16> {
+    if value.fract() != 0.0 || value.abs() >= 1e15 {
+        return units(&js::to_string(value));
+    }
+    let mut whole = value.abs() as u64;
+    let mut out = Vec::with_capacity(8);
+    loop {
+        out.push(u16::from(b'0') + (whole % 10) as u16);
+        whole /= 10;
+        if whole == 0 {
+            break;
+        }
+    }
+    if value < 0.0 {
+        out.push(u16::from(b'-'));
+    }
+    out.reverse();
+    out
+}
+
 /// `String(value)` with zeros in front up to `length` units, a minus sign counted as one.
 fn pad(value: f64, length: usize) -> Vec<u16> {
-    let text = units(&js::to_string(value));
+    let text = number(value);
     let mut out = vec![u16::from(b'0'); length.saturating_sub(text.len())];
     out.extend(text);
     out
@@ -127,14 +148,14 @@ fn iso_week(date: JsDate) -> f64 {
 /// One match of a token list at `at`, as the end of the match.
 type Matcher = fn(&[u16], usize) -> Option<usize>;
 
-/// `text.replace(re, f)` for a global `re` that never matches nothing.
-fn replace_all(text: &[u16], matcher: Matcher, mut replace: impl FnMut(&[u16]) -> Vec<u16>) -> Vec<u16> {
-    let mut out = Vec::with_capacity(text.len());
+/// `text.replace(re, f)` for a global `re` that never matches nothing: `write` writes each match's
+/// replacement into `out`.
+fn replace_all(text: &[u16], matcher: Matcher, out: &mut Vec<u16>, mut write: impl FnMut(&[u16], &mut Vec<u16>)) {
     let mut at = 0;
     while at < text.len() {
         match matcher(text, at) {
             Some(end) => {
-                out.extend(replace(&text[at..end]));
+                write(&text[at..end], out);
                 at = end;
             }
             None => {
@@ -143,7 +164,6 @@ fn replace_all(text: &[u16], matcher: Matcher, mut replace: impl FnMut(&[u16]) -
             }
         }
     }
-    out
 }
 
 /// `\[([^\]]+)]`.
@@ -157,56 +177,87 @@ fn bracketed(text: &[u16], at: usize) -> Option<usize> {
 
 /// Up to `most` of `letter` at `at`, at least one.
 fn repeated(text: &[u16], at: usize, letter: u8, most: usize) -> Option<usize> {
-    let count = text[at..].iter().take(most).take_while(|&&c| c == u16::from(letter)).count();
-    (count > 0).then_some(at + count)
+    let mut end = at;
+    while end < text.len() && end - at < most && text[end] == u16::from(letter) {
+        end += 1;
+    }
+    (end > at).then_some(end)
 }
 
 fn literal(text: &[u16], at: usize, word: &str) -> Option<usize> {
     let end = at + word.len();
-    (text.get(at..end)? == units(word).as_slice()).then_some(end)
+    text.get(at..end)?.iter().zip(word.bytes()).all(|(&c, b)| c == u16::from(b)).then_some(end)
 }
 
-/// `RE_ADVANCED`.
+/// `RE_ADVANCED`, by the first letter of each alternative, in the order the expression tries them.
 fn advanced_token(text: &[u16], at: usize) -> Option<usize> {
-    if let Some(end) = bracketed(text, at) {
-        return Some(end);
+    match u8::try_from(text[at]).ok()? {
+        b'[' => bracketed(text, at),
+        b'Q' | b'X' | b'x' | b'S' => Some(at + 1),
+        b'w' => literal(text, at, "wo").or_else(|| literal(text, at, "ww")).or(Some(at + 1)),
+        b'W' => literal(text, at, "WW").or(Some(at + 1)),
+        b'z' => literal(text, at, "zzz").or(Some(at + 1)),
+        b'g' => literal(text, at, "gggg"),
+        b'G' => literal(text, at, "GGGG"),
+        b'D' => literal(text, at, "Do"),
+        b'k' => repeated(text, at, b'k', 2),
+        _ => None,
     }
-    for word in ["Q", "wo", "ww", "w", "WW", "W", "zzz", "z", "gggg", "GGGG", "Do", "X", "x"] {
-        if let Some(end) = literal(text, at, word) {
-            return Some(end);
-        }
-    }
-    repeated(text, at, b'k', 2).or_else(|| literal(text, at, "S"))
 }
 
-/// `RE_FORMAT`.
+/// `RE_FORMAT`, by the first letter of each alternative.
 fn format_token(text: &[u16], at: usize) -> Option<usize> {
-    bracketed(text, at)
-        .or_else(|| literal(text, at, "YYYY"))
-        .or_else(|| literal(text, at, "YY"))
-        .or_else(|| repeated(text, at, b'M', 4))
-        .or_else(|| repeated(text, at, b'D', 2))
-        .or_else(|| repeated(text, at, b'd', 4))
-        .or_else(|| repeated(text, at, b'H', 2))
-        .or_else(|| repeated(text, at, b'h', 2))
-        .or_else(|| literal(text, at, "a"))
-        .or_else(|| literal(text, at, "A"))
-        .or_else(|| repeated(text, at, b'm', 2))
-        .or_else(|| repeated(text, at, b's', 2))
-        .or_else(|| repeated(text, at, b'Z', 2))
-        .or_else(|| literal(text, at, "SSS"))
+    match u8::try_from(text[at]).ok()? {
+        b'[' => bracketed(text, at),
+        b'Y' => literal(text, at, "YYYY").or_else(|| literal(text, at, "YY")),
+        b'M' | b'd' => repeated(text, at, text[at] as u8, 4),
+        b'D' | b'H' | b'h' | b'm' | b's' | b'Z' => repeated(text, at, text[at] as u8, 2),
+        b'a' | b'A' => Some(at + 1),
+        b'S' => literal(text, at, "SSS"),
+        _ => None,
+    }
 }
 
-/// The offset from UTC as `+HH:mm`, which is always `+00:00` in UTC.
-fn zone(date: JsDate) -> String {
+/// `String(value)` written into `out`.
+fn write_number(out: &mut Vec<u16>, value: f64) {
+    out.extend(number(value));
+}
+
+fn write_pad(out: &mut Vec<u16>, value: f64, length: usize) {
+    out.extend(pad(value, length));
+}
+
+fn write_str(out: &mut Vec<u16>, text: &str) {
+    out.extend(text.encode_utf16());
+}
+
+/// The offset from UTC as `+HH:mm`, which is always `+00:00` in UTC; with `colon` false, `+HHmm`.
+fn write_zone(out: &mut Vec<u16>, date: JsDate, colon: bool) {
     let offset = -js::round(date.timezone_offset() / 15.0) * 15.0;
     let offset = if offset == 0.0 { 0.0 } else { offset };
     let minutes = offset.abs();
-    let two = |value: f64| String::from_utf16_lossy(&pad(value, 2));
-    format!("{}{}:{}", if offset >= 0.0 { '+' } else { '-' }, two((minutes / 60.0).floor()), two(minutes % 60.0))
+    write_str(out, if offset >= 0.0 { "+" } else { "-" });
+    write_pad(out, (minutes / 60.0).floor(), 2);
+    if colon {
+        write_str(out, ":");
+    }
+    write_pad(out, minutes % 60.0, 2);
 }
 
 const DEFAULT_FORMAT: &str = "YYYY-MM-DDTHH:mm:ssZ";
+
+/// The fields of a valid date that formatting reads, each read once.
+struct Clock {
+    year: f64,
+    /// From 0.
+    month: f64,
+    date: f64,
+    day: f64,
+    hours: f64,
+    minutes: f64,
+    seconds: f64,
+    milliseconds: f64,
+}
 
 /// Pele's `format`: `None` for the week-of-year and time zone name tokens, which need dayjs
 /// plugins Mermaid does not load.
@@ -214,85 +265,102 @@ pub(crate) fn format(date: JsDate, template: &[u16]) -> Option<Vec<u16>> {
     if !date.is_valid() {
         return Some(units("Invalid Date"));
     }
-    let default = units(DEFAULT_FORMAT);
-    let template = if template.is_empty() { default.as_slice() } else { template };
-    if template == units("YYYY-MM-DD").as_slice() {
+    let default;
+    let template = if template.is_empty() {
+        default = units(DEFAULT_FORMAT);
+        default.as_slice()
+    } else {
+        template
+    };
+    if literal(template, 0, "YYYY-MM-DD") == Some(template.len()) {
         return Some(iso_date(date));
     }
+    let (year, month, day_of_month) = date.calendar().expect("a valid date");
+    let c = Clock {
+        year: year as f64,
+        month: month as f64,
+        date: day_of_month as f64,
+        day: date.day(),
+        hours: date.hours(),
+        minutes: date.minutes(),
+        seconds: date.seconds(),
+        milliseconds: date.milliseconds(),
+    };
     let mut unsupported = false;
-    let advanced = replace_all(template, advanced_token, |token| {
-        let text = String::from_utf16_lossy(token);
-        let number = |value: f64| units(&js::to_string(value));
-        match text.as_str() {
-            "Q" => number(((date.month() + 1.0) / 3.0).ceil()),
-            "Do" => units(&format!("[{}]", ordinal(date.date()))),
-            "GGGG" => number(week_thursday(date).full_year()),
-            "W" => number(iso_week(date)),
-            "WW" => pad(iso_week(date), 2),
-            "k" => number(if date.hours() == 0.0 { 24.0 } else { date.hours() }),
-            "kk" => pad(if date.hours() == 0.0 { 24.0 } else { date.hours() }, 2),
-            "X" => number((date.time() / 1000.0).floor()),
-            "x" => number(date.time()),
-            "gggg" | "wo" | "w" | "ww" | "z" | "zzz" => {
-                unsupported = true;
-                token.to_vec()
+    let mut advanced = Vec::with_capacity(template.len() + 8);
+    replace_all(template, advanced_token, &mut advanced, |token, out| {
+        let day_hour = if c.hours == 0.0 { 24.0 } else { c.hours };
+        match (token[0] as u8, token.len()) {
+            (b'Q', 1) => write_number(out, ((c.month + 1.0) / 3.0).ceil()),
+            (b'D', 2) => {
+                out.push(u16::from(b'['));
+                write_str(out, &ordinal(c.date));
+                out.push(u16::from(b']'));
             }
-            _ => token.to_vec(),
+            (b'G', 4) => write_number(out, week_thursday(date).full_year()),
+            (b'W', 1) => write_number(out, iso_week(date)),
+            (b'W', 2) => write_pad(out, iso_week(date), 2),
+            (b'k', 1) => write_number(out, day_hour),
+            (b'k', 2) => write_pad(out, day_hour, 2),
+            (b'X', 1) => write_number(out, (date.time() / 1000.0).floor()),
+            (b'x', 1) => write_number(out, date.time()),
+            (b'g' | b'w' | b'z', _) => {
+                unsupported = true;
+                out.extend_from_slice(token);
+            }
+            _ => out.extend_from_slice(token),
         }
     });
     if unsupported {
         return None;
     }
-    let hours = date.hours();
-    let twelve = if hours % 12.0 == 0.0 { 12.0 } else { hours % 12.0 };
-    Some(replace_all(&advanced, format_token, |token| {
-        if token[0] == u16::from(b'[') {
-            return token[1..token.len() - 1].to_vec();
+    let twelve = if c.hours % 12.0 == 0.0 { 12.0 } else { c.hours % 12.0 };
+    let weekday = WEEKDAYS[c.day as usize];
+    let month_name = MONTHS[c.month as usize];
+    let mut out = Vec::with_capacity(advanced.len() + 8);
+    replace_all(&advanced, format_token, &mut out, |token, out| match (token[0] as u8, token.len()) {
+        (b'[', n) => out.extend_from_slice(&token[1..n - 1]),
+        (b'Y', 2) => {
+            let year = number(c.year);
+            out.extend_from_slice(&year[year.len().saturating_sub(2)..]);
         }
-        let number = |value: f64| units(&js::to_string(value));
-        let month = date.month() as usize;
-        let weekday = WEEKDAYS[date.day() as usize];
-        match String::from_utf16_lossy(token).as_str() {
-            "YY" => {
-                let year = units(&js::to_string(date.full_year()));
-                year[year.len().saturating_sub(2)..].to_vec()
-            }
-            "YYYY" => pad(date.full_year(), 4),
-            "M" => number(date.month() + 1.0),
-            "MM" => pad(date.month() + 1.0, 2),
-            "MMM" => units(&MONTHS[month][..3]),
-            "MMMM" => units(MONTHS[month]),
-            "D" => number(date.date()),
-            "DD" => pad(date.date(), 2),
-            "d" => number(date.day()),
-            "dd" => units(&weekday[..2]),
-            "ddd" => units(&weekday[..3]),
-            "dddd" => units(weekday),
-            "H" => number(hours),
-            "HH" => pad(hours, 2),
-            "h" => number(twelve),
-            "hh" => pad(twelve, 2),
-            "a" => units(if hours < 12.0 { "am" } else { "pm" }),
-            "A" => units(if hours < 12.0 { "AM" } else { "PM" }),
-            "m" => number(date.minutes()),
-            "mm" => pad(date.minutes(), 2),
-            "s" => number(date.seconds()),
-            "ss" => pad(date.seconds(), 2),
-            "SSS" => pad(date.milliseconds(), 3),
-            "Z" => units(&zone(date)),
-            _ => units(&zone(date).replacen(':', "", 1)),
-        }
-    }))
+        (b'Y', _) => write_pad(out, c.year, 4),
+        (b'M', 1) => write_number(out, c.month + 1.0),
+        (b'M', 2) => write_pad(out, c.month + 1.0, 2),
+        (b'M', 3) => write_str(out, &month_name[..3]),
+        (b'M', _) => write_str(out, month_name),
+        (b'D', 1) => write_number(out, c.date),
+        (b'D', _) => write_pad(out, c.date, 2),
+        (b'd', 1) => write_number(out, c.day),
+        (b'd', 2) => write_str(out, &weekday[..2]),
+        (b'd', 3) => write_str(out, &weekday[..3]),
+        (b'd', _) => write_str(out, weekday),
+        (b'H', 1) => write_number(out, c.hours),
+        (b'H', _) => write_pad(out, c.hours, 2),
+        (b'h', 1) => write_number(out, twelve),
+        (b'h', _) => write_pad(out, twelve, 2),
+        (b'a', _) => write_str(out, if c.hours < 12.0 { "am" } else { "pm" }),
+        (b'A', _) => write_str(out, if c.hours < 12.0 { "AM" } else { "PM" }),
+        (b'm', 1) => write_number(out, c.minutes),
+        (b'm', _) => write_pad(out, c.minutes, 2),
+        (b's', 1) => write_number(out, c.seconds),
+        (b's', _) => write_pad(out, c.seconds, 2),
+        (b'S', _) => write_pad(out, c.milliseconds, 3),
+        (b'Z', 1) => write_zone(out, date, true),
+        _ => write_zone(out, date, false),
+    });
+    Some(out)
 }
 
 /// Pele's `isoDate`: `YYYY-MM-DD`, with a year outside four digits padded as `String` writes it.
 pub(crate) fn iso_date(date: JsDate) -> Vec<u16> {
-    let (year, month, day) = (date.full_year(), date.month() + 1.0, date.date());
-    let mut out = if (1000.0..=9999.0).contains(&year) { units(&js::to_string(year)) } else { pad(year, 4) };
+    let (year, month, day) =
+        date.calendar().map_or((f64::NAN, f64::NAN, f64::NAN), |(y, m, d)| (y as f64, (m + 1) as f64, d as f64));
+    let mut out = if (1000.0..=9999.0).contains(&year) { number(year) } else { pad(year, 4) };
     out.extend(units(if month < 10.0 { "-0" } else { "-" }));
-    out.extend(units(&js::to_string(month)));
+    out.extend(number(month));
     out.extend(units(if day < 10.0 { "-0" } else { "-" }));
-    out.extend(units(&js::to_string(day)));
+    out.extend(number(day));
     out
 }
 
@@ -473,7 +541,8 @@ fn format_part(text: &[u16], at: usize) -> Option<usize> {
 
 /// Pele's `compile`: `None` for a format dayjs cannot read with.
 fn compile(template: &[u16]) -> Option<Vec<Step>> {
-    let unbracketed = replace_all(template, bracketed, |_| Vec::new());
+    let mut unbracketed = Vec::with_capacity(template.len());
+    replace_all(template, bracketed, &mut unbracketed, |_, _| {});
     if unbracketed.iter().any(|&c| c == u16::from(b'L') || c == u16::from(b'l')) {
         return None;
     }

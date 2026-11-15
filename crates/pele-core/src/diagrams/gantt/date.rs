@@ -153,7 +153,8 @@ impl JsDate {
         (!self.0.is_nan()).then(|| split(self.0))
     }
 
-    fn calendar(self) -> Option<(i64, i64, i64)> {
+    /// The year, the month from 0 and the day of the month, for a valid date.
+    pub(crate) fn calendar(self) -> Option<(i64, i64, i64)> {
         self.fields().map(|(days, _)| civil(days))
     }
 
