@@ -258,7 +258,11 @@ diagram_catalog! {
         port: { diagram: diagrams::gantt::Gantt, section: "gantt", palette: PaletteRule::None },
         detectors: [(8, "gantt", starts(&["gantt"]))],
     },
-    Info => { name: "info", detectors: [(9, "info", starts(&["info"]))] },
+    Info => {
+        name: "info",
+        port: { diagram: diagrams::info::Info, section: "info", palette: PaletteRule::None },
+        detectors: [(9, "info", starts(&["info"]))],
+    },
     Pie => {
         name: "pie",
         port: { diagram: diagrams::pie::Pie, section: "pie", palette: PaletteRule::Slots("pie", 1) },
@@ -303,12 +307,16 @@ diagram_catalog! {
         (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
     ] },
     Treemap => { name: "treemap", detectors: [(28, "treemap", starts(&["treemap"]))] },
-    Railroad => { name: "railroad", detectors: [
-        (29, "railroad", starts(&["railroad-beta"]).caseless()),
-        (30, "railroadEbnf", starts(&["railroad-ebnf-beta"]).caseless()),
-        (31, "railroadAbnf", starts(&["railroad-abnf-beta"]).caseless()),
-        (32, "railroadPeg", starts(&["railroad-peg-beta"]).caseless()),
-    ] },
+    Railroad => {
+        name: "railroad",
+        port: { diagram: diagrams::railroad::Railroad, section: "railroad", palette: PaletteRule::None },
+        detectors: [
+            (29, "railroad", starts(&["railroad-beta"]).caseless()),
+            (30, "railroadEbnf", starts(&["railroad-ebnf-beta"]).caseless()),
+            (31, "railroadAbnf", starts(&["railroad-abnf-beta"]).caseless()),
+            (32, "railroadPeg", starts(&["railroad-peg-beta"]).caseless()),
+        ],
+    },
     Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
     Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
     Cynefin => { name: "cynefin", detectors: [(35, "cynefin", starts(&["cynefin-beta"]).then(End::SpaceOrColon))] },

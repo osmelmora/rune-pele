@@ -402,6 +402,8 @@ import { sequenceOps } from './sequence.ts';
 Object.assign(ops, sequenceOps);
 import { ganttOps } from './gantt.ts';
 Object.assign(ops, ganttOps);
+import { railroadOps } from './railroad.ts';
+Object.assign(ops, railroadOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

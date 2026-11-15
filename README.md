@@ -2,7 +2,7 @@
 
 Mermaid diagrams for [Rune](https://github.com/anomalyco/rune) apps. This is a native Rust port of [Pele](https://github.com/obsidianmd/pele), the fast Mermaid to SVG renderer, pinned at Pele 1.13.0.
 
-The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own text metrics. On top of that come a Rune adapter with live themes and streaming layouts. The ported types are pie, flowchart, class, er, state, requirement, swimlane, usecase, agentflow, block, c4, sequence and gantt. Their output equals Pele's on the documentation corpus and on every source of theirs in Pele's own tests. `pele parity` shows where the port stands.
+The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own text metrics. On top of that come a Rune adapter with live themes and streaming layouts. The ported types are pie, flowchart, class, er, state, requirement, swimlane, usecase, agentflow, block, c4, sequence, gantt, railroad and info. Their output equals Pele's on the documentation corpus and on every source of theirs in Pele's own tests. `pele parity` shows where the port stands.
 
 ## Layout
 

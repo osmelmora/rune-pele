@@ -136,6 +136,11 @@ pub(crate) fn write_path(path: &PathProgram, out: &mut String) {
                 out.push_str(if *sweep { "1 " } else { "0 " });
                 write_pair(end, out);
             }
+            PathStep::VerticalBy(y) => {
+                out.push('v');
+                y.write(out);
+            }
+            PathStep::CloseBy => out.push('z'),
         }
     }
 }
@@ -172,14 +177,14 @@ fn write_geometry(node: &Node, field: GeometryField, out: &mut String) {
         (NodeContent::Circle { radius, .. }, G::Radius) => number("r", radius, out),
         (
             NodeContent::Text(PlacedText {
-                emission: TextEmission::Plain { x, .. } | TextEmission::Line { x, .. },
+                emission: TextEmission::Plain { x, .. } | TextEmission::Line { x, .. } | TextEmission::Painted { x, .. },
                 ..
             }),
             G::X,
         ) => number("x", x, out),
         (
             NodeContent::Text(PlacedText {
-                emission: TextEmission::Plain { y, .. } | TextEmission::Line { y, .. },
+                emission: TextEmission::Plain { y, .. } | TextEmission::Line { y, .. } | TextEmission::Painted { y, .. },
                 ..
             }),
             G::Y,
@@ -330,6 +335,7 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
                 write_attribute("data-href", out, |out| esc(note, out));
             }
         }
+        Field::PreserveSpace => out.push_str(" xml:space=\"preserve\""),
     }
 }
 
@@ -358,7 +364,7 @@ fn write_run_style(style: Emphasis, shared: Emphasis, out: &mut String) {
     }
 }
 
-fn write_text(text: &PlacedText, out: &mut String) {
+fn write_text(scene: &Scene, text: &PlacedText, out: &mut String) {
     match &text.emission {
         TextEmission::Plain { .. } => {
             out.push('>');
@@ -407,6 +413,21 @@ fn write_text(text: &PlacedText, out: &mut String) {
                 }
             }
         }
+        TextEmission::Painted { fills, .. } => {
+            out.push('>');
+            for (run, fill) in text.label.lines.iter().flat_map(|line| &line.runs).zip(fills) {
+                match fill.and_then(|fill| paint(scene, fill)) {
+                    Some(fill) => {
+                        out.push_str("<tspan fill=\"");
+                        out.push_str(&fill);
+                        out.push_str("\">");
+                        esc(&run.text, out);
+                        out.push_str("</tspan>");
+                    }
+                    None => esc(&run.text, out),
+                }
+            }
+        }
     }
     out.push_str("</text>");
 }
@@ -444,7 +465,7 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
             out.push_str(tag);
             out.push('>');
         }
-        NodeContent::Text(text) => write_text(text, out),
+        NodeContent::Text(text) => write_text(scene, text, out),
         NodeContent::Icon { .. } => {
             out.push_str(ICON_FRAME);
             out.push_str("></svg>");
