@@ -44,6 +44,46 @@ const layoutTap = {
   },
 };
 
+// The helpers the diagram types share, which harness/common.ts watches the same way during a real
+// render, through `globalThis.peleCommonTap['<file>.<name>'](real, args)`.
+const COMMON = {
+  'diagrams/common/literal-label': ['literalLabel', 'breakLabel', 'leftLabelSvg'],
+  'diagrams/common/fit': ['plainLabel', 'fitLabel'],
+  'diagrams/common/fit-text': ['fitText'],
+  'diagrams/common/fit-width': ['capWidth'],
+  'diagrams/common/icon': ['iconSvg'],
+  'diagrams/common/scan': ['lineEnd', 'keywordAt', 'skipTrivia', 'accessibility'],
+  'diagrams/common/caseless': ['wordAt'],
+  'diagrams/common/outline': ['tokenize', 'parseOutline'],
+  'svg/palette': ['palette'],
+};
+const peleSrc = resolve(here, '../vendor/pele/src');
+const commonTap = {
+  name: 'common-tap',
+  setup(b) {
+    b.onResolve({ filter: /\.js$/ }, (args) => {
+      if (args.namespace === 'common-tap') return { path: join(peleSrc, `${args.path.slice(2, -3)}.ts`) };
+      const file = resolve(args.resolveDir, args.path);
+      const module = Object.keys(COMMON).find((name) => file === join(peleSrc, `${name}.js`));
+      return module === undefined ? undefined : { path: module, namespace: 'common-tap' };
+    });
+    b.onLoad({ filter: /.*/, namespace: 'common-tap' }, (args) => {
+      const file = `./${args.path}.js`;
+      const key = basename(args.path);
+      return {
+        resolveDir: peleSrc,
+        loader: 'js',
+        contents: [
+          `import * as real from '${file}';`,
+          `export * from '${file}';`,
+          `const tap = (name) => (...args) => { const t = globalThis.peleCommonTap; const f = t && t['${key}.' + name]; return f ? f(real[name], args) : real[name](...args); };`,
+          ...COMMON[args.path].map((name) => `export const ${name} = tap('${name}');`),
+        ].join('\n'),
+      };
+    });
+  },
+};
+
 await build({
   absWorkingDir: here,
   entryPoints: ['oracle.ts'],
@@ -54,6 +94,6 @@ await build({
   target: 'node26',
   minify: false,
   logLevel: 'warning',
-  plugins: [layoutTap],
+  plugins: [layoutTap, commonTap],
   banner: { js: `// harness ts sha256 ${source} pele ${pele}` },
 });

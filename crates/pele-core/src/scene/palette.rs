@@ -62,7 +62,7 @@ impl Rgba {
     }
 }
 
-const ROLES: [Role; 9] = [
+const ROLES: [Role; 11] = [
     Role::Background,
     Role::Foreground,
     Role::Border,
@@ -72,6 +72,8 @@ const ROLES: [Role; 9] = [
     Role::Surface,
     Role::SurfaceAlt,
     Role::Muted,
+    Role::Accent,
+    Role::Critical,
 ];
 
 fn index(role: Role) -> usize {
@@ -103,6 +105,8 @@ impl Palette {
             Role::Surface => Rgba::hex("#f3f3f3"),
             Role::SurfaceAlt => Rgba::hex("#e6e6e6"),
             Role::Muted => Rgba::hex("#6e6e6e"),
+            Role::Accent => Rgba::hex("#5b7bd5"),
+            Role::Critical => Rgba::hex("#e45756"),
         });
         Palette { roles, series: PELE_SERIES.map(Rgba::hex) }
     }

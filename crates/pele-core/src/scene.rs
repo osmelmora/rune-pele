@@ -77,6 +77,11 @@ pub enum Role {
     SurfaceAlt,
     /// Text that stands back, such as a group's title.
     Muted,
+    /// What a diagram picks out, such as a gantt's tasks or a treeview's selected row.
+    Accent,
+    /// What a diagram marks as critical, such as a gantt's critical tasks. It is no series
+    /// colour, as a theme may put those in any order.
+    Critical,
 }
 
 /// One of the eight series colours. A position past the eighth wraps around.
@@ -179,13 +184,19 @@ pub enum Facet {
     Row,
 }
 
-/// Mermaid's palette theme variables for one diagram type: the name before the number, and the
-/// number of the variable for the first series.
+/// Where a diagram type's theme variables set its series colours, as Pele's `PALETTES` says.
 #[derive(Clone, Copy)]
 pub(crate) enum PaletteRule {
     /// The type has no series colours.
     None,
+    /// One variable per series: the name before the number, and the number of the variable for
+    /// the first series.
     Slots(&'static str, usize),
+    /// As `Slots`, but the colours that are set repeat in order to fill all eight series, as
+    /// venn's do.
+    Repeated(&'static str, usize),
+    /// xychart's `xyChart.plotColorPalette`: colours between commas, repeated to fill all eight.
+    PlotColors,
 }
 
 /// A series colour the source sets, as it was accepted and as it is written.
@@ -205,12 +216,36 @@ pub(crate) struct SourcePalette {
 impl SourcePalette {
     /// Pele's `palette`: an entry that is not a usable colour leaves its series in the theme's colour.
     pub(crate) fn from_config(rule: PaletteRule, config: &JsObject) -> Self {
-        let PaletteRule::Slots(prefix, first) = rule else {
-            return SourcePalette::default();
-        };
         let variables = config.get("themeVariables").and_then(JsValue::as_record);
+        let numbered = |prefix: &str, first: usize| -> Vec<Option<JsValue>> {
+            (0..8).map(|index| variables?.get(&format!("{prefix}{}", first + index)).cloned()).collect()
+        };
+        // The entries for the series in turn, repeated when there are fewer than eight.
+        let list = match rule {
+            PaletteRule::None => return SourcePalette::default(),
+            PaletteRule::Slots(prefix, first) => numbered(prefix, first),
+            PaletteRule::Repeated(prefix, first) => numbered(prefix, first)
+                .into_iter()
+                .filter(|entry| match entry {
+                    None | Some(JsValue::Null) => false,
+                    Some(JsValue::String(text)) => !text.is_empty(),
+                    Some(_) => true,
+                })
+                .collect(),
+            PaletteRule::PlotColors => {
+                let list = variables
+                    .and_then(|variables| variables.get("xyChart")?.as_record()?.get("plotColorPalette")?.as_text());
+                let Some(list) = list else {
+                    return SourcePalette::default();
+                };
+                split_colours(list).into_iter().map(|part| Some(JsValue::String(part.into()))).collect()
+            }
+        };
+        if list.is_empty() {
+            return SourcePalette::default();
+        }
         let slot = |index: usize| {
-            let spelling = safe_color(variables?.get(&format!("{prefix}{}", first + index))?)?;
+            let spelling = safe_color(list[index % list.len()].as_ref()?)?;
             let ink = ink(&spelling);
             Some(SourceColour { spelling, ink })
         };
@@ -224,6 +259,25 @@ impl SourcePalette {
     pub(crate) fn ink(&self, slot: SeriesSlot) -> Option<Role> {
         self.slots[slot.index()].as_ref()?.ink
     }
+}
+
+/// Pele's `splitList`: the colours between the commas of a list, not those inside `rgb()` and
+/// other functions, each trimmed.
+fn split_colours(list: &[u16]) -> Vec<&[u16]> {
+    let mut parts = Vec::new();
+    let (mut depth, mut start) = (0i32, 0);
+    for (index, &c) in list.iter().enumerate() {
+        if c == u16::from(b'(') {
+            depth += 1;
+        } else if c == u16::from(b')') {
+            depth -= 1;
+        } else if c == u16::from(b',') && depth == 0 {
+            parts.push(&list[start..index]);
+            start = index + 1;
+        }
+    }
+    parts.push(&list[start..]);
+    parts.into_iter().map(|part| part.trim_js()).collect()
 }
 
 const FUNCTIONS: [&str; 13] =
@@ -735,7 +789,7 @@ pub(crate) struct PlacedText {
     pub(crate) emission: TextEmission,
 }
 
-/// The two forms Pele writes text in.
+/// The forms Pele writes text in.
 #[derive(Clone, Debug)]
 pub(crate) enum TextEmission {
     /// One plain run, written as the text element's own content at one baseline point.
@@ -743,6 +797,9 @@ pub(crate) enum TextEmission {
     /// Lines of runs. Each line's first run carries the line's point, and `shared` is the
     /// emphasis every run has, which the text element carries once.
     Rich { lines: Vec<[Number; 2]>, shared: Emphasis },
+    /// One line of runs at the text element's own point, as `leftLabelSvg` writes each line: a
+    /// run with no emphasis beyond `shared` is bare text, and any other is a `tspan`.
+    Line { x: Number, y: Number, shared: Emphasis },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1122,7 +1179,7 @@ impl Scene {
 }
 
 /// Properties with the order they were set in. The builders below add to it at each call.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Attributes {
     part: Option<PartId>,
     facet: Option<Facet>,
@@ -1386,6 +1443,17 @@ impl LabelLook {
         LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
     }
 
+    /// Writes `font-style="italic"`. The label's runs say what an interpreter sets in italic.
+    pub(crate) fn italic(mut self) -> Self {
+        self.0.emission.push(Field::FontStyle);
+        self
+    }
+
+    /// Sets the text in the monospace font.
+    pub(crate) fn mono(self) -> Self {
+        LabelLook(self.0.set(Field::FontFamily, |p| p.mono = true))
+    }
+
     pub(crate) fn fill(self, paint: Option<Paint>) -> Self {
         match paint {
             Some(paint) => LabelLook(self.0.set(Field::Fill, |p| p.fill = Some(paint))),
@@ -1404,6 +1472,17 @@ impl LabelLook {
 
     pub(crate) fn style(self, style: Option<&Style>) -> Self {
         LabelLook(self.0.style(style.cloned()))
+    }
+}
+
+/// The emphasis of a run that its text element does not already carry: Pele's
+/// `span.style & ~shared`.
+pub(crate) fn own_emphasis(style: Emphasis, shared: Emphasis) -> Emphasis {
+    Emphasis {
+        bold: style.bold && !shared.bold,
+        italic: style.italic && !shared.italic,
+        mono: style.mono && !shared.mono,
+        ..style
     }
 }
 
@@ -1670,6 +1749,52 @@ impl SceneBuilder {
         let start = |p: &mut Properties| p.anchor = Some(AnchorKind::Start);
         let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
         self.push(attributes.set(Field::Anchor, start), NodeContent::Text(text));
+    }
+
+    /// Pele's `leftLabelSvg` (`common/literal-label.ts`): a label with every line starting at `x`,
+    /// the top of its first line at `top`. Each line is a text element of its own, anchored at
+    /// its start and keeping its spaces, so that where it begins does not depend on how its text
+    /// was measured. A line that writes no text is left out. The emphasis every run has is
+    /// written once on each element, unless the look already writes that attribute.
+    pub(crate) fn left_label(&mut self, part: PartId, facet: Facet, label: &Label, x: f64, top: f64, look: LabelLook) {
+        let runs = || label.lines.iter().flat_map(|line| &line.runs).filter(|run| !run.text.is_empty());
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let shared = if runs().next().is_some() { shared } else { Emphasis::default() };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let gives = |attributes: &Attributes, field: Field| attributes.emission.contains(&field);
+        if shared.bold && !gives(&attributes, Field::FontWeight) {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic && !gives(&attributes, Field::FontStyle) {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono && !gives(&attributes, Field::FontFamily) {
+            attributes = attributes.set(Field::FontFamily, |p| p.mono = true);
+        }
+        let attributes = attributes
+            .geometry(&[GeometryField::X, GeometryField::Y])
+            .set(Field::Anchor, |p| p.anchor = Some(AnchorKind::Start));
+        for (index, line) in label.lines.iter().enumerate() {
+            let writes = |run: &LabelRun| {
+                let mut escaped = String::new();
+                esc(&run.text, &mut escaped);
+                !escaped.is_empty() || !own_emphasis(run.style, shared).is_plain()
+            };
+            if !line.runs.iter().any(writes) {
+                continue;
+            }
+            let middle = top + (index as f64 + 0.5) * label.line_height;
+            let (x, y) = (Number::num(x), Number::num(middle + label.size * 0.35));
+            let one =
+                Label { lines: vec![line.clone()], width: line.width, height: label.line_height, ..label.clone() };
+            let text = PlacedText { label: one, emission: TextEmission::Line { x, y, shared } };
+            self.push(attributes.clone(), NodeContent::Text(text));
+        }
     }
 
     /// Pele's `textLeft` (`er/render.ts`): a measured label that starts at `x`, with the baseline

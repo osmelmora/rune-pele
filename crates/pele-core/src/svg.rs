@@ -7,7 +7,7 @@ use crate::input::{JsText, decode_entities};
 use crate::measure::{Emphasis, Script};
 use crate::scene::{
     AnchorKind, Aspect, Field, GeometryField, LineCap, LineJoin, Node, NodeContent, NodeId, Number, PELE_SERIES, Paint,
-    PathProgram, PathStep, PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform, esc,
+    PathProgram, PathStep, PlacedText, Role, Scene, Style, TextEmission, TextWeight, Transform, esc, own_emphasis,
 };
 use crate::{Diagnostic, ErrorCode, ParityScene, RenderError, Rendered, js};
 
@@ -28,6 +28,16 @@ pub fn write(parity: &ParityScene) -> Result<Rendered, RenderError> {
     Ok(Rendered { svg, width: scene.size().width, height: scene.size().height })
 }
 
+/// The body of a drawing without its root element, for a test that holds one helper's drawing
+/// to the fragment Pele's helper returns.
+pub(crate) fn write_fragment(scene: &Scene) -> String {
+    let mut body = String::new();
+    for &root in &scene.roots {
+        write_node(scene, root, &mut body);
+    }
+    body
+}
+
 fn esc_str(text: &str, out: &mut String) {
     esc(&text.encode_utf16().collect::<Vec<_>>(), out);
 }
@@ -38,7 +48,7 @@ fn esc_text(text: &JsText, out: &mut String) {
     esc(&decode_entities(text), out);
 }
 
-fn role(role: Role) -> &'static str {
+pub(crate) fn role(role: Role) -> &'static str {
     match role {
         Role::Background => "var(--_bg)",
         Role::Foreground => "var(--_fg)",
@@ -49,11 +59,13 @@ fn role(role: Role) -> &'static str {
         Role::Surface => "var(--_s)",
         Role::SurfaceAlt => "var(--_a)",
         Role::Muted => "var(--_m)",
+        Role::Accent => "var(--_c)",
+        Role::Critical => "var(--pele-critical,#e45756)",
     }
 }
 
 /// The value of a paint attribute, or `None` where Pele writes no attribute at all.
-fn paint(scene: &Scene, paint: Paint) -> Option<String> {
+pub(crate) fn paint(scene: &Scene, paint: Paint) -> Option<String> {
     Some(match paint {
         Paint::None => "none".to_owned(),
         Paint::Role(named) => role(named).to_owned(),
@@ -158,8 +170,20 @@ fn write_geometry(node: &Node, field: GeometryField, out: &mut String) {
         (NodeContent::Circle { cx: Some(cx), .. }, G::Cx) => number("cx", cx, out),
         (NodeContent::Circle { cy: Some(cy), .. }, G::Cy) => number("cy", cy, out),
         (NodeContent::Circle { radius, .. }, G::Radius) => number("r", radius, out),
-        (NodeContent::Text(PlacedText { emission: TextEmission::Plain { x, .. }, .. }), G::X) => number("x", x, out),
-        (NodeContent::Text(PlacedText { emission: TextEmission::Plain { y, .. }, .. }), G::Y) => number("y", y, out),
+        (
+            NodeContent::Text(PlacedText {
+                emission: TextEmission::Plain { x, .. } | TextEmission::Line { x, .. },
+                ..
+            }),
+            G::X,
+        ) => number("x", x, out),
+        (
+            NodeContent::Text(PlacedText {
+                emission: TextEmission::Plain { y, .. } | TextEmission::Line { y, .. },
+                ..
+            }),
+            G::Y,
+        ) => number("y", y, out),
         (NodeContent::Path(path), G::D) => write_attribute("d", out, |out| write_path(path, out)),
         (NodeContent::Polygon(points), G::Points) => write_attribute("points", out, |out| {
             for (index, point) in points.iter().enumerate() {
@@ -369,6 +393,20 @@ fn write_text(text: &PlacedText, out: &mut String) {
                 }
             }
         }
+        TextEmission::Line { shared, .. } => {
+            out.push_str(" xml:space=\"preserve\">");
+            for run in text.label.lines.iter().flat_map(|line| &line.runs) {
+                if own_emphasis(run.style, *shared).is_plain() {
+                    esc(&run.text, out);
+                } else {
+                    out.push_str("<tspan");
+                    write_run_style(run.style, *shared, out);
+                    out.push('>');
+                    esc(&run.text, out);
+                    out.push_str("</tspan>");
+                }
+            }
+        }
     }
     out.push_str("</text>");
 }
@@ -552,6 +590,8 @@ mod tests {
             Role::Surface,
             Role::SurfaceAlt,
             Role::Muted,
+            Role::Accent,
+            Role::Critical,
         ];
         for named in roles {
             let spelled = fallback(role(named));

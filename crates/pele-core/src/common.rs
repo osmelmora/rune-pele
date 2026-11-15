@@ -1,8 +1,11 @@
 //! Small helpers that several of Pele's diagram types share.
 //!
-//! Each one is ported before the types that use it, so parallel ports reuse one copy.
+//! Each one is ported before the types that use it, so parallel ports reuse one copy. Helpers
+//! that belong to a module of their own live there, and [`probe`] reaches them for the tests.
 
 use std::sync::OnceLock;
+
+pub mod probe;
 
 /// Pele's `parseGenericTypes` (`src/diagrams/common/generics.ts`): turns `List~int~` into
 /// `List<int>`, with the quirks of Mermaid's parser around commas. Class and ER use it.

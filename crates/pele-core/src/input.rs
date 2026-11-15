@@ -111,6 +111,16 @@ pub(crate) fn is_digit(c: u16) -> bool {
     matches!(c, 48..=57)
 }
 
+/// An ASCII letter.
+pub(crate) fn is_letter(c: u16) -> bool {
+    matches!(c, 65..=90 | 97..=122)
+}
+
+/// An ASCII hex digit.
+pub(crate) fn is_hex(c: u16) -> bool {
+    matches!(c, 48..=57 | 65..=70 | 97..=102)
+}
+
 pub(crate) fn is_blank(c: u16) -> bool {
     c == 32 || c == 9
 }

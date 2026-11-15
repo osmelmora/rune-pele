@@ -12,7 +12,7 @@ use super::{
     NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene, Size,
     TextEmission, TextWeight, Transform,
 };
-use crate::measure::{Emphasis, Font, FontFamily, FontWeight, SMALLER, Script};
+use crate::measure::{Emphasis, Font, FontFamily, FontWeight, Label, SMALLER, Script};
 use std::collections::HashMap;
 
 /// What one entity draws in one role, wherever in paint order that is. A pie section's slice
@@ -548,29 +548,33 @@ fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)
         }
         // A line's first run carries the line's point and the anchor places the whole line, so
         // each run starts where the runs before it end.
-        TextEmission::Rich { lines, .. } => {
-            let mut out = Vec::new();
-            for (index, (line, at)) in label.lines.iter().zip(lines).enumerate() {
-                let mut left = at[0].effective() - lead(inherited.anchor, line.width);
-                for (place, run) in line.runs.iter().enumerate() {
-                    if !run.text.is_empty() {
-                        let baseline = BaselineRun {
-                            text: drawable(&run.text),
-                            baseline: Point { x: left, y: at[1].effective() },
-                            anchor: AnchorKind::Start,
-                            advance: run.width,
-                            font: inherited.font(run.style),
-                            script: run.style.script,
-                            underline: run.style.underline,
-                        };
-                        out.push((index as u32, place as u32, baseline));
-                    }
-                    left += run.width;
-                }
+        TextEmission::Line { x, y, .. } => line_runs(label, &[[*x, *y]], inherited),
+        TextEmission::Rich { lines, .. } => line_runs(label, lines, inherited),
+    }
+}
+
+/// The runs of lines whose first run carries the line's point.
+fn line_runs(label: &Label, lines: &[[Number; 2]], inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)> {
+    let mut out = Vec::new();
+    for (index, (line, at)) in label.lines.iter().zip(lines).enumerate() {
+        let mut left = at[0].effective() - lead(inherited.anchor, line.width);
+        for (place, run) in line.runs.iter().enumerate() {
+            if !run.text.is_empty() {
+                let baseline = BaselineRun {
+                    text: drawable(&run.text),
+                    baseline: Point { x: left, y: at[1].effective() },
+                    anchor: AnchorKind::Start,
+                    advance: run.width,
+                    font: inherited.font(run.style),
+                    script: run.style.script,
+                    underline: run.style.underline,
+                };
+                out.push((index as u32, place as u32, baseline));
             }
-            out
+            left += run.width;
         }
     }
+    out
 }
 
 fn write_name(f: &mut std::fmt::Formatter<'_>, name: &[u16]) -> std::fmt::Result {
