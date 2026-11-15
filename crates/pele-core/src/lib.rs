@@ -537,6 +537,20 @@ pub fn c4_front_json(source: &str, options: ParseOptions) -> Result<String, Rend
     Ok(diagrams::c4::json::front_json(&model, front.found.mermaid.name()))
 }
 
+/// The wardley front end's model as JSON, in the words of the oracle's `wardley_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn wardley_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Wardley {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::wardley::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::wardley::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

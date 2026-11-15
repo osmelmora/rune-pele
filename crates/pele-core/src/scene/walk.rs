@@ -579,6 +579,30 @@ impl Scene {
             });
             out.push(PaintVisit::Begin(Group { part, translate, rotate, opacity, link, tooltip, untouchable }));
         };
+        // A drawing turned by a rotate of its own, such as a turned axis title, is drawn inside
+        // a group that takes the turn, as a turned group's drawings are.
+        let turned = match (&node.content, node.properties.transform) {
+            (NodeContent::Group(_) | NodeContent::Link { .. }, _) => None,
+            (_, Some(Transform::Rotate { degrees, centre })) => {
+                let centre = Point { x: centre[0].effective(), y: centre[1].effective() };
+                Some(Rotation { degrees: degrees.effective(), centre })
+            }
+            _ => None,
+        };
+        if let Some(rotate) = turned {
+            let translate = Point { x: 0.0, y: 0.0 };
+            let (link, tooltip) = (None, None);
+            let rotate = Some(rotate);
+            out.push(PaintVisit::Begin(Group {
+                part: None,
+                translate,
+                rotate,
+                opacity: 1.0,
+                link,
+                tooltip,
+                untouchable: false,
+            }));
+        }
         match &node.content {
             NodeContent::Group(children) => {
                 group(out, None, children);
@@ -659,6 +683,9 @@ impl Scene {
                     }));
                 }
             }
+        }
+        if turned.is_some() {
+            out.push(PaintVisit::End);
         }
     }
 }

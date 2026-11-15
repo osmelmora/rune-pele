@@ -1509,6 +1509,13 @@ impl LabelLook {
     pub(crate) fn stroke_paint(self, paint: Paint) -> Self {
         LabelLook(self.0.set(Field::Stroke, |p| p.stroke = Some(paint)))
     }
+
+    /// Turns the text element by `degrees` about `centre`, written where this is called, as a
+    /// wardley map's visibility axis title is turned upright.
+    pub(crate) fn rotate(self, degrees: Number, centre: [Number; 2]) -> Self {
+        let transform = Transform::Rotate { degrees, centre };
+        LabelLook(self.0.set(Field::Transform, |p| p.transform = Some(transform)))
+    }
 }
 
 /// The emphasis of a run that its text element does not already carry: Pele's
@@ -1903,6 +1910,57 @@ impl SceneBuilder {
             placed.lines.push(LabelLine { runs, width: line.width });
         }
         let text = PlacedText { label: placed, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes, NodeContent::Text(text));
+    }
+
+    /// Pele's `startLabel` (`wardley/render.ts`): a label whose lines start at `x`, with the
+    /// baseline of its first line at `baseline` and each next one a line height lower. Each line's
+    /// first run carries the line's point and a line with no runs writes nothing. No anchor is
+    /// written, so the text starts where the groups around it say. The emphasis every run has is
+    /// written once, unless the look already writes that attribute. Nothing is drawn when no line
+    /// has a run.
+    pub(crate) fn start_lines(
+        &mut self,
+        part: PartId,
+        facet: Facet,
+        label: &Label,
+        x: f64,
+        baseline: f64,
+        look: LabelLook,
+    ) {
+        let mut kept = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        let mut y = baseline;
+        for line in &label.lines {
+            if !line.runs.is_empty() {
+                lines.push([Number::num(x), Number::num(y)]);
+                kept.lines.push(line.clone());
+            }
+            y += label.line_height;
+        }
+        if kept.lines.is_empty() {
+            return;
+        }
+        let runs = || label.lines.iter().flat_map(|line| &line.runs).filter(|run| !run.text.is_empty());
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let shared = if runs().next().is_some() { shared } else { Emphasis::default() };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let gives = |attributes: &Attributes, field: Field| attributes.emission.contains(&field);
+        if shared.bold && !gives(&attributes, Field::FontWeight) {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic && !gives(&attributes, Field::FontStyle) {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono && !gives(&attributes, Field::FontFamily) {
+            attributes = attributes.set(Field::FontFamily, |p| p.mono = true);
+        }
+        let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
         self.push(attributes, NodeContent::Text(text));
     }
 
