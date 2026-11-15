@@ -14,6 +14,10 @@ run = "scripts/setup.sh"
 description = "fmt, clippy, unit tests and the differential tests against Pele"
 run = "scripts/check.sh"
 
+[tasks.rune-corpus]
+description = "Draw every corpus source of the graph types natively in Rune, beside Pele's SVG through resvg (release)"
+run = "cargo test -q --release -p rune-pele --test graph_view -- --nocapture --test-threads=1"
+
 [tasks.prove]
 description = "Run the Kani proofs for the JS numerics"
 run = "cargo kani -p pele-core -j --output-format terse"

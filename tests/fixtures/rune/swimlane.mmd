@@ -1,0 +1,12 @@
+swimlane-beta LR
+    subgraph Customer
+        A[Order] --> B[Pay]
+    end
+    subgraph Shop
+        C[Pick] --> D[Pack]
+    end
+    subgraph Courier
+        E([Deliver])
+    end
+    B --> C
+    D -.-> E

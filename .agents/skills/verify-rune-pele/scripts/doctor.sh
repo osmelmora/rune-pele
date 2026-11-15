@@ -32,6 +32,6 @@ echo "doctor: oracle answers num(0.125)=0.13 num(-0.125)=-0.12"
 mise exec -- cargo build -q -p pele-cli 2>/dev/null || fail "pele-cli does not build; run \`mise exec -- cargo build -p pele-cli\`"
 echo "doctor: pele binary at target/debug/pele"
 
-mise exec -- cargo build -q -p rune-pele --example pie 2>/dev/null || fail "the rune-pele example does not build; run \`mise exec -- cargo build -p rune-pele --example pie\`"
-echo "doctor: rune-pele example at target/debug/examples/pie"
+mise exec -- cargo build -q -p rune-pele --example pie --example diagram 2>/dev/null || fail "the rune-pele examples do not build; run \`mise exec -- cargo build -p rune-pele --example pie --example diagram\`"
+echo "doctor: rune-pele examples at target/debug/examples/pie and target/debug/examples/diagram"
 echo "doctor: ok"

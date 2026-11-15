@@ -1,0 +1,14 @@
+agentflow-beta TB
+  flow team["Content Team"]
+    gather["Gather sources"]@{ shape: task }
+    compose["Compose draft"]@{ shape: task }
+  end
+  check["Draft ready?"]@{ shape: decision }
+  ship["Publish"]@{ shape: action }
+  logs["Style guide"]@{ shape: refdoc }
+
+  gather --> compose
+  compose --> check
+  check -- yes --> ship
+  check -- no --x compose
+  compose -.- logs

@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::f64::consts::TAU;
 use std::fmt::Write as _;
 
-use common::{out_dir_for, save_in};
+use common::{arial, as_a_page_reads, out_dir_for, rasterise, save_in, side_by_side};
 use pele_core::Scene;
 use pele_core::scene::{AnchorKind, Facet, Geometry, Paint, PaintVisit, PathCommand, ResolvedPaints, Rgba};
 use rune::{Color, Cx, El, Env, el};
@@ -16,7 +16,7 @@ use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewError, ViewOpti
 
 const RUN: &str = "pie-rune";
 const PETS: &str = include_str!("../../../tests/fixtures/pie-pets.mmd");
-const FLOW: &str = include_str!("../../../tests/fixtures/flow.mmd");
+const SEQUENCE: &str = include_str!("../../../tests/fixtures/sequence.mmd");
 const VIEWPORT: (f32, f32) = (480.0, 400.0);
 
 struct Viewer {
@@ -407,10 +407,11 @@ fn keys_follow_what_is_drawn_not_the_id_prefix_or_the_values() {
 #[test]
 fn only_a_type_pele_core_has_not_ported_falls_back_to_rune_mermaid() {
     let capturer = Capturer::new();
-    let mut flow = window(&capturer, FLOW, Palette::pele(), 1.0);
-    flow.capture();
-    assert_eq!(*flow.state().error.borrow(), None);
-    assert_eq!(flow.state().diagram.status(), RenderStatus::RuneMermaid);
+    let mut sequence = window(&capturer, SEQUENCE, Palette::pele(), 1.0);
+    sequence.capture();
+    assert_eq!(*sequence.state().error.borrow(), None);
+    assert_eq!(sequence.state().diagram.status(), RenderStatus::RuneMermaid);
+    assert_eq!(sequence.state().diagram.fallback(), Some(rune_pele::Fallback::NotPorted));
 
     let mut bad = window(&capturer, "pie\n \"a\" 1", Palette::pele(), 1.0);
     bad.capture();
@@ -420,82 +421,6 @@ fn only_a_type_pele_core_has_not_ported_falls_back_to_rune_mermaid() {
         "a pie that does not parse is Pele's error, not another grammar: {error:?}"
     );
     assert_eq!(bad.state().diagram.status(), RenderStatus::Unrendered);
-}
-
-/// Pele's SVG as a page without CSS of its own reads it, in the attributes resvg reads. resvg
-/// has no CSS variables, so each `var()` becomes the root's private alias or else the public
-/// variable's fallback. It does not read the root's `font` shorthand either, so that size
-/// becomes the root's `font-size`.
-fn as_a_page_reads(svg: &str) -> String {
-    let style_at = svg.find("style=\"").expect("the root has a style") + 7;
-    let style = &svg[style_at..style_at + svg[style_at..].find('"').expect("a closed style")];
-    let declarations: Vec<(&str, &str)> =
-        style.split(';').filter_map(|declaration| declaration.split_once(':')).collect();
-    let alias = |name: &str| declarations.iter().find(|(n, _)| *n == name).map(|(_, value)| (*value).to_owned());
-    let font = alias("font").expect("the root sets a font");
-    let size = font.split("px").next().expect("a size in px");
-    let mut out = svg.replacen("<svg ", &format!("<svg font-size=\"{size}\" "), 1);
-    while let Some(at) = out.find("var(") {
-        let end = at + out[at..].find(')').expect("a closed var()");
-        let inner = &out[at + 4..end];
-        let value = match inner.split_once(',') {
-            Some((_, fallback)) => fallback.to_owned(),
-            None => alias(inner).unwrap_or_default(),
-        };
-        out.replace_range(at..=end, &value);
-    }
-    out
-}
-
-/// Arial, whose metrics Pele lays out with, or a font with the same metrics: the regular and
-/// bold faces. `RUNE_PELE_RESVG_FONT` names another regular face, which then draws bold too.
-fn arial() -> Vec<String> {
-    if let Some(path) = std::env::var_os("RUNE_PELE_RESVG_FONT") {
-        return vec![path.to_string_lossy().into_owned()];
-    }
-    let candidates = [
-        ["/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf"],
-        ["C:\\Windows\\Fonts\\arial.ttf", "C:\\Windows\\Fonts\\arialbd.ttf"],
-        [
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        ],
-    ];
-    let found = candidates.iter().find(|faces| faces.iter().all(|face| std::path::Path::new(face).exists()));
-    let faces = found.expect("an Arial-compatible font, or RUNE_PELE_RESVG_FONT naming one, such as Rune's Inter");
-    faces.iter().map(|face| (*face).to_owned()).collect()
-}
-
-fn rasterise(svg: &str, scale: f32) -> Pixels {
-    let mut options = resvg::usvg::Options::default();
-    let fonts = options.fontdb_mut();
-    for face in arial() {
-        fonts.load_font_data(std::fs::read(&face).unwrap_or_else(|e| panic!("{face}: {e}")));
-    }
-    let family = fonts.faces().next().expect("a face").families[0].0.clone();
-    fonts.set_sans_serif_family(&family);
-    options.font_family = family;
-    let tree = resvg::usvg::Tree::from_str(svg, &options).expect("Pele's SVG parses");
-    let size = tree.size();
-    let (width, height) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).expect("a pixmap");
-    pixmap.fill(resvg::tiny_skia::Color::WHITE);
-    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
-    Pixels { width, height, rgba: pixmap.take() }
-}
-
-fn side_by_side(left: &Pixels, right: &Pixels, gap: u32) -> Pixels {
-    let (width, height) = (left.width + gap + right.width, left.height.max(right.height));
-    let mut rgba = vec![255; (width * height * 4) as usize];
-    for (image, offset) in [(left, 0), (right, left.width + gap)] {
-        for y in 0..image.height {
-            for x in 0..image.width {
-                let at = ((y * width + x + offset) * 4) as usize;
-                rgba[at..at + 4].copy_from_slice(&image.at(x, y));
-            }
-        }
-    }
-    Pixels { width, height, rgba }
 }
 
 #[test]

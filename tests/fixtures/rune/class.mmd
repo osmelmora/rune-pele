@@ -1,0 +1,21 @@
+classDiagram
+    direction TB
+    class Shape {
+        <<interface>>
+        +area() float
+        +perimeter() float
+    }
+    class Circle {
+        -float radius
+        +area() float
+        +scale(factor)$ Circle
+    }
+    class Canvas {
+        +List~Shape~ shapes
+        +draw()* void
+    }
+    Shape <|.. Circle : implements
+    Canvas "1" o-- "*" Shape : holds
+    Canvas ..> Renderer : uses
+    note for Circle "Round, with one radius"
+    click Shape href "https://example.com/shape" "The shape contract"

@@ -7,7 +7,7 @@ This directory is the maintained source for verifying what users of rune-pele ca
 - `mise install` and `mise run setup` have run in this checkout.
 - `.agents/skills/verify-rune-pele/scripts/doctor.sh` prints `doctor: ok`.
 - `target/debug/pele` is built from the working tree under test (`mise exec -- cargo build -p pele-cli`).
-- `target/debug/examples/pie` is built from the same tree (`mise exec -- cargo build -p rune-pele --example pie`).
+- `target/debug/examples/pie` and `target/debug/examples/diagram` are built from the same tree (`mise exec -- cargo build -p rune-pele --example pie --example diagram`).
 - The fixtures `tests/fixtures/pie-pets.mmd` and `tests/fixtures/flow.mmd` (ported types: a pie and a flowchart) and `tests/fixtures/sequence.mmd` (a type that is not ported) are unchanged.
 - Each run picks a fresh `<run-id>` and writes only under `out/verify/<run-id>/`.
 
@@ -40,4 +40,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Render a Mermaid file](./render.md) covers both engines, file output, the not-ported path and bad input.
 - [Corpus parity report](./parity.md) covers the scoreboard, per-type runs, the files it writes, its exit gate and the wider differential test of each ported type.
 - [JavaScript numerics](./numerics.md) covers `Math.round`, Pele's `num()`, `String(x)`, `toFixed`, and how close `sin`, `cos` and `pow` are, against the oracle.
-- [Native Rune view](./rune-view.md) covers pie drawn as Rune elements: the example's `--snap`, its palette switch, the headless product test, and Pele's SVG through resvg side by side.
+- [Native Rune view](./rune-view.md) covers pie and the eight graph types drawn as Rune elements: the examples' `--snap`, the palette switch, the headless product tests, the lowerings, links and tooltips, the fallback, and Pele's SVG through resvg side by side.

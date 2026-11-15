@@ -45,6 +45,8 @@ pub struct BaselinePoint {
 pub struct LineMetrics {
     pub baseline: f32,
     pub advance: f32,
+    /// The height of the box the line is laid out in.
+    pub height: f32,
 }
 
 /// Shapes runs with the fonts and families of the window that draws them, at its device scale.
@@ -67,7 +69,11 @@ impl Baselines {
         self.shaped += 1;
         let layout = self.system.layout_rich(content, &[], style, self.scale, None);
         let baseline = layout.lines().next().map_or(0.0, |line| line.metrics().baseline);
-        LineMetrics { baseline: baseline / self.scale, advance: layout.full_width() / self.scale }
+        LineMetrics {
+            baseline: baseline / self.scale,
+            advance: layout.full_width() / self.scale,
+            height: layout.height() / self.scale,
+        }
     }
 
     /// How many runs these baselines have shaped.
@@ -108,7 +114,7 @@ impl FontCatalog {
 }
 
 /// The Rune style a Scene font is drawn in.
-pub(crate) fn style(font: &Font) -> TextStyle {
+pub fn style(font: &Font) -> TextStyle {
     let weight = match font.weight {
         FontWeight::Normal => 400.0,
         FontWeight::Bold => 700.0,
