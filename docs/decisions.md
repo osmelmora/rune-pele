@@ -367,3 +367,17 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - Two workers (c4 and sequence) ended a turn to wait on a background job, which never resumes a delegated turn. Both were sent back. `wave2-common.md` now tells workers to run long commands in the foreground.
 
 **Doc rule.** The whole-corpus recipe in `features/parity.md` no longer lists each type's row. It says that every ported row reads `<n> <n> 0 0 0` and gives the current total.
+
+## 2026-11-15 Wave 2a: sequence merged
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: sequence 38 of 38, with every earlier type unchanged. Total `522 333 0 189 0`.
+- `sequence_front`: 25,895 inputs. `sequence_parity`: 38,279 renders, with a 60-path coverage gate. All 0 different.
+- `sequence_walk` holds message and note keys across text edits and earlier statements.
+- `break-c4.mjs` exits 0 on main after the C4 merge, which means none of its six breaks went unnoticed.
+- Cost: 2,800 TS lines in one run.
+
+**Decisions.**
+- **Known limit, accepted.** Sequence menu JSON (`links`, `properties`) nested past 512 levels is a limit error here, where Pele parses it. This follows the input limits in `input.rs`, and a test pins it. Parity mode equals Pele below that depth.
+- **Not-ported fixture.** `tests/fixtures/not-ported.mmd` is a mindmap that stands for "a type this port lacks" in the CLI and Rune tests. Mindmap is ported last, in wave 2c, and that worker must point the fixture at a type still unported, if any is left.
+- **The Rune gate stays closed for sequence.** `graph_view` asserts `NotLowered(Kind(Sequence))`.
