@@ -225,3 +225,20 @@ Grouped into waves of 3–4 parallel workers on disjoint types, that is about 6 
 Usecase's rule was kept for both types, because a key should not move when an earlier sibling rewraps. Class's member keys changed to match, for example `node:Shape/attribute/1/0.0`. Byte parity does not read keys, so no SVG changed.
 
 **Finding (usecase).** Pele's JSON errors carry V8's own `JSON.parse` wording. A Node pin change can change those messages, so rerun `usecase_front` after any Node bump.
+
+## 2026-11-15 ER merged
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: er 25 of 25, with every earlier type unchanged. Total `522 247 0 275 0`.
+- `er_front.rs`: 19,398 inputs, 0 different. `er_parity.rs`: 31,201 inputs, 0 different, with a 38-path coverage gate.
+- `er_walk.rs` passes under the label-count key rule. ER table cells use `Facet::Attribute`, and each cell gets its own key.
+- Cost: 1,823 TS lines in one run. That gave 2,742 Rust lines and about 115 of shared growth.
+
+**Merge.** State and ER had each changed the private fill check to take its marker tips as a slice. The two edits were identical, and state's version was kept.
+
+**Shared additions from ER.**
+- A group `opacity` property, written by the SVG writer and read by the walk.
+- `row_rect`, a rectangle written as x, width, y, height.
+- `label_from`, Pele's left-aligned `textLeft`.
+- `fill_under_path`.
+- Path sampling for H and V steps. These used to hit `unreachable!`.
