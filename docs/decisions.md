@@ -272,3 +272,20 @@ Usecase's rule was kept for both types, because a key should not move when an ea
 | 2c | git + sankey + packet · eventmodeling + treeview + radar · treemap + timeline + journey · kanban + mindmap + ishikawa |
 
 That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 3,100 TS lines per run, and every run merged at full parity.
+
+## 2026-11-15 Agentflow merged; wave 1 complete
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: agentflow 12 of 12, with every earlier type unchanged. Total `522 259 0 263 0`.
+- `agentflow_front.rs`: 22,786 inputs, 0 different, with a 28-feature model gate. It covers Pele's `agentflow-reference.json`.
+- `agentflow_parity.rs`: 41,864 inputs, 0 different, with a 43-path drawing gate.
+- Every other type's front and render tests pass after the merge. Agentflow changed the input layer, so they were all rerun.
+- Cost: 3,781 TS lines, Pele's largest type, in one run. It was cheaper than its size suggests, because agentflow's lexer, parser and renderer are close copies of flowchart's.
+
+**Shared changes.**
+- The input boundary gains a comment-keeping preprocess and a line offset. Agentflow is Pele's only `keepComments` type.
+- `Origin::locate` maps error positions through the comment-kept steps for agentflow only.
+- Looks carry an optional fill-opacity.
+- A relative arc, `PathStep::ArcBy`, sits beside usecase's absolute one.
+
+**Wave 1 total.** Nine types (class, state, er, requirement, usecase, agentflow, swimlane, plus the pilot's flowchart and pie) are byte-identical to Pele. Wave 1 took six worker runs for about 15,000 TS lines, with no run failing parity at merge.
