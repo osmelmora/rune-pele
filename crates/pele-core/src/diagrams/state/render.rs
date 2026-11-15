@@ -589,19 +589,16 @@ fn draw(model: &StateModel, cx: &DrawContext<'_>, turned: bool) -> Result<Scene,
         }
     }
 
-    let stepped =
-        curve_name.is_some_and(|name| name.is_str("step") || name.is_str("stepBefore") || name.is_str("stepAfter"));
+    let curve = Curve::named(curve_name.map(|name| &**name));
     let options = LayeredOptions {
         node_sep: number_option(section, "nodeSpacing", NODE_SEP),
         edge_sep: EDGE_SEP,
         rank_sep: number_option(section, "rankSpacing", RANK_SEP),
         port_sep: 20.0,
-        style: if stepped {
-            EdgeStyle::Stepped
-        } else if curve_name.is_some_and(|name| name.is_str("linear")) {
-            EdgeStyle::Linear
-        } else {
-            EdgeStyle::Curved
+        style: match curve {
+            Curve::Smooth => EdgeStyle::Curved,
+            Curve::Linear => EdgeStyle::Linear,
+            Curve::Step | Curve::StepBefore | Curve::StepAfter => EdgeStyle::Stepped,
         },
         apart: false,
         head_room: Marker::Point.trim(),
@@ -791,7 +788,6 @@ fn draw(model: &StateModel, cx: &DrawContext<'_>, turned: bool) -> Result<Scene,
         reach.add(ce.dst, end_side(&ce.route[ce.route.len() - 1], &cnodes[ce.dst]), Marker::Point);
     }
 
-    let curve = Curve::named(curve_name.map(|name| &**name));
     let mut edges: Vec<EdgeView<'_>> = Vec::new();
     let mut loop_seen = vec![0u32; states];
     let mut loop_text = vec![0.0; states];
