@@ -571,3 +571,238 @@ fn palette_matches_pele() {
     println!("harvested palettes: {} inputs, {differing} different", real.len());
     assert_eq!(differing, 0);
 }
+
+fn label_json(label: &probe::LabelProbe) -> Value {
+    let run = |run: &probe::RunProbe| json!({ "text": run.text, "style": run.style, "width": number(run.width) });
+    json!({
+        "lines": label.lines.iter().map(|line| line.iter().map(run).collect::<Vec<_>>()).collect::<Vec<_>>(),
+        "widths": label.widths.iter().map(|&width| number(width)).collect::<Vec<_>>(),
+        "width": number(label.width),
+        "height": number(label.height),
+        "size": number(label.size),
+        "lineHeight": number(label.line_height),
+    })
+}
+
+fn label_of(value: &Value) -> probe::LabelProbe {
+    let run = |run: &Value| probe::RunProbe {
+        text: units_of(&run["text"]),
+        style: run["style"].as_u64().expect("style bits") as u8,
+        width: double(&run["width"]),
+    };
+    let list = |value: &Value| value.as_array().expect("a list").clone();
+    probe::LabelProbe {
+        lines: list(&value["lines"]).iter().map(|line| list(line).iter().map(run).collect()).collect(),
+        widths: list(&value["widths"]).iter().map(double).collect(),
+        width: double(&value["width"]),
+        height: double(&value["height"]),
+        size: double(&value["size"]),
+        line_height: double(&value["lineHeight"]),
+    }
+}
+
+/// Pele's `Style` bits with at most one of sub and sup, the combinations a label can hold.
+fn style(rng: &mut Rng) -> u8 {
+    (rng.below(8) as u8) | [0, 0, 8, 16][rng.below(4)] | [0, 0, 0, 32][rng.below(4)]
+}
+
+const LABEL_PIECES: [&str; 34] = [
+    "a",
+    "word",
+    " ",
+    " ",
+    "  ",
+    "<br>",
+    "<BR/>",
+    "<br />",
+    "<b>",
+    "</b>",
+    "<i>x</i>",
+    "<",
+    ">",
+    "&amp;",
+    "&#35;",
+    "&nope;",
+    "&",
+    ":fa-user",
+    "fa:fa-user",
+    "\u{fb02}\u{b0}\u{b0}35\u{b6}\u{df}",
+    "\u{fb02}\u{b0}amp\u{b6}\u{df}",
+    "😀",
+    "é",
+    "\n",
+    "\\n",
+    "Supercalifragilistic",
+    "long-word-without-spaces",
+    "\t",
+    "\u{3000}",
+    "日本語",
+    "*",
+    "_",
+    "x\u{301}",
+    "\u{a0}",
+];
+
+const SIZES: [f64; 5] = [12.0, 13.5, 14.0, 16.0, 11.2];
+const ROOMS: [f64; 11] = [0.0, 1.0, 8.0, 20.0, 40.0, 60.0, 100.0, 200.0, 4000.0, f64::INFINITY, -5.0];
+
+fn optional_text(value: &Value) -> Option<Vec<u16>> {
+    (!value.is_null()).then(|| units_of(value))
+}
+
+#[test]
+fn plain_and_fit_labels_match_pele() {
+    let mut rng = Rng(0xf17_1abe1);
+    let mut inputs = Vec::new();
+    for _ in 0..12_000 {
+        let raw = if rng.below(20) == 0 { Value::Null } else { text_value(&rng.text(&LABEL_PIECES, 14)) };
+        let helper = if rng.below(2) == 0 { "plain_label" } else { "fit_label" };
+        let (size, max) = (*rng.pick(&SIZES), *rng.pick(&ROOMS));
+        inputs.push(json!({ "fn": helper, "raw": raw, "size": bits(size), "max": bits(max), "base": rng.below(4) }));
+    }
+    let ours = |input: &Value| {
+        let raw = optional_text(&input["raw"]);
+        let (size, max, base) =
+            (double(&input["size"]), double(&input["max"]), input["base"].as_u64().expect("base") as u8);
+        label_json(&match input["fn"].as_str() {
+            Some("plain_label") => probe::plain_label(raw.as_deref(), size, max, base),
+            _ => probe::fit_label(raw.as_deref(), size, max, base),
+        })
+    };
+    let cut = inputs
+        .iter()
+        .filter(|input| input["fn"] == "fit_label")
+        .filter(|input| {
+            let plain = json!({ "fn": "plain_label", "raw": input["raw"], "size": input["size"], "max": input["max"], "base": input["base"] });
+            ours(&plain)["lines"].as_array().map(Vec::len) != ours(input)["lines"].as_array().map(Vec::len)
+        })
+        .count();
+    println!("fitLabel cut words in {cut} labels");
+    assert!(cut > 500, "fitLabel cut words in only {cut} labels");
+    compare("random plainLabel and fitLabel calls", &inputs, ours);
+    compare("harvested plainLabel calls", harvested("plain_label"), ours);
+    compare("harvested fitLabel calls", harvested("fit_label"), ours);
+}
+
+#[test]
+fn literal_labels_match_pele() {
+    let pieces = [
+        "a",
+        "file.txt",
+        " ",
+        "  ",
+        "\t",
+        "\n",
+        "\n\n",
+        "/usr/local/bin/",
+        "Supercalifragilisticexpialidocious",
+        "😀",
+        "é",
+        "日本",
+        "\u{a0}",
+        "\u{3000}",
+        "x ",
+        " y",
+        "<b>",
+        "&amp;",
+    ];
+    let mut rng = Rng(0x11_7e2a1);
+    let mut inputs = Vec::new();
+    for _ in 0..12_000 {
+        let text = rng.text(&pieces, 12);
+        let (size, room) = (*rng.pick(&SIZES), *rng.pick(&ROOMS));
+        inputs.push(json!({ "fn": "literal_label", "text": text_value(&text), "size": bits(size), "room": bits(room), "style": style(&mut rng) }));
+    }
+    let ours = |input: &Value| {
+        let style = input["style"].as_u64().expect("style") as u8;
+        label_json(&probe::literal_label(
+            &units_of(&input["text"]),
+            double(&input["size"]),
+            double(&input["room"]),
+            style,
+        ))
+    };
+    let wrapped = inputs.iter().filter(|input| {
+        let lines = ours(input)["lines"].as_array().map_or(0, Vec::len);
+        lines > units_of(&input["text"]).iter().filter(|&&c| c == 10).count() + 1
+    });
+    let wrapped = wrapped.count();
+    println!("literalLabel wrapped {wrapped} labels");
+    assert!(wrapped > 2000, "literalLabel wrapped only {wrapped} labels");
+    compare("random literalLabel calls", &inputs, ours);
+    compare("harvested literalLabel calls", harvested("literal_label"), ours);
+}
+
+#[test]
+fn break_labels_match_pele() {
+    let mut rng = Rng(0xb2ea_c1ab);
+    let mut inputs = Vec::new();
+    for _ in 0..12_000 {
+        let raw = rng.text(&LABEL_PIECES, 14);
+        let size = *rng.pick(&SIZES);
+        let label = if rng.below(4) == 0 {
+            probe::literal_label(&raw, size, *rng.pick(&ROOMS), style(&mut rng))
+        } else {
+            probe::layout_label(&raw, rng.below(3) == 0, size, *rng.pick(&ROOMS), rng.below(4) as u8)
+        };
+        inputs.push(json!({ "fn": "break_label", "label": label_json(&label), "room": bits(*rng.pick(&ROOMS)) }));
+    }
+    let ours = |input: &Value| label_json(&probe::break_label(&label_of(&input["label"]), double(&input["room"])));
+    let broken = inputs
+        .iter()
+        .filter(|input| {
+            ours(input)["lines"].as_array().map(Vec::len) > input["label"]["lines"].as_array().map(Vec::len)
+        })
+        .count();
+    println!("breakLabel broke {broken} labels");
+    assert!(broken > 2000, "breakLabel broke only {broken} labels");
+    compare("random breakLabel calls", &inputs, ours);
+    compare("harvested breakLabel calls", harvested("break_label"), ours);
+}
+
+#[test]
+fn fit_text_matches_pele() {
+    let mut rng = Rng(0xf17_7e47);
+    let mut inputs = Vec::new();
+    for _ in 0..12_000 {
+        let text = rng.text(&LABEL_PIECES, 8);
+        let size = (8 + rng.below(13)) as f64;
+        let min = (1 + rng.below(size as usize)) as f64;
+        let max = *rng.pick(&[0.0, -1.0, 1.0, 5.0, 10.0, 30.0, 60.0, 100.0, 300.0, 12.5]);
+        inputs.push(json!({ "fn": "fit_text", "text": text_value(&text), "max": bits(max), "size": bits(size), "min": bits(min), "style": style(&mut rng) }));
+    }
+    let ours = |input: &Value| {
+        let style = input["style"].as_u64().expect("style") as u8;
+        let fitted = probe::fit_text(
+            &units_of(&input["text"]),
+            double(&input["max"]),
+            double(&input["size"]),
+            double(&input["min"]),
+            style,
+        );
+        fitted.map_or(
+            Value::Null,
+            |(text, size, width)| json!({ "text": text, "size": number(size), "width": number(width) }),
+        )
+    };
+    // Fitted at its own size, shrunk, cut with an ellipsis, or not fitted at all.
+    let mut reach = [0usize; 4];
+    for input in &inputs {
+        let answer = ours(input);
+        let ellipsis = answer["text"].as_array().and_then(|text| text.last()).is_some_and(|last| last == 0x2026);
+        let shrunk = !answer.is_null() && answer["size"] != input["size"];
+        reach[if answer.is_null() {
+            3
+        } else if ellipsis {
+            2
+        } else if shrunk {
+            1
+        } else {
+            0
+        }] += 1;
+    }
+    println!("fitText kept {}, shrank {}, cut {} and gave up on {} texts", reach[0], reach[1], reach[2], reach[3]);
+    assert!(reach.iter().all(|&count| count > 500), "fitText misses a path: {reach:?}");
+    compare("random fitText calls", &inputs, ours);
+    compare("harvested fitText calls", harvested("fit_text"), ours);
+}

@@ -3,6 +3,10 @@
 //! A label is laid out once into lines of styled runs with measured widths. Everything that
 //! places or writes text reads that layout, and nothing lays text out a second time.
 
+mod fitting;
+
+pub(crate) use fitting::{break_label, fit_label, fit_text, literal_label, plain_label};
+
 use crate::input::{JsText, Units, decode_entities, is_space, is_word};
 use crate::js;
 use std::sync::LazyLock;

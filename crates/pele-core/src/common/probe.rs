@@ -2,11 +2,12 @@
 //! values, calls the crate's own helper, and answers in plain values, so the helpers' types stay
 //! private to the crate.
 
+use crate::Script;
 use crate::catalog::DrawContext;
 use crate::diagrams::scan;
 use crate::diagrams::tokens::{self, Matcher, TokenType};
 use crate::input::{self, JsObject, JsValue, Units};
-use crate::measure::ArialMetrics;
+use crate::measure::{self, ArialMetrics, Emphasis, Label, LabelLine, LabelRun};
 use crate::scene::{Accessible, Paint, PaletteRule, Scene, SceneBuilder, SeriesSlot, Size, SourcePalette};
 use crate::{DiagramKind, LayoutOptions, Limits, ParityScene, fit, svg};
 
@@ -197,4 +198,112 @@ pub fn palette(rule: Palette, config: &str) -> PaletteProbe {
         .collect();
     let svg = svg::write(&ParityScene { scene }).expect("an empty drawing is in its limit").svg;
     PaletteProbe { svg, fills }
+}
+
+/// Pele's `Style` bits for an emphasis: bold 1, italic 2, mono 4, sub 8, sup 16, underline 32.
+fn style_bits(style: Emphasis) -> u8 {
+    let script = match style.script {
+        Script::Normal => 0,
+        Script::Sub => 8,
+        Script::Super => 16,
+    };
+    u8::from(style.bold)
+        | u8::from(style.italic) << 1
+        | u8::from(style.mono) << 2
+        | script
+        | u8::from(style.underline) << 5
+}
+
+/// An emphasis from Pele's `Style` bits. Sub wins over sup, as it does where Pele writes them.
+fn emphasis(bits: u8) -> Emphasis {
+    let script = if bits & 8 != 0 {
+        Script::Sub
+    } else if bits & 16 != 0 {
+        Script::Super
+    } else {
+        Script::Normal
+    };
+    Emphasis { bold: bits & 1 != 0, italic: bits & 2 != 0, mono: bits & 4 != 0, underline: bits & 32 != 0, script }
+}
+
+/// One run of a measured label.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RunProbe {
+    pub text: Vec<u16>,
+    /// Pele's `Style` bits.
+    pub style: u8,
+    pub width: f64,
+}
+
+/// A measured label, as Pele's `Label` holds it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LabelProbe {
+    pub lines: Vec<Vec<RunProbe>>,
+    pub widths: Vec<f64>,
+    pub width: f64,
+    pub height: f64,
+    pub size: f64,
+    pub line_height: f64,
+}
+
+impl From<&Label> for LabelProbe {
+    fn from(label: &Label) -> Self {
+        let run = |run: &LabelRun| RunProbe { text: run.text.to_vec(), style: style_bits(run.style), width: run.width };
+        LabelProbe {
+            lines: label.lines.iter().map(|line| line.runs.iter().map(run).collect()).collect(),
+            widths: label.lines.iter().map(|line| line.width).collect(),
+            width: label.width,
+            height: label.height,
+            size: label.size,
+            line_height: label.line_height,
+        }
+    }
+}
+
+impl From<&LabelProbe> for Label {
+    fn from(probe: &LabelProbe) -> Self {
+        let run = |run: &RunProbe| LabelRun {
+            text: run.text.as_slice().into(),
+            style: emphasis(run.style),
+            width: run.width,
+        };
+        let lines = probe
+            .lines
+            .iter()
+            .zip(&probe.widths)
+            .map(|(runs, &width)| LabelLine { runs: runs.iter().map(run).collect(), width })
+            .collect();
+        Label { lines, width: probe.width, height: probe.height, size: probe.size, line_height: probe.line_height }
+    }
+}
+
+/// Pele's `layoutLabel` with its parity metrics. `raw` is empty where Pele's is `undefined`.
+pub fn layout_label(raw: &[u16], markdown: bool, size: f64, max: f64, base: u8) -> LabelProbe {
+    (&measure::layout_label(raw, markdown, &ArialMetrics, size, max, emphasis(base))).into()
+}
+
+/// Pele's `plainLabel` with its parity metrics. `raw` is `None` where Pele's is `undefined`.
+pub fn plain_label(raw: Option<&[u16]>, size: f64, max: f64, base: u8) -> LabelProbe {
+    (&measure::plain_label(raw, &ArialMetrics, size, max, emphasis(base))).into()
+}
+
+/// Pele's `fitLabel` with its parity metrics.
+pub fn fit_label(raw: Option<&[u16]>, size: f64, max: f64, base: u8) -> LabelProbe {
+    (&measure::fit_label(raw, &ArialMetrics, size, max, emphasis(base))).into()
+}
+
+/// Pele's `literalLabel` with its parity metrics.
+pub fn literal_label(text: &[u16], size: f64, room: f64, style: u8) -> LabelProbe {
+    (&measure::literal_label(text, &ArialMetrics, size, room, emphasis(style))).into()
+}
+
+/// Pele's `breakLabel` with its parity metrics.
+pub fn break_label(label: &LabelProbe, room: f64) -> LabelProbe {
+    (&measure::break_label(&label.into(), &ArialMetrics, room)).into()
+}
+
+/// Pele's `fitText` with its parity metrics: the text, its size and its width.
+pub fn fit_text(text: &[u16], max: f64, size: f64, min: f64, style: u8) -> Option<(Vec<u16>, f64, f64)> {
+    let fitted = measure::fit_text(text, max, size, min, &ArialMetrics, emphasis(style))?;
+    Some((fitted.text.to_vec(), fitted.size, fitted.width))
 }
