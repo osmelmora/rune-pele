@@ -188,3 +188,24 @@ Grouped into waves of 3–4 parallel workers on disjoint types, that is about 6 
 - Dashes on layers.
 - A class and a corner radius placed after a rectangle's geometry.
 - `over_fills_at_end` in `graph/edges.rs`, because state checks only the end tip against fills.
+
+## 2026-11-15 Requirement and swimlane merged
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: requirement 9 of 9, swimlane 13 of 13, with every earlier type unchanged. Total `522 198 0 324 0`.
+- Front ends: `requirement_front` 17,394 inputs and `swimlane_front` 9,877, both 0 different.
+- Lane layout: `lanes_replay` replays 1,413 recorded calls and 3,011 live graphs bit for bit.
+- Renders: `requirement_parity` 30,242 inputs and `swimlane_parity` 21,601, both 0 different, each with a 20-path coverage gate.
+- Flowchart's own 25,462-input test is still 0 different with the swimlane variant hook in place.
+- Cost: 2,115 TS lines (requirement 1,406, swimlane 80, `lanes.ts` 629) in one run.
+
+**Merge.** Class and this branch had each added the same four things: the heading weight, `LabelLook::font_size`, `ShapeBuilder::join` and `default_reach`. The bodies were identical, so one copy of each was kept.
+
+**Decision.** Swimlane runs through flowchart's renderer with a variant hook, mirroring Pele's `FlowVariant`. It is a small table of functions, not branches spread through flowchart. Accepted.
+
+**Known gap for the Rune lowering unit.** Lane titles use a new rotate transform. The Scene walk reports a group's rotation but does not rotate what is inside it, so a Rune interpreter must apply it. This does not matter yet, because the Rune view sends every type except pie to the fallback.
+
+**Pele quirks ported as they are.**
+- A `title` line in a requirement diagram is a syntax error.
+- Trailing spaces after `requirementDiagram` are a syntax error.
+- A swimlane parse error names `flowchart` as its type.
