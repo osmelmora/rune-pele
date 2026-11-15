@@ -7,6 +7,9 @@ mod diagrams;
 mod fit;
 mod graph;
 mod input;
+// The gantt chart's date helpers, reached by `tests/gantt_dates.rs`. Hidden: no part of the API.
+#[doc(hidden)]
+pub use diagrams::gantt::probe as gantt_probe;
 pub mod js;
 // Renderers inside this crate are the callers. It is public so that `tests/layout_replay.rs` can
 // hold it to Pele, and hidden because it is no part of the API.
