@@ -192,6 +192,10 @@ fn cases() -> Vec<String> {
         "usecase-beta\nA <<s>> --> B\nA <<t>>\n",
         "usecase-beta\n\"a b\" --> C\n\"a-b\"\n",
         "usecase-beta\nsystemBoundary \"\"\n  A\nend\nsystemBoundary S\n  A\nend\nsystemBoundary T\n  A\nend\n",
+        // A boundary whose title makes an empty id is no parent, but it takes the place of one.
+        "usecase-beta\nA\nsystemBoundary \"\"\n  A\nend\nsystemBoundary S\n  A\nend\n",
+        "usecase-beta\nsystemBoundary S\n  A\nend\nsystemBoundary \"\"\n  A\nend\nsystemBoundary S\n  A\n  B\nend\n",
+        "usecase-beta\nactor A\nsystemBoundary \" \"\n  actor A\nend\nsystemBoundary \"!\"\n  actor A\nend\nsystemBoundary T\n  actor A\nend\n",
         "usecase-beta\nactor A\nA e@--> B\nA edge-0@--> B\nB --> A\nstyle e stroke:red\nclass e,A c\ne@{ animation: slow }\n",
         "usecase-beta\nactor A@{ icon: \"\" }\nA@{ type: hollow, business: true }\n",
         "usecase-beta\nactor A@{ icon: \"x\" }\nA@{ type: awesome }\n",
@@ -373,6 +377,7 @@ fn random_diagram(rng: &mut Rng) -> String {
                 };
                 format!("systemBoundary {name}{tail}\n  {}\n  actor {}\nend", element(rng), actor(rng))
             }
+            7 if rng.below(3) == 0 => format!("systemBoundary \"\"\n  {}\n  actor {}\nend", id(rng), id(rng)),
             7 => format!("systemBoundary {}\n  {}\nend", id(rng), element(rng)),
             8 => {
                 let target = if rng.below(2) == 0 { id(rng).to_owned() } else { format!("\"{}\"", text(rng)) };

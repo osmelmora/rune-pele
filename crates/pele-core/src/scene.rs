@@ -163,6 +163,10 @@ pub enum Facet {
     EndMarker,
     /// The outline in the colour behind a title that edges run through.
     Halo,
+    /// The kind an element is tagged with, such as `«service»`, beside its label.
+    Stereotype,
+    /// The cells of a table inside a node, such as the keys and values of a JSON object.
+    Row,
 }
 
 /// Mermaid's palette theme variables for one diagram type: the name before the number, and the

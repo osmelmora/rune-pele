@@ -406,12 +406,12 @@ struct EdgeView<'a> {
 /// Pele's `leftLabel`: a label whose lines each start at `x`.
 fn left_label(out: &mut SceneBuilder, part: PartId, label: &Label, x: f64, cy: f64, look: impl Fn() -> LabelLook) {
     if label.lines.len() < 2 {
-        out.label(part, Facet::Label, label, Point { x: x + label.width / 2.0, y: cy }, look());
+        out.label(part, Facet::Row, label, Point { x: x + label.width / 2.0, y: cy }, look());
         return;
     }
     for (i, line) in label.lines.iter().enumerate() {
         let at = Point { x: x + line.width / 2.0, y: cy - label.height / 2.0 + label.line_middle(i) };
-        out.label(part, Facet::Label, &label.line(i), at, look());
+        out.label(part, Facet::Row, &label.line(i), at, look());
     }
 }
 
@@ -835,7 +835,7 @@ fn draw_node(out: &mut SceneBuilder, part: PartId, view: &View<'_>, c: &CNode, s
             let figure = LayerSpec::class("pele-actor-figure").translate(Point { x: 0.0, y: top + FIGURE_H / 2.0 });
             out.layer(figure, |out| draw_figure(out, part, view, actor));
             let at = Point { x: 0.0, y: top + FIGURE_H + FIGURE_GAP + view.stereotype.height / 2.0 };
-            out.label(part, Facet::Label, &view.stereotype, at, stereotype(Some(Paint::Role(Role::Muted))));
+            out.label(part, Facet::Stereotype, &view.stereotype, at, stereotype(Some(Paint::Role(Role::Muted))));
             let at = Point { x: 0.0, y: h / 2.0 - view.label.height / 2.0 };
             out.label(part, Facet::Label, &view.label, at, LabelLook::class("pele-label").style(text));
         }
@@ -857,7 +857,7 @@ fn draw_node(out: &mut SceneBuilder, part: PartId, view: &View<'_>, c: &CNode, s
                 for (key, value) in &view.rows {
                     let row_h = js::max(js::max(key.height, value.height), js::round(small * 1.5)) + ROW_PAD;
                     let at = Point { x: x0 + CELL_PAD + key.width / 2.0, y: y + row_h / 2.0 };
-                    out.label(part, Facet::Label, key, at, LabelLook::class("pele-json-key").fill(muted));
+                    out.label(part, Facet::Row, key, at, LabelLook::class("pele-json-key").fill(muted));
                     let look = || LabelLook::class("pele-json-value").fill(ink).style(text);
                     left_label(out, part, value, x0 + view.key_w + CELL_PAD, y + row_h / 2.0, look);
                     y += row_h;
@@ -907,7 +907,7 @@ fn draw_node(out: &mut SceneBuilder, part: PartId, view: &View<'_>, c: &CNode, s
                     .finish();
             }
             let at = Point { x: 0.0, y: -view.label.height / 2.0 };
-            out.label(part, Facet::Label, &view.stereotype, at, stereotype(muted));
+            out.label(part, Facet::Stereotype, &view.stereotype, at, stereotype(muted));
             let look = LabelLook::class("pele-label");
             let look = if note { look.font_size(Number::raw(small)) } else { look };
             let at = Point { x: 0.0, y: view.stereotype.height / 2.0 };

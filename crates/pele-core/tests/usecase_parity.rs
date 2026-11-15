@@ -387,6 +387,61 @@ fn cases_match_pele() {
     assert!(redrawn >= 8, "the hand-written cases reach the turn to fit");
 }
 
+/// The shapes of Pele's own worst cases (`tests/usecase/stress.test.ts`), at sizes the default
+/// limits let through: nesting, repetition and fan-out that a port could answer with a panic or
+/// a long wait where Pele answers with a drawing.
+#[test]
+fn worst_cases_match_pele() {
+    let u = "usecase-beta\n";
+    let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();
+    let mut complete = u.to_owned();
+    for i in 0..14 {
+        for j in i + 1..14 {
+            complete += &format!("n{i} --o n{j}\n");
+        }
+    }
+    let sources = vec![
+        format!("{u}json P@{}1{}", "{\"a\":".repeat(7000), "}".repeat(7000)),
+        format!("{u}json P@{{\"a\":{}{}}}", "[".repeat(24_000), "]".repeat(24_000)),
+        format!("{u}json P@{{{}\"z\":0}}", repeat(3000, &|i| format!("\"k{i}\":{i},"))),
+        format!("{u}json P@{{{}\"z\":0}}", "\"k\":{\"a\":{}},".repeat(3000)),
+        format!("{u}json P@{{\"a\":[{}1]}}", "1,".repeat(20_000)),
+        format!("{u}A:::{}z\n", repeat(3000, &|i| format!("c{i},"))),
+        format!(
+            "{u}A\nclassDef {}z {}fill:red\nclass A z\n",
+            repeat(2000, &|i| format!("c{i},")),
+            repeat(2000, &|i| format!("x{i}:1,"))
+        ),
+        format!("{u}{}", "A(A) <<S>>:::c\n".repeat(3000)),
+        format!("{u}{}", repeat(400, &|i| format!("systemBoundary s{i}\n u{i}\nend\n"))),
+        format!("{u}A\n{}", "note for A \"n\"\n".repeat(300)),
+        format!("{u}A(\"{}\")", "word ".repeat(9000)),
+        format!("{u}actor A(\"{}\")", "a".repeat(40_000)),
+        format!("{u}A(\"{}\")", "#35;&amp;<br>".repeat(3000)),
+        format!("{u}A(\"`{}`\")", "*a _b ".repeat(6000)),
+        format!("{u}A -- \"{}\" --> B", "word ".repeat(9000)),
+        format!("{u}{}", repeat(500, &|i| format!("actor a{i}\n"))),
+        format!("{u}{}", repeat(300, &|i| format!("n{i} --> n{}\n", i + 1))),
+        format!("{u}{}", repeat(250, &|i| format!("actor a{i}\na{i} --> hub\n"))),
+        format!("{u}{}{}", "A --> B\n".repeat(250), "A -- l --> A\n".repeat(150)),
+        complete,
+        format!("{u}A {}> B", "-".repeat(10_000)),
+        format!(
+            "{u}systemBoundary S\n U\n V\nend\n{}",
+            repeat(150, &|i| format!("actor a{i}\na{i} --> U\nV --> a{i}\n"))
+        ),
+    ];
+    let started = std::time::Instant::now();
+    for source in &sources {
+        let rendered = pele_core::render(source);
+        assert!(!matches!(rendered, Err(RenderError::NotPorted)), "a use case diagram is ported");
+    }
+    let ours = started.elapsed();
+    println!("this port draws the {} worst cases in {ours:?}", sources.len());
+    let tally = run("worst case", &plain(sources)).finish("worst use case sources");
+    assert!(tally.identical >= 20, "nearly every worst case is drawn");
+}
+
 struct Rng(u64);
 
 impl Rng {

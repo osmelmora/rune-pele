@@ -38,6 +38,9 @@ pub enum FragmentDetail {
     Piece(u32),
     /// One run of a label: its line, and its place on the line.
     TextRun { line: u32, run: u32 },
+    /// One run of a further label of a part that draws several, such as the cells of a table:
+    /// the label, counted from 1 in paint order, then the run's line and its place on the line.
+    LaterTextRun { label: u32, line: u32, run: u32 },
 }
 
 /// One step of [`Scene::paint`].
@@ -362,13 +365,18 @@ impl PathProgram {
 }
 
 /// The shapes each part has drawn so far, so that each drawing of a part has a key of its own.
-type Pieces = HashMap<(PartId, Facet), u32>;
+/// How many shapes and how many labels each part has drawn so far.
+#[derive(Default)]
+struct Pieces {
+    shapes: HashMap<(PartId, Facet), u32>,
+    labels: HashMap<(PartId, Facet), u32>,
+}
 
 impl Scene {
     /// Every drawing in paint order, inside the groups that hold it.
     pub fn paint(&self) -> impl Iterator<Item = PaintVisit> + '_ {
         let mut out = Vec::new();
-        let mut pieces = Pieces::new();
+        let mut pieces = Pieces::default();
         let root = Inherited::root(&self.document);
         for &id in &self.roots {
             self.visit(id, &root, &mut pieces, &mut out);
@@ -388,7 +396,7 @@ impl Scene {
         let opacity = node.styled.opacity.unwrap_or(1.0);
         let mut shape = |out: &mut Vec<PaintVisit>, geometry: Geometry| {
             let part = self.part_key(node).expect("every drawing is a part of an entity");
-            let drawn = pieces.entry((node.part.expect("a part"), part.facet)).or_insert(0);
+            let drawn = pieces.shapes.entry((node.part.expect("a part"), part.facet)).or_insert(0);
             let detail = if *drawn == 0 { FragmentDetail::Whole } else { FragmentDetail::Piece(*drawn) };
             *drawn += 1;
             let key = FragmentKey { part, detail };
@@ -470,8 +478,14 @@ impl Scene {
             NodeContent::Tooltip => {}
             NodeContent::Text(text) => {
                 let part = self.part_key(node).expect("every drawing is a part of an entity");
+                let label = pieces.labels.entry((node.part.expect("a part"), part.facet)).or_insert(0);
+                let label = std::mem::replace(label, *label + 1);
                 for (line, run, baseline) in runs(text, &inherited) {
-                    let key = FragmentKey { part: part.clone(), detail: FragmentDetail::TextRun { line, run } };
+                    let detail = match label {
+                        0 => FragmentDetail::TextRun { line, run },
+                        label => FragmentDetail::LaterTextRun { label, line, run },
+                    };
+                    let key = FragmentKey { part: part.clone(), detail };
                     let geometry = Geometry::Text(baseline);
                     out.push(PaintVisit::Draw(Draw {
                         key,
@@ -575,11 +589,14 @@ impl std::fmt::Display for FragmentKey {
             Facet::StartMarker => "/start",
             Facet::EndMarker => "/end",
             Facet::Halo => "/halo",
+            Facet::Stereotype => "/stereotype",
+            Facet::Row => "/row",
         })?;
         match self.detail {
             FragmentDetail::Whole => Ok(()),
             FragmentDetail::Piece(piece) => write!(f, "/{piece}"),
             FragmentDetail::TextRun { line, run } => write!(f, "/{line}.{run}"),
+            FragmentDetail::LaterTextRun { label, line, run } => write!(f, "/{label}/{line}.{run}"),
         }
     }
 }
