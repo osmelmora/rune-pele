@@ -7,6 +7,7 @@ pub(crate) mod json;
 mod layout;
 mod lexer;
 mod parser;
+pub mod probe;
 mod render;
 mod route;
 
@@ -205,6 +206,11 @@ pub(crate) struct Element {
 impl Element {
     pub(crate) fn field(&self, field: ElementField) -> Option<&JsText> {
         self.fields[field as usize].as_ref()
+    }
+
+    /// A field that is set to text that is not empty, as Pele tests a field for truth.
+    pub(crate) fn filled(&self, field: ElementField) -> Option<&JsText> {
+        self.field(field).filter(|text| !text.is_empty())
     }
 }
 

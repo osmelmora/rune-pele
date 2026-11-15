@@ -99,7 +99,7 @@ fn write_pairs(letter: char, pairs: &[[Number; 2]], out: &mut String) {
     }
 }
 
-fn write_path(path: &PathProgram, out: &mut String) {
+pub(crate) fn write_path(path: &PathProgram, out: &mut String) {
     for step in &path.steps {
         match step {
             PathStep::Move(to) => write_pairs('M', &[*to], out),

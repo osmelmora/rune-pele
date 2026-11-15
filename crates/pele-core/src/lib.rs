@@ -17,6 +17,8 @@ pub mod scene;
 pub mod svg;
 
 pub use catalog::{DiagramKind, MermaidType};
+#[doc(hidden)]
+pub use diagrams::c4::probe as c4_probe;
 pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
 pub use scene::Scene;
 
