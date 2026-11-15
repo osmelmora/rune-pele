@@ -445,3 +445,23 @@ All are 0 different, except one `log10` result (below).
 - **Turned text.** `Transform::TranslateRotate` is new. The walk reports a drawing with its own rotate inside a turned group. The Rune lowering applies rotation only, so xychart's translate+rotate must also be lowered before xychart's gate opens.
 
 **Merges.** Duplicate additions were kept once: `PathStep::VerticalBy` with its writer and walk arms (railroad and wardley), and `ShapeElement::cap` (cynefin and wardley). In `svg.rs`, railroad's `write_text(scene, …)` and architecture's icon glyph were combined in one arm.
+
+## 2026-11-16 Wave 2b complete: venn and quadrant merged; trig stays on libm
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: venn 8 of 8 and quadrant 3 of 3, with every earlier type unchanged. Total `522 407 0 115 0`, from 21 types.
+- `venn_front` 24,678 inputs. `venn_layout` covers 3,137 diagrams and 20,000 random outlines bit for bit. `venn_parity` 31,575 renders, 34-path gate.
+- `quadrant_front` 14,134 inputs. `quadrant_parity` 18,655 renders, 35-path gate.
+- `mise run check`, the doctor and `mise run rune-corpus` all pass, and the corpus is unchanged.
+
+**Decision: trig stays on libm (inferred, not measured).**
+- **What reaches the SVG.** Venn's layout calls `acos` and `atan2` as well as `sin` and `cos`. libm is one ulp off the pinned Node on about 1 input in 500 to 900. That reaches the SVG in about 1 random venn diagram in 1,500, as a flipped large-arc flag or a 0.7 px drift in an unsettled 60-set layout.
+- **Everything else is exact.** Replaying the layout with Node's own trig answers makes every one bit-equal, so all the other arithmetic is Pele's.
+- **Why the pinned Node differs.** Its arm64 build contracts multiply-adds inside V8's fdlibm (recorded with `js::sin`).
+- **What follows.** Pele's own output for these inputs most likely differs between Apple Silicon and Intel machines, and libm, plain fdlibm, likely matches Intel Node. Porting fdlibm with arm64's fused operations would tie parity to one CPU family.
+- **How to measure it.** Run the oracle under an x86-64 Node, through Rosetta or a container. Neither is running on this machine. Offered to the user.
+- **Until then.** `venn_parity` lets through only differences it proves are libm's last bit, by replaying them with Node's answers, and prints each one.
+
+**Merge.** Wardley/xychart and venn/quadrant each added `Transform::TranslateRotate`, under different field names. One shape (`translate: [Number; 2]`) and one builder were kept. Combined as they stood, the walk would have applied the translation twice. Each transform now moves the origin once. All four types' walk tests pass, along with xychart's break test of the turn centre.
+
+**Oracle client.** `pele-oracle` turns on serde_json's `float_roundtrip`. The default parser had read a 7.6e150 height one ulp off.
