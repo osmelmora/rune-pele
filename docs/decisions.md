@@ -381,3 +381,20 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - **Known limit, accepted.** Sequence menu JSON (`links`, `properties`) nested past 512 levels is a limit error here, where Pele parses it. This follows the input limits in `input.rs`, and a test pins it. Parity mode equals Pele below that depth.
 - **Not-ported fixture.** `tests/fixtures/not-ported.mmd` is a mindmap that stands for "a type this port lacks" in the CLI and Rune tests. Mindmap is ported last, in wave 2c, and that worker must point the fixture at a type still unported, if any is left.
 - **The Rune gate stays closed for sequence.** `graph_view` asserts `NotLowered(Kind(Sequence))`.
+
+## 2026-11-15 Wave 2a complete: gantt merged
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: gantt 11 of 11, with every earlier type unchanged. Total `522 344 0 178 0`, from 13 types.
+- `gantt_dates`: 96,078 inputs, 0 different. It covers V8's date-string parser, `Date` constructors and accessors, dayjs parse and format, d3 ticks and `timeFormat`.
+- `gantt_front`: 14,910 inputs. `gantt_parity`: 23,907 renders, with a 35-path coverage gate. All 0 different.
+- `mise run check` passes, including the Rune crate, which builds with the new `LayoutOptions.now`.
+- Cost: 2,159 TS lines in one run. 974 Rust lines of that are V8's `Date`.
+
+**Decisions.**
+- **`LayoutOptions.now`.** It is Pele's `now` option. Unset means the system clock. `parity_scene_with` pins Pele's corpus clock, 2026-01-15T12:00Z. When gantt's Rune gate opens, the view must pass an explicit `now`, or a cached layout will not move when the day changes.
+- **UTC only.** Pele schedules gantt in local time, and this port assumes offset 0. It matches Pele under `TZ=UTC`, which parity pins. Under another zone, bars, ticks, excluded spans and the today marker would move. This is inferred, not tested.
+- **Unnamed tasks** are keyed by their trimmed label, not by Pele's `task1` counter, so a key survives an edit above it. Pele's `data-id` is unchanged.
+- Tick steps use `libm::log10` and `js::pow`. Every tick input matched, but that is not a proof.
+
+**Wave 2a cost.** Four types (sequence, gantt, block, c4), about 9,220 TS lines, in four runs. Two runs needed a resend after ending a turn to wait on a background job.
