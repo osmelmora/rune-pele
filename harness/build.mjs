@@ -1,11 +1,15 @@
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 const here = import.meta.dirname;
-const source = createHash('sha256').update(readFileSync(`${here}/oracle.ts`)).digest('hex');
+// The stamp covers every harness/*.ts in byte order of name, so a per-type op file counts too.
+const sources = readdirSync(here).filter((name) => name.endsWith('.ts')).sort();
+const hash = createHash('sha256');
+for (const name of sources) hash.update(readFileSync(join(here, name)));
+const source = hash.digest('hex');
 const pele = execFileSync('git', ['-C', `${here}/../vendor/pele`, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 
 // Pele's layout entry points, which oracle.ts can watch during a real render. Every import of
@@ -50,5 +54,5 @@ await build({
   minify: false,
   logLevel: 'warning',
   plugins: [layoutTap],
-  banner: { js: `// oracle.ts sha256 ${source} pele ${pele}` },
+  banner: { js: `// harness ts sha256 ${source} pele ${pele}` },
 });

@@ -160,3 +160,16 @@ That is roughly 2,500–3,000 TS lines per worker run, each verified against the
 **Estimate (inferred from the pilot rate).** About 14–17 more worker runs to reach parity for all types. Graph types reuse shapes, edges, layout and styles, so they should run cheaper per line than the pilot. Add about 3 runs for the Rune adapter's general lowering (dashes, curves, polygons, opacity, text styles, links, tooltips and hover). After that, per-type Rune work is mostly generic.
 
 Grouped into waves of 3–4 parallel workers on disjoint types, that is about 6 waves.
+
+## 2026-11-15 Wave 1 started; class merged
+
+**Start.** The user approved wave 1, the graph-family types. Two helpers that class, er and agentflow share (`parseGenericTypes`, `isUnicodeLetter`) were ported to `pele_core::common` on main first, so parallel workers reuse one copy. They match Pele on 20,010 inputs and on every UTF-16 code unit. Four workers then ran in parallel: state, class, usecase, and requirement plus swimlane. Er and agentflow follow in wave 1b.
+
+**Class merged (measured, rerun by the parent after the merge).**
+- Corpus: class 38 of 38 identical, flowchart 114 of 114, pie 2 of 2. Total `522 154 0 368 0`.
+- `class_front.rs`: 30,364 inputs, 0 different. `class_parity.rs`: 79,751 inputs, 0 different, with a 35-path coverage gate on random diagrams.
+- Cost: 2,317 TS lines in one run, giving 3,614 Rust lines of class code, 1,031 of tests and about 200 of shared growth. That is at the pilot rate, and cheaper per line than the pilot because layout, edges, clusters and the writer already existed.
+
+**Decision.** The one real change to shared code is in `scene/walk.rs`. When one part draws several texts in one facet, their lines now number on from each other. No earlier type draws two texts in one part and facet, so no existing key changes. Accepted.
+
+**Fix.** The oracle bundle's stamp hashed only `oracle.ts`, so editing a per-type op file such as `harness/class.ts` left a stale bundle that the doctor passed. The stamp now hashes every `harness/*.ts` in name order, and the doctor checks the same. A deliberate edit to `harness/class.ts` now fails the doctor.
