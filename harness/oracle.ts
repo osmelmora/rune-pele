@@ -377,6 +377,8 @@ ops.unicode_letters = () => {
   return JSON.stringify(accepted);
 };
 
+import { usecaseOps } from './usecase.ts';
+Object.assign(ops, usecaseOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

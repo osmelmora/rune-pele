@@ -242,6 +242,37 @@ impl Origin<'_> {
     }
 }
 
+/// Pele's `inSource`: the source as the author wrote it, with its line breaks normalized and the
+/// line break that parsing appends, and where each offset of the parsed text falls in it.
+pub(crate) struct Written {
+    source: Vec<u16>,
+    steps: input::Steps,
+}
+
+impl Written {
+    pub(crate) fn source(&self) -> &[u16] {
+        &self.source
+    }
+
+    /// Pele's `written(src, offset)[1]`, for an offset into the parsed text.
+    pub(crate) fn offset(&self, parsed: usize) -> usize {
+        input::input_offset(&self.steps, parsed)
+    }
+}
+
+impl Origin<'_> {
+    /// The map from the parsed text back to the written source, for a parser that words its
+    /// own positions instead of taking [`Origin::locate`]'s.
+    pub(crate) fn written(&self) -> Written {
+        let mut steps = input::Steps::new();
+        let pre = input::preprocess(self.source, Some(&mut steps)).expect("a source that parsed preprocesses");
+        input::encode_entities(&pre.text, Some(&mut steps));
+        let mut source = input::normalize_line_breaks(&self.source.encode_utf16().collect::<Vec<_>>());
+        source.push(10);
+        Written { source, steps }
+    }
+}
+
 /// Pele's `tagErrors`: an error names the diagram it is in, and shows entity codes as written.
 fn tagged(error: RenderError, found: catalog::Detected) -> RenderError {
     let written =
@@ -315,6 +346,21 @@ pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<Strin
         .map_err(|error| tagged(error, front.found))?;
     let graph = diagrams::flowchart::build_flow_graph(&model, diagrams::flowchart::default_curve(&front.config));
     Ok(diagrams::flowchart::json::front_json(&model, &graph, front.found.mermaid.name()))
+}
+
+/// The use case front end's model and graph as JSON, in the words of the oracle's
+/// `usecase_front` op, for the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn usecase_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Usecase {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::usecase::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    let graph = diagrams::usecase::build_usecase_graph(&model);
+    Ok(diagrams::usecase::view::front_json(&model, &graph, front.found.mermaid.name()))
 }
 
 impl Prepared {
