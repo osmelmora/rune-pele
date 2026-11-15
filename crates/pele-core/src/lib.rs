@@ -1,6 +1,8 @@
 //! Rune-free core of rune-pele: Mermaid parsing, layout and scene building, ported from Pele.
 
 mod catalog;
+#[doc(hidden)]
+pub mod common;
 mod diagrams;
 mod fit;
 mod graph;

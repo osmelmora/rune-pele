@@ -365,6 +365,18 @@ const layoutOps: Record<string, (args: string[]) => string> = {
 };
 Object.assign(ops, layoutOps);
 
+// shared helpers that several diagram types import
+import { parseGenericTypes } from '../vendor/pele/src/diagrams/common/generics.ts';
+import { isUnicodeLetter } from '../vendor/pele/src/util/unicode.ts';
+
+ops.generics = ([text]) => JSON.stringify(parseGenericTypes(JSON.parse(text) as string));
+// Every UTF-16 code unit `isUnicodeLetter` accepts, as one JSON array.
+ops.unicode_letters = () => {
+  const accepted: number[] = [];
+  for (let code = 0; code <= 0xffff; code++) if (isUnicodeLetter(code)) accepted.push(code);
+  return JSON.stringify(accepted);
+};
+
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
