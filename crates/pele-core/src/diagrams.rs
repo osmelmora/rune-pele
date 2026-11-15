@@ -7,6 +7,7 @@ pub(crate) mod class;
 pub(crate) mod er;
 pub(crate) mod flowchart;
 pub(crate) mod gantt;
+pub(crate) mod git;
 pub(crate) mod outline;
 pub(crate) mod pie;
 pub(crate) mod requirement;

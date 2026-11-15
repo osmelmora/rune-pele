@@ -559,6 +559,20 @@ pub fn gantt_front_json(source: &str, options: ParseOptions, now: f64) -> Result
     Ok(diagrams::gantt::json::front_json(&model, now))
 }
 
+/// The git graph front end's model as JSON, in the words of the oracle's `git_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn git_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::GitGraph {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model =
+        diagrams::git::parse(&front.context(&origin, options.limits)).map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::git::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

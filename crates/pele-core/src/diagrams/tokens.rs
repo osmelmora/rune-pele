@@ -249,6 +249,21 @@ fn single_line_comment(src: &[u16], at: usize) -> Option<usize> {
 
 pub(crate) const ACC_DESCR: TokenType = token("ACC_DESCR", Matcher::Pattern(acc_descr));
 
+/// `[\t ]*accDescr\s*{`
+fn acc_descr_brace(src: &[u16], at: usize) -> Option<usize> {
+    let word = src.run(at, is_blank);
+    if !src.starts_at(word, "accDescr") {
+        return None;
+    }
+    let brace = src.run(word + 8, is_space);
+    (src.at(brace) == Some(unit(b'{'))).then_some(brace + 1)
+}
+
+/// `ACC_DESCR` with the opener `[\t ]*accDescr\s*{`, as git's grammar has it: once a braced
+/// description finds no closing brace, the type is not tried again, not even in its `:` form.
+pub(crate) const ACC_DESCR_CLOSED: TokenType =
+    token("ACC_DESCR", Matcher::Closed { pattern: acc_descr, opener: acc_descr_brace });
+
 /// Pele's `accDescr(name)` (`common/accDescr.ts`): `ACC_DESCR` for a grammar that goes on lexing
 /// after an `accDescr {` that never closes, because `accDescr` is also a name there. Once a braced
 /// description finds no closing brace there is none further on, so a later one fails without
@@ -280,6 +295,22 @@ fn acc_descr_scanner() -> Scanner {
         close.map(|close| close + 1)
     })
 }
+/// `0|[1-9][0-9]*(?!\.)`: a run of digits that a dot does not follow. Where one does, the run
+/// gives up its last digit.
+fn int(src: &[u16], at: usize) -> Option<usize> {
+    let first = src.at(at)?;
+    if first == unit(b'0') {
+        return Some(at + 1);
+    }
+    if !(unit(b'1')..=unit(b'9')).contains(&first) {
+        return None;
+    }
+    let end = src.run(at + 1, |c| (unit(b'0')..=unit(b'9')).contains(&c));
+    if src.at(end) != Some(unit(b'.')) { Some(end) } else { (end - at >= 2).then_some(end - 1) }
+}
+
+/// The `INT` terminal of git and packet.
+pub(crate) const INT: TokenType = token("INT", Matcher::Pattern(int));
 pub(crate) const ACC_TITLE: TokenType = token("ACC_TITLE", Matcher::Pattern(acc_title));
 pub(crate) const TITLE: TokenType = token("TITLE", Matcher::Pattern(title));
 pub(crate) const STRING: TokenType = token("STRING", Matcher::Pattern(string));
@@ -470,6 +501,11 @@ impl<'a> Reader<'a> {
 
     pub(crate) fn kind(&self) -> Option<usize> {
         self.tokens.kinds[self.i]
+    }
+
+    /// The kind of the token after the current one: Pele's `r.kinds[r.i + 1]`.
+    pub(crate) fn next_kind(&self) -> Option<usize> {
+        self.tokens.kinds.get(self.i + 1).copied().flatten()
     }
 
     fn text(&self, index: usize) -> &'a [u16] {

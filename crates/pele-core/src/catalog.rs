@@ -280,7 +280,11 @@ diagram_catalog! {
         detectors: [(13, "swimlane", starts(&["swimlane-beta"]).then(End::WordBoundary))],
     },
     Timeline => { name: "timeline", detectors: [(15, "timeline", starts(&["timeline"]))] },
-    GitGraph => { name: "gitGraph", detectors: [(16, "gitGraph", starts(&["gitGraph"]))] },
+    GitGraph => {
+        name: "gitGraph",
+        port: { diagram: diagrams::git::Git, section: "gitGraph", palette: PaletteRule::Slots("git", 0) },
+        detectors: [(16, "gitGraph", starts(&["gitGraph"]))],
+    },
     State => {
         name: "state",
         port: { diagram: diagrams::state::State, section: "state", palette: PaletteRule::None },

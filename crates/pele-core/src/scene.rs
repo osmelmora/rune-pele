@@ -2139,6 +2139,10 @@ impl ShapeElement<'_> {
         self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
+    pub(crate) fn cap(self, cap: LineCap) -> Self {
+        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
+    }
+
     /// Dashes and the gaps between them, in turn.
     pub(crate) fn dash(self, pattern: &[Number]) -> Self {
         self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
