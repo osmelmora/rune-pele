@@ -1058,10 +1058,9 @@ fn draw_class(
                     let at = [Number::num(left + PAD_X), Number::num(baseline)];
                     let text = out.text(part, facet);
                     let text = match line.classifier {
-                        Classifier::Static => text
-                            .class(&format!("pele-member pele-{kind} pele-static"))
-                            .style(Some(Style::underlined(style.text.as_ref())))
-                            .underline(),
+                        Classifier::Static => {
+                            text.class(&format!("pele-member pele-{kind} pele-static")).underlined(style.text.as_ref())
+                        }
                         Classifier::Abstract => text
                             .class(&format!("pele-member pele-{kind} pele-abstract"))
                             .italic()

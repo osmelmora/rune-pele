@@ -1684,10 +1684,11 @@ impl TextStart<'_> {
         self
     }
 
-    /// Underlines the run. The style declarations given say so to the SVG.
-    pub(crate) fn underline(mut self) -> Self {
+    /// Underlines the run, written as Pele writes it: `text-decoration:underline` after the text
+    /// style declarations given, in the element's `style`.
+    pub(crate) fn underlined(mut self, text: Option<&Style>) -> Self {
         self.style.underline = true;
-        self
+        self.style(Some(Style::underlined(text)))
     }
 
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {
