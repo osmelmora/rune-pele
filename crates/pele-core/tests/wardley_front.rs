@@ -45,8 +45,8 @@ fn code_name(code: ErrorCode) -> &'static str {
 struct Tally {
     identical: usize,
     rejected: usize,
-    /// Rejections by what rejected the source: the lexer, the parser, the model, or a limit.
-    kinds: [usize; 4],
+    /// Rejections by what rejected the source: the lexer, the parser, the model, a limit, or the detection of no diagram.
+    kinds: [usize; 5],
     other_types: usize,
     failures: Vec<String>,
 }
@@ -91,7 +91,8 @@ impl Tally {
                         ErrorCode::Syntax if diagnostic.message.starts_with("Lexical") => 0,
                         ErrorCode::Syntax => 1,
                         ErrorCode::Semantic => 2,
-                        _ => 3,
+                        ErrorCode::Limit => 3,
+                        _ => 4,
                     };
                     self.kinds[kind] += 1;
                     None
@@ -109,13 +110,14 @@ impl Tally {
     fn finish(self, what: &str) -> Self {
         let total = self.identical + self.rejected + self.other_types + self.failures.len();
         println!(
-            "{what}: {total} inputs, {} identical to Pele, {} rejected with Pele's error ({} lexer, {} parser, {} model, {} limit), {} of another type, {} different",
+            "{what}: {total} inputs, {} identical to Pele, {} rejected with Pele's error ({} lexer, {} parser, {} model, {} limit, {} undetected), {} of another type, {} different",
             self.identical,
             self.rejected,
             self.kinds[0],
             self.kinds[1],
             self.kinds[2],
             self.kinds[3],
+            self.kinds[4],
             self.other_types,
             self.failures.len()
         );
