@@ -379,6 +379,8 @@ ops.unicode_letters = () => {
 
 import { classOps } from './class.ts';
 Object.assign(ops, classOps);
+import { erOps } from './er.ts';
+Object.assign(ops, erOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
