@@ -1,8 +1,10 @@
 // Proves that the differential tests of the C4 port can fail: breaks the port on purpose, one
 // way at a time, and checks that the test of the broken part goes red.
 //
-//   mise exec -- node scripts/break-c4.mjs
+//   mise exec -- node scripts/break-c4.mjs [test...]
 //
+// With test names, such as `c4_front c4_layout`, only the breaks those tests watch are made,
+// and only those tests are run clean at the end, so the run can be split.
 // Each break is one edit to the port. The source is put back after each, also when the run is
 // interrupted, and every test must pass again at the end. Exits 1 if a break goes unnoticed.
 import { spawnSync } from 'node:child_process';
@@ -53,13 +55,13 @@ const BREAKS = [
     to: 'const SLIDE: [f64; 7] = [0.5, 0.6, 0.4, 0.3, 0.7, 0.2, 0.8];',
   },
   {
-    name: 'drawing: a boundary heading placed where a line crosses it',
-    // A heading moves to the first place along the top edge that no line crosses. Keeping the
-    // last place tried instead moves it to the right.
+    name: 'drawing: a crossed boundary heading tries the right before the middle',
+    // A heading goes to the first of the left, the middle and the right of its top edge that no
+    // line crosses. Trying the right second moves a heading the middle would have taken.
     test: 'c4_parity',
     file: `${dir}/render.rs`,
-    from: 'if count == 0 {\n                break;\n            }',
-    to: 'if count == usize::MAX {\n                break;\n            }',
+    from: 'for x in [HEAD_LEFT, (b.w - group.head_w) / 2.0, b.w - HEAD_LEFT - group.head_w] {',
+    to: 'for x in [HEAD_LEFT, b.w - HEAD_LEFT - group.head_w, (b.w - group.head_w) / 2.0] {',
   },
 ];
 
@@ -68,8 +70,10 @@ function run(test) {
   return { passed: result.status === 0, output: result.stdout + result.stderr };
 }
 
+const chosen = process.argv.slice(2);
+const tests = chosen.length > 0 ? chosen : ['c4_front', 'c4_layout', 'c4_parity'];
 let unnoticed = 0;
-for (const { name, test, file, from, to } of BREAKS) {
+for (const { name, test, file, from, to } of BREAKS.filter((b) => tests.includes(b.test))) {
   const path = join(root, file);
   const source = readFileSync(path, 'utf8');
   if (source.split(from).length !== 2) throw new Error(`${name}: ${file} no longer holds the line this break edits exactly once`);
@@ -97,7 +101,7 @@ for (const { name, test, file, from, to } of BREAKS) {
   }
 }
 
-for (const test of ['c4_front', 'c4_layout', 'c4_parity']) {
+for (const test of tests) {
   const clean = run(test);
   console.log(clean.passed ? `green  ${test} passes on the port as committed` : `${test} fails on the port as committed:\n${clean.output.slice(-800)}`);
   if (!clean.passed) unnoticed++;
