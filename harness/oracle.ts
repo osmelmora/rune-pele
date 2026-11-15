@@ -410,6 +410,8 @@ import { cynefinOps } from './cynefin.ts';
 Object.assign(ops, cynefinOps);
 import { treemapOps } from './treemap.ts';
 Object.assign(ops, treemapOps);
+import { timelineOps } from './timeline.ts';
+Object.assign(ops, timelineOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

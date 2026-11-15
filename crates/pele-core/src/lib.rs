@@ -613,6 +613,20 @@ pub fn treemap_front_json(source: &str, options: ParseOptions) -> Result<String,
     Ok(diagrams::treemap::json::front_json(&model))
 }
 
+/// The timeline front end's model as JSON, in the words of the oracle's `timeline_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn timeline_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Timeline {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::timeline::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::timeline::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind

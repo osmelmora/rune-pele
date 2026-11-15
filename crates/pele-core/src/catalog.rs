@@ -287,7 +287,11 @@ diagram_catalog! {
         port: { diagram: diagrams::swimlane::Swimlane, section: "swimlane", palette: PaletteRule::None },
         detectors: [(13, "swimlane", starts(&["swimlane-beta"]).then(End::WordBoundary))],
     },
-    Timeline => { name: "timeline", detectors: [(15, "timeline", starts(&["timeline"]))] },
+    Timeline => {
+        name: "timeline",
+        port: { diagram: diagrams::timeline::Timeline, section: "timeline", palette: PaletteRule::Slots("cScale", 0) },
+        detectors: [(15, "timeline", starts(&["timeline"]))],
+    },
     GitGraph => { name: "gitGraph", detectors: [(16, "gitGraph", starts(&["gitGraph"]))] },
     State => {
         name: "state",

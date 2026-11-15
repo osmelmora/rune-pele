@@ -18,6 +18,7 @@ pub(crate) mod scan;
 pub(crate) mod sequence;
 pub(crate) mod state;
 pub(crate) mod swimlane;
+pub(crate) mod timeline;
 pub(crate) mod tokens;
 pub(crate) mod treemap;
 pub(crate) mod usecase;
