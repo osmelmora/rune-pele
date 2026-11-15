@@ -136,6 +136,10 @@ pub(crate) fn write_path(path: &PathProgram, out: &mut String) {
                 out.push_str(if *sweep { "1 " } else { "0 " });
                 write_pair(end, out);
             }
+            PathStep::VerticalBy(y) => {
+                out.push('v');
+                y.write(out);
+            }
         }
     }
 }
@@ -241,6 +245,13 @@ fn write_field(scene: &Scene, id: NodeId, field: Field, out: &mut String) {
                 centre[0].write(out);
                 out.push(' ');
                 centre[1].write(out);
+                out.push(')');
+            }),
+            Some(Transform::TranslateRotate { translate, degrees }) => write_attribute("transform", out, |out| {
+                out.push_str("translate(");
+                write_pair(translate, out);
+                out.push_str(") rotate(");
+                degrees.write(out);
                 out.push(')');
             }),
             None => {}

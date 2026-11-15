@@ -60,7 +60,8 @@ pub struct Group {
     /// The group's own translation. Each [`Draw`] already carries the sum of its groups'.
     pub translate: Point,
     /// A turn the group's whole drawing takes. Its [`Draw`]s and text runs are placed as before
-    /// the turn, so an interpreter turns them itself.
+    /// the turn, so an interpreter turns them itself. `centre` is in the coordinates outside the
+    /// group; a group that also translates turns about the point it moves its drawing to.
     pub rotate: Option<Rotation>,
     /// How opaque the group is as a whole, composited once.
     pub opacity: f64,
@@ -344,6 +345,9 @@ impl Inherited {
         if let Some(Transform::Translate(x, y)) = properties.transform {
             self.origin = Point { x: self.origin.x + x.effective(), y: self.origin.y + y.effective() };
         }
+        if let Some(Transform::TranslateRotate { translate: [x, y], .. }) = properties.transform {
+            self.origin = Point { x: self.origin.x + x.effective(), y: self.origin.y + y.effective() };
+        }
         self.fill = styled.fill.or(properties.fill).unwrap_or(self.fill);
         self.fill_opacity = styled
             .fill_opacity
@@ -486,6 +490,7 @@ impl PathProgram {
                     sweep: *sweep,
                     end: by(here, end),
                 },
+                PathStep::VerticalBy(y) => PathCommand::Line(Point { x: here.x, y: here.y + y.effective() }),
             };
             here = match command {
                 PathCommand::Move(to) | PathCommand::Line(to) => to,
@@ -566,6 +571,10 @@ impl Scene {
                 Some(Transform::Rotate { degrees, centre }) => {
                     let centre = Point { x: centre[0].effective(), y: centre[1].effective() };
                     (Point { x: 0.0, y: 0.0 }, Some(Rotation { degrees: degrees.effective(), centre }))
+                }
+                Some(Transform::TranslateRotate { translate, degrees }) => {
+                    let to = Point { x: translate[0].effective(), y: translate[1].effective() };
+                    (to, Some(Rotation { degrees: degrees.effective(), centre: to }))
                 }
                 None => (Point { x: 0.0, y: 0.0 }, None),
             };

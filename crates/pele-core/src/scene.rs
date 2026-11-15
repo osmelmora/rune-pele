@@ -664,6 +664,7 @@ pub(crate) enum PathStep {
         sweep: bool,
         end: [Number; 2],
     },
+    VerticalBy(Number),
 }
 
 impl PathProgram {
@@ -725,6 +726,10 @@ impl PathProgram {
     /// An arc that ends `end` away from where it starts.
     pub(crate) fn a_by(self, radii: [Number; 2], large: bool, sweep: bool, end: [Number; 2]) -> Self {
         self.then(PathStep::ArcBy { radii, large, sweep, end })
+    }
+
+    pub(crate) fn v_by(self, y: Number) -> Self {
+        self.then(PathStep::VerticalBy(y))
     }
 }
 
@@ -884,6 +889,12 @@ pub(crate) enum Transform {
     Rotate {
         degrees: Number,
         centre: [Number; 2],
+    },
+    /// A move by `translate`, then a turn by `degrees` about the point moved to, written
+    /// `translate(x,y) rotate(degrees)`.
+    TranslateRotate {
+        translate: [Number; 2],
+        degrees: Number,
     },
 }
 
@@ -1057,6 +1068,11 @@ impl Entity {
 
     pub(crate) fn node(id: &JsText) -> Self {
         Entity::named(EntityKind::Node, id)
+    }
+
+    /// A series of a chart, such as an xychart's bars or line, named by its title.
+    pub(crate) fn series(title: &JsText) -> Self {
+        Entity::named(EntityKind::Section, title)
     }
 
     pub(crate) fn note(id: &JsText) -> Self {
@@ -1391,6 +1407,14 @@ impl LayerSpec {
 
     pub(crate) fn stroke(self, paint: Paint) -> Self {
         self.with(Field::Stroke, |p| p.stroke = Some(paint))
+    }
+
+    /// Moves the group's drawing to `point` and turns it there by `degrees`, as an xychart turns
+    /// its left axis title.
+    pub(crate) fn translate_rotate(self, point: Point, degrees: f64) -> Self {
+        let translate = [Number::num(point.x), Number::num(point.y)];
+        let transform = Transform::TranslateRotate { translate, degrees: Number::raw(degrees) };
+        self.with(Field::Transform, |p| p.transform = Some(transform))
     }
 
     /// Turns the group's drawing by `degrees` about `centre`.
@@ -2183,6 +2207,10 @@ impl ShapeElement<'_> {
 
     pub(crate) fn join(self, join: LineJoin) -> Self {
         self.with(Field::StrokeJoin, |p| p.join = Some(join))
+    }
+
+    pub(crate) fn cap(self, cap: LineCap) -> Self {
+        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
     }
 
     /// Dashes and the gaps between them, in turn.

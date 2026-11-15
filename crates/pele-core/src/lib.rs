@@ -555,6 +555,20 @@ pub fn wardley_front_json(source: &str, options: ParseOptions) -> Result<String,
     Ok(diagrams::wardley::json::front_json(&model))
 }
 
+/// The xychart front end's db as JSON, in the words of the oracle's `xychart_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn xychart_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Xychart {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::xychart::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::xychart::json::front_json(&model))
+}
+
 impl Prepared {
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
