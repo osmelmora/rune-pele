@@ -505,6 +505,9 @@ enum NumberForm {
     Raw,
     /// `x.toFixed(digits)`.
     Fixed(u8),
+    /// A minus sign before Pele's `num()` of the value, as a template writes `-${num(x)}`. It
+    /// differs from `num(-x)` where the hundredths end in exactly a half.
+    MinusNum,
 }
 
 impl Number {
@@ -520,11 +523,20 @@ impl Number {
         Number { value, form: NumberForm::Fixed(digits) }
     }
 
+    /// `-${num(value)}`, for a positive value.
+    pub(crate) fn minus_num(value: f64) -> Self {
+        Number { value, form: NumberForm::MinusNum }
+    }
+
     pub(crate) fn write(&self, out: &mut String) {
         match self.form {
             NumberForm::Num => js::write_num(out, self.value),
             NumberForm::Raw => out.push_str(&js::to_string(self.value)),
             NumberForm::Fixed(digits) => out.push_str(&js::to_fixed(self.value, usize::from(digits))),
+            NumberForm::MinusNum => {
+                out.push('-');
+                js::write_num(out, self.value);
+            }
         }
     }
 
@@ -539,6 +551,7 @@ impl Number {
             NumberForm::Fixed(digits) => {
                 js::to_fixed(self.value, usize::from(digits)).parse().expect("toFixed spells a number")
             }
+            NumberForm::MinusNum => -Number::num(self.value).effective(),
         }
     }
 }
@@ -1241,6 +1254,11 @@ impl LayerSpec {
         self.with(Field::Fill, |p| p.fill = Some(paint))
     }
 
+    /// Dashes and the gaps between them, in turn, for what the group draws.
+    pub(crate) fn dash(self, pattern: &[Number]) -> Self {
+        self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
+    }
+
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {
         self.attributes = self.attributes.style(style);
         self
@@ -1284,6 +1302,10 @@ impl LabelLook {
 
     pub(crate) fn style(self, style: Option<&Style>) -> Self {
         LabelLook(self.0.style(style.cloned()))
+    }
+
+    pub(crate) fn font_size(self, size: Number) -> Self {
+        LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
     }
 }
 
@@ -1612,6 +1634,20 @@ impl ShapeElement<'_> {
 
     pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
         self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
+    /// A class written after the geometry, where Pele's template puts it there.
+    pub(crate) fn class(self, class: &str) -> Self {
+        self.with(Field::Class, |p| p.class = Some(class.to_owned()))
+    }
+
+    /// A rectangle's corner radius, written where this is called.
+    pub(crate) fn rx(mut self, rx: Number) -> Self {
+        if let NodeContent::Rect { rx: radius, .. } = &mut self.content {
+            *radius = Some(rx);
+        }
+        self.attributes = self.attributes.geometry(&[GeometryField::Rx]);
+        self
     }
 
     pub(crate) fn stroke(self, paint: Paint) -> Self {

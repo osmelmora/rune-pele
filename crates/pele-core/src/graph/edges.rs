@@ -570,8 +570,8 @@ enum Under<'f, 'a> {
     Fill(&'f Fill<'a>),
 }
 
-/// Pele's `fillUnder`, for the path of an edge and the tips of its two markers.
-fn fill_under<'f, 'a>(path: &PathProgram, tips: [f64; 4], fills: &'f [Fill<'a>]) -> Under<'f, 'a> {
+/// Pele's `fillUnder`, for the path of an edge and the tips of its markers, as x, y pairs.
+fn fill_under<'f, 'a>(path: &PathProgram, tips: &[f64], fills: &'f [Fill<'a>]) -> Under<'f, 'a> {
     if fills.is_empty() {
         return Under::Page;
     }
@@ -633,7 +633,15 @@ pub(crate) enum Over {
 /// tips, a casing where it crosses a border, or neither off fills. `line` is the edge's own
 /// line style.
 pub(crate) fn over_fills(path: &EdgePath, fills: &[Fill<'_>], line: Option<&Style>) -> Over {
-    let tips = [path.start.x, path.start.y, path.end.x, path.end.y];
+    over_tips(path, &[path.start.x, path.start.y, path.end.x, path.end.y], fills, line)
+}
+
+/// `over_fills` for a type that tests only the tip where an edge ends, as state diagrams do.
+pub(crate) fn over_fills_at_end(path: &EdgePath, fills: &[Fill<'_>], line: Option<&Style>) -> Over {
+    over_tips(path, &[path.end.x, path.end.y], fills, line)
+}
+
+fn over_tips(path: &EdgePath, tips: &[f64], fills: &[Fill<'_>], line: Option<&Style>) -> Over {
     match fill_under(&path.d, tips, fills) {
         Under::Page => Over::Page,
         Under::Border => Over::Cased,
