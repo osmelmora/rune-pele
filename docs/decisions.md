@@ -242,3 +242,33 @@ Usecase's rule was kept for both types, because a key should not move when an ea
 - `label_from`, Pele's left-aligned `textLeft`.
 - `fill_under_path`.
 - Path sampling for H and V steps. These used to hit `unreachable!`.
+
+## 2026-11-15 Wave 2 approved: the 24 standalone types
+
+**Approval.** The user approved wave 2. It starts when agentflow and `rune-graph` have merged.
+
+**Size (measured with `wc -l` and the corpus files).** 24 types, 24,393 TS lines and 263 doc sources. The largest is sequence (2,800 lines, 38 sources) and the smallest is info (121 lines, 2 sources).
+
+**Shared helpers not yet ported (measured).** About 1,080 lines in all:
+
+| Helper | Lines | Types that import it |
+|---|---|---|
+| `svg/palette.ts` | 138 | git, treemap, timeline |
+| `common/literal-label.ts` | 101 | sequence, c4, eventmodeling, treeview, ishikawa, packet |
+| `common/outline.ts`, `common/icon.ts` | 349 | kanban, mindmap |
+| `common/scan.ts`, `common/fit.ts` | 137 | timeline, journey, git |
+| `common/fit-text.ts` | 43 | treemap, packet |
+| `common/accDescr.ts` | 26 | wardley, eventmodeling, treeview |
+| `common/caseless.ts` | 10 | xychart, quadrant |
+
+**Plan.**
+1. **Foundation.** One unit ports these helpers first, each checked against the oracle, as the generics and unicode helpers were before wave 1. Parallel workers then reuse one copy.
+2. **Three waves of four parallel workers**, each about 1,500 to 2,800 TS lines. Worker groups are listed below.
+
+| Wave | Worker groups |
+|---|---|
+| 2a | sequence · gantt · block · c4 |
+| 2b | railroad + info · architecture + cynefin · wardley + xychart · venn + quadrant |
+| 2c | git + sankey + packet · eventmodeling + treeview + radar · treemap + timeline + journey · kanban + mindmap + ishikawa |
+
+That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 3,100 TS lines per run, and every run merged at full parity.
