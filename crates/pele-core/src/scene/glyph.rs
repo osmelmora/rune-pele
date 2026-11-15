@@ -1,8 +1,9 @@
 //! The drawings Pele puts in an icon's box itself where no host draws the icon: the icons
-//! Mermaid's architecture diagrams know without an icon pack (`architecture/icons.ts`).
+//! Mermaid's architecture diagrams know without an icon pack (`architecture/icons.ts`), and
+//! treeview's own folder and file (`treeview/icons.ts`).
 
-/// One built-in icon. It is drawn on the icon box's 24 by 24 grid, stroked in the foreground
-/// colour 1.5 wide, with the box's round caps and joins and no fill.
+/// One built-in icon. It is drawn on the icon box's 24 by 24 grid, stroked 1.5 wide in the
+/// colour [`IconGlyph::stroke`] names, with the box's round caps and joins and no fill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum IconGlyph {
     Database,
@@ -10,6 +11,10 @@ pub enum IconGlyph {
     Disk,
     Internet,
     Cloud,
+    /// Treeview's folder.
+    Folder,
+    /// Treeview's file.
+    File,
 }
 
 impl IconGlyph {
@@ -36,6 +41,23 @@ impl IconGlyph {
                 "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M3 12h18M12 3a13 13 0 0 0 0 18M12 3a13 13 0 0 1 0 18"
             }
             IconGlyph::Cloud => "M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.5 8.5z",
+            IconGlyph::Folder => {
+                "M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2.4 2.5h8A1.5 1.5 0 0 1 21 9v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"
+            }
+            IconGlyph::File => {
+                "M6.5 3h7L19 8.5v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3zM13.5 3v5.5H19"
+            }
+        }
+    }
+
+    /// The colour Pele strokes the outline in, as a CSS variable of the root: the foreground for
+    /// architecture's icons, the muted colour for treeview's.
+    pub(crate) fn stroke(self) -> &'static str {
+        match self {
+            IconGlyph::Database | IconGlyph::Server | IconGlyph::Disk | IconGlyph::Internet | IconGlyph::Cloud => {
+                "var(--_fg)"
+            }
+            IconGlyph::Folder | IconGlyph::File => "var(--_m)",
         }
     }
 }

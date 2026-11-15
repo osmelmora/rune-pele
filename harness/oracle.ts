@@ -416,6 +416,12 @@ import { vennOps } from './venn.ts';
 Object.assign(ops, vennOps);
 import { quadrantOps } from './quadrant.ts';
 Object.assign(ops, quadrantOps);
+import { eventmodelingOps } from './eventmodeling.ts';
+Object.assign(ops, eventmodelingOps);
+import { treeviewOps } from './treeview.ts';
+Object.assign(ops, treeviewOps);
+import { radarOps } from './radar.ts';
+Object.assign(ops, radarOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

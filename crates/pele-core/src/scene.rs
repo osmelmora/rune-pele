@@ -677,6 +677,8 @@ pub(crate) enum PathStep {
         sweep: bool,
         end: [Number; 2],
     },
+    /// A space Pele writes between two commands, as radar's curves are written. It draws nothing.
+    Space,
 }
 
 impl PathProgram {
@@ -703,6 +705,15 @@ impl PathProgram {
 
     pub(crate) fn c(self, first: [Number; 2], second: [Number; 2], end: [Number; 2]) -> Self {
         self.then(PathStep::Cubic([first, second, end]))
+    }
+
+    pub(crate) fn q(self, handle: [Number; 2], end: [Number; 2]) -> Self {
+        self.then(PathStep::Quad([handle, end]))
+    }
+
+    /// A space before the next command.
+    pub(crate) fn space(self) -> Self {
+        self.then(PathStep::Space)
     }
 
     /// An arc of less than half a turn.
@@ -1499,6 +1510,11 @@ impl LayerSpec {
         self.with(Field::Fill, |p| p.fill = Some(paint))
     }
 
+    /// How opaque the fills inside are, unless they say otherwise.
+    pub(crate) fn fill_opacity(self, opacity: Number) -> Self {
+        self.with(Field::FillOpacity, |p| p.fill_opacity = Some(opacity))
+    }
+
     /// Sets the text inside in the monospace font.
     pub(crate) fn mono(self) -> Self {
         self.with(Field::FontFamily, |p| p.mono = true)
@@ -1750,11 +1766,27 @@ impl SceneBuilder {
 
     /// The box of an icon, `size` on each side, with its top left corner at `origin`.
     pub(crate) fn icon(&mut self, part: PartId, name: &JsText, origin: [Number; 2], size: Number) {
+        self.icon_box(part, name, origin, size, None);
+    }
+
+    /// The box of an icon with the drawing it shows when no host draws the icon.
+    pub(crate) fn icon_with_glyph(
+        &mut self,
+        part: PartId,
+        name: &JsText,
+        origin: [Number; 2],
+        size: Number,
+        glyph: IconGlyph,
+    ) {
+        self.icon_box(part, name, origin, size, Some(glyph));
+    }
+
+    fn icon_box(&mut self, part: PartId, name: &JsText, origin: [Number; 2], size: Number, glyph: Option<IconGlyph>) {
         use GeometryField::{Height, Icon, Width, X, Y};
         let attributes = Attributes::of(part, Facet::Shape)
             .set(Field::Class, |p| p.class = Some("pele-icon".to_owned()))
             .geometry(&[Icon, X, Y, Width, Height]);
-        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size, glyph: None });
+        self.push(attributes, NodeContent::Icon { name: name.clone(), x: origin[0], y: origin[1], size, glyph });
     }
 
     /// [`SceneBuilder::icon`] with the glyph Pele draws in the box where no host draws the icon.
@@ -1766,10 +1798,7 @@ impl SceneBuilder {
         size: Number,
         glyph: Option<IconGlyph>,
     ) {
-        self.icon(part, name, origin, size);
-        if let Some(Node { content: NodeContent::Icon { glyph: slot, .. }, .. }) = self.arena.last_mut() {
-            *slot = glyph;
-        }
+        self.icon_box(part, name, origin, size, glyph);
     }
 
     /// The root's font size, for a type whose config can set its own in place of the host's.
@@ -2056,6 +2085,28 @@ impl SceneBuilder {
         self.push(attributes, NodeContent::Text(text));
     }
 
+    /// Pele's eventmodeling `lines`: one text element whose lines each start at their own
+    /// baseline point, written as `tspan`s with no anchor of the element's own. A line with no
+    /// text is left out, and nothing is drawn when none is left. Every line is one run with the
+    /// emphasis the look writes.
+    pub(crate) fn rows(&mut self, part: PartId, facet: Facet, label: &Label, at: &[[Number; 2]], look: LabelLook) {
+        let mut kept = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        for (line, &point) in label.lines.iter().zip(at) {
+            if line.runs.iter().all(|run| run.text.is_empty()) {
+                continue;
+            }
+            kept.lines.push(line.clone());
+            lines.push(point);
+        }
+        let Some(shared) = kept.lines.first().and_then(|line| line.runs.first()).map(|run| run.style) else {
+            return;
+        };
+        let attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes, NodeContent::Text(text));
+    }
+
     /// Plain text at a baseline point, for text whose group sets its anchor and size.
     pub(crate) fn baseline_text(&mut self, part: PartId, label: Label, at: [Number; 2], fill: Option<Paint>) {
         let mut attributes = Attributes::of(part, Facet::Label).geometry(&[GeometryField::X, GeometryField::Y]);
@@ -2101,6 +2152,18 @@ impl<'a> ElementStart<'a> {
     pub(crate) fn data_id(mut self) -> Self {
         debug_assert!(self.attributes.part.is_some(), "only a part of an entity has the entity's name");
         self.attributes.emission.push(Field::DataId);
+        self
+    }
+
+    /// A fill written before the geometry, where Pele's template puts it there.
+    pub(crate) fn fill(mut self, paint: Paint) -> Self {
+        self.attributes = self.attributes.set(Field::Fill, |p| p.fill = Some(paint));
+        self
+    }
+
+    /// A stroke written before the geometry, where Pele's template puts it there.
+    pub(crate) fn stroke(mut self, paint: Paint) -> Self {
+        self.attributes = self.attributes.set(Field::Stroke, |p| p.stroke = Some(paint));
         self
     }
 

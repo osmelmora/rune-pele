@@ -148,6 +148,7 @@ pub(crate) fn write_path(path: &PathProgram, out: &mut String) {
                 out.push_str(if *sweep { "1 " } else { "0 " });
                 write_pair(end, out);
             }
+            PathStep::Space => out.push(' '),
         }
     }
 }
@@ -487,7 +488,9 @@ fn write_node(scene: &Scene, id: NodeId, out: &mut String) {
             if let Some(glyph) = glyph {
                 out.push_str("<path d=\"");
                 out.push_str(glyph.path_data());
-                out.push_str("\" stroke=\"var(--_fg)\" stroke-width=\"1.5\"/>");
+                out.push_str("\" stroke=\"");
+                out.push_str(glyph.stroke());
+                out.push_str("\" stroke-width=\"1.5\"/>");
             }
             out.push_str("</svg>");
         }

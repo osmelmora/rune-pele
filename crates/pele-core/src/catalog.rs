@@ -312,9 +312,21 @@ diagram_catalog! {
         port: { diagram: diagrams::block::Block, section: "block", palette: PaletteRule::None },
         detectors: [(23, "block", starts(&["block"]))],
     },
-    Eventmodeling => { name: "eventmodeling", detectors: [(24, "eventmodeling", starts(&["eventmodeling"]))] },
-    TreeView => { name: "treeView", detectors: [(25, "treeView", starts(&["treeView-beta"]))] },
-    Radar => { name: "radar", detectors: [(26, "radar", starts(&["radar-beta"]))] },
+    Eventmodeling => {
+        name: "eventmodeling",
+        port: { diagram: diagrams::eventmodeling::Eventmodeling, section: "eventmodeling", palette: PaletteRule::None },
+        detectors: [(24, "eventmodeling", starts(&["eventmodeling"]))],
+    },
+    TreeView => {
+        name: "treeView",
+        port: { diagram: diagrams::treeview::TreeView, section: "treeView", palette: PaletteRule::None },
+        detectors: [(25, "treeView", starts(&["treeView-beta"]))],
+    },
+    Radar => {
+        name: "radar",
+        port: { diagram: diagrams::radar::Radar, section: "radar", palette: PaletteRule::Slots("cScale", 0) },
+        detectors: [(26, "radar", starts(&["radar-beta"]))],
+    },
     Ishikawa => { name: "ishikawa", detectors: [
         (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
     ] },
@@ -355,7 +367,7 @@ impl DiagramKind {
     /// Pele's `keepComments`: whether the kind's parser is given the text with its `%%` comment
     /// lines kept, because it reports where each statement sits in the source.
     pub(crate) fn keeps_comments(self) -> bool {
-        self == DiagramKind::Agentflow
+        matches!(self, DiagramKind::Agentflow | DiagramKind::Eventmodeling)
     }
 }
 

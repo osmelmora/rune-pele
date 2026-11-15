@@ -498,6 +498,7 @@ impl PathProgram {
                 },
                 PathStep::VerticalBy(y) => PathCommand::Line(Point { x: here.x, y: here.y + y.effective() }),
                 PathStep::CloseBy => PathCommand::Close,
+                PathStep::Space => continue,
             };
             here = match command {
                 PathCommand::Move(to) | PathCommand::Line(to) => to,
