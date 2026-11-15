@@ -10,6 +10,7 @@ pub(crate) mod json;
 mod lexer;
 mod parser;
 pub mod probe;
+mod render;
 
 use crate::RenderError;
 use crate::catalog::ParseContext;
@@ -18,6 +19,7 @@ use indexmap::IndexMap;
 use std::collections::HashMap;
 
 pub(crate) use db::Scheduler;
+pub(crate) use render::Gantt;
 
 /// What a task's leading tags mark it as. A task may carry several.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

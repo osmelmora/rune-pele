@@ -1439,6 +1439,12 @@ impl LabelLook {
         LabelLook(self.0.set(Field::FontWeight, |p| p.weight = Some(weight)))
     }
 
+    /// Writes the name of the entity the label belongs to, as `data-id`.
+    pub(crate) fn data_id(mut self) -> Self {
+        self.0.emission.push(Field::DataId);
+        self
+    }
+
     pub(crate) fn font_size(self, size: Number) -> Self {
         LabelLook(self.0.set(Field::FontSize, |p| p.font_size = Some(size)))
     }

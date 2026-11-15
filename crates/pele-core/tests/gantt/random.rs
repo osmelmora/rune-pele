@@ -47,7 +47,7 @@ const FORMATS: &[Format] = &[
     Format { template: "x", write: |y, m, d, h, mi| epoch_ms(y, m, d, h, mi).to_string() },
     Format { template: "X", write: |y, m, d, h, mi| (epoch_ms(y, m, d, h, mi) / 1000).to_string() },
     Format { template: "HH:mm", write: |_, _, _, h, mi| format!("{h:02}:{mi:02}") },
-    Format { template: "MMM D, YYYY", write: |y, m, d, _, _| format!("{} {d}, {y}", MONTHS[m as usize - 1]) },
+    Format { template: "MMM D YYYY", write: |y, m, d, _, _| format!("{} {d} {y}", MONTHS[m as usize - 1]) },
     Format { template: "YYYYMMDD", write: |y, m, d, _, _| format!("{y:04}{m:02}{d:02}") },
     Format { template: "", write: |y, m, d, _, _| format!("{y:04}-{m:02}-{d:02}") },
 ];
@@ -91,6 +91,9 @@ const WORDS: &[&str] = &[
     "x",
     "Q&A",
     "#35; hash",
+    "<b>bold</b> work",
+    "<i>all italic</i>",
+    "<br>",
 ];
 
 const IDS: &[&str] = &["a1", "a2", "b1", "des1", "t", "x-y", "z_9", "m1", "v1", "crit1"];
@@ -117,10 +120,7 @@ pub fn random_gantt(rng: &mut Rng) -> String {
         if rng.chance(50) {
             out.push_str("title: Front matter title\n");
         }
-        if rng.chance(70) {
-            out.push_str("displayMode: compact\n");
-        }
-        out.push_str("---\n");
+        out.push_str("displayMode: compact\n---\n");
     }
     out.push_str("gantt\n");
     if !format.template.is_empty() || rng.chance(20) {
@@ -237,15 +237,9 @@ pub fn random_gantt(rng: &mut Rng) -> String {
                 let start = match rng.below(10) {
                     0 | 1 if !ids.is_empty() => format!("after {}", rng.pick(&ids)),
                     2 => format!("after {} {}", rng.pick(IDS), rng.pick(IDS)),
-                    3 => (*rng.pick(&[
-                        "2014-01-06",
-                        "Jan 6 2026",
-                        "2026/01/06",
-                        "tomorrow",
-                        "2026-1-6",
-                        "1/2/2026 10:00",
-                    ]))
-                    .to_owned(),
+                    3 if rng.chance(5) => "tomorrow".to_owned(),
+                    3 => (*rng.pick(&["2014-01-06", "Jan 6 2026", "2026/01/06", "2026-1-6", "1/2/2026 10:00"]))
+                        .to_owned(),
                     _ => write(rng),
                 };
                 fields.push(start);
@@ -253,7 +247,8 @@ pub fn random_gantt(rng: &mut Rng) -> String {
             let end = match rng.below(10) {
                 0 => write(rng),
                 1 => format!("until {}", rng.pick(IDS)),
-                2 => (*rng.pick(&["soon", "0d", "1d", "99999d"])).to_owned(),
+                2 if rng.chance(5) => "99999d".to_owned(),
+                2 => (*rng.pick(&["soon", "0d", "1d"])).to_owned(),
                 _ => duration(rng),
             };
             fields.push(end);
@@ -269,4 +264,57 @@ pub fn random_gantt(rng: &mut Rng) -> String {
         });
     }
     out
+}
+
+/// Host options for a random chart: a width, the gantt settings of Mermaid's config, or another
+/// clock, each now and then.
+pub fn random_options(rng: &mut Rng) -> serde_json::Value {
+    use serde_json::{Map, Value, json};
+    let mut options = Map::new();
+    if rng.chance(40) {
+        options.insert("maxWidth".into(), json!(*rng.pick(&[320, 480, 640, 900, 250, 1200])));
+    }
+    let mut gantt = Map::new();
+    let settings: &[(&str, &[f64])] = &[
+        ("barHeight", &[10.0, 30.0, 2.0, 500.0]),
+        ("barGap", &[0.0, 10.0, 4.5]),
+        ("fontSize", &[10.0, 20.0, 3.0, 100.0]),
+        ("sectionFontSize", &[12.0, 24.0]),
+        ("numberSectionStyles", &[1.0, 2.0, 3.0, 2.6]),
+        ("leftPadding", &[0.0, 75.0, 300.0]),
+        ("rightPadding", &[0.0, 75.0]),
+        ("useWidth", &[400.0, 1200.0, 50.0]),
+        ("topPadding", &[0.0, 50.0, 120.0]),
+        ("gridLineStartPadding", &[0.0, 35.0, 200.0]),
+    ];
+    for (key, values) in settings {
+        if rng.chance(6) {
+            gantt.insert((*key).into(), json!(*rng.pick(values)));
+        }
+    }
+    if rng.chance(5) {
+        gantt.insert("topAxis".into(), json!(true));
+    }
+    if rng.chance(5) {
+        gantt.insert("axisFormat".into(), json!(*rng.pick(&["%d %b", "%H:%M", "", "%Y"])));
+    }
+    if rng.chance(5) {
+        gantt.insert("tickInterval".into(), json!(*rng.pick(&["1week", "1day", "2month"])));
+    }
+    if rng.chance(4) {
+        gantt.insert("weekday".into(), json!(*rng.pick(&["monday", "friday", "x"])));
+    }
+    if rng.chance(4) {
+        gantt.insert("useMaxWidth".into(), json!(false));
+    }
+    if !gantt.is_empty() {
+        options.insert("config".into(), json!({ "gantt": Value::Object(gantt) }));
+    }
+    if rng.chance(10) {
+        options.insert(
+            "now".into(),
+            json!(*rng.pick(&[1_735_689_600_000.0, 1_767_225_600_000.0, 0.0, 1_800_000_000_000.0])),
+        );
+    }
+    Value::Object(options)
 }

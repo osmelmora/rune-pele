@@ -156,6 +156,9 @@ pub struct LayoutOptions {
     pub resources: ResourcePolicy,
     /// Pele's `monospace`: the parts of diagrams the host sets in the monospace font.
     pub monospace: Vec<MonospacePart>,
+    /// Pele's `now`: the time a gantt chart treats as now, in milliseconds since 1970. Unset or
+    /// not finite, it is the current time; a parity draw pins it to Pele's corpus clock.
+    pub now: Option<f64>,
 }
 
 /// A part of a diagram the host may set in the monospace font: Pele's `MonospacePart`.
@@ -209,6 +212,7 @@ impl Default for LayoutOptions {
             direction_breakpoint: None,
             resources: ResourcePolicy::default(),
             monospace: Vec::new(),
+            now: None,
         }
     }
 }
@@ -543,6 +547,9 @@ impl ParityScene {
     }
 }
 
+/// The clock Pele's corpus test and the oracle give a render: `Date.UTC(2026, 0, 15, 12)`.
+const PARITY_NOW: f64 = 1_768_478_400_000.0;
+
 /// Draws a source as Pele does with its default options.
 pub fn parity_scene(source: &str) -> Result<ParityScene, RenderError> {
     parity_scene_with(source, ParseOptions::default(), &LayoutOptions::default())
@@ -555,7 +562,8 @@ pub fn parity_scene_with(
     layout: &LayoutOptions,
 ) -> Result<ParityScene, RenderError> {
     let prepared = prepare(source, parse)?;
-    let scene = prepared.scene(NativeInputs { measure: &measure::ArialMetrics, options: layout })?;
+    let layout = LayoutOptions { now: layout.now.or(Some(PARITY_NOW)), ..layout.clone() };
+    let scene = prepared.scene(NativeInputs { measure: &measure::ArialMetrics, options: &layout })?;
     Ok(ParityScene { scene })
 }
 
