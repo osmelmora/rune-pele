@@ -209,3 +209,19 @@ Grouped into waves of 3–4 parallel workers on disjoint types, that is about 6 
 - A `title` line in a requirement diagram is a syntax error.
 - Trailing spaces after `requirementDiagram` are a syntax error.
 - A swimlane parse error names `flowchart` as its type.
+
+## 2026-11-15 Usecase merged; one key rule for parts with several labels
+
+**Result (measured, rerun by the parent after the merge).**
+- Corpus: usecase 24 of 24, with every earlier type unchanged. Total `522 222 0 300 0`.
+- `usecase_front.rs`: 21,922 inputs, 0 different, covering all four of Pele's error kinds.
+- `usecase_parity.rs`: 39,688 inputs, 0 different, with a 50-path coverage gate.
+- Cost: 3,099 TS lines in one run, at the top of the pilot rate. About 680 of the Rust lines reproduce V8's `JSON.parse` messages.
+
+**Decision.** Class and usecase each needed several labels in one part and facet, and each gave them distinct keys a different way.
+- Class numbered lines on from one label to the next. A label that wrapped differently would then shift the keys of every label after it.
+- Usecase counts labels: the first keeps `/{line}.{run}`, and later ones get `/{label}/{line}.{run}`.
+
+Usecase's rule was kept for both types, because a key should not move when an earlier sibling rewraps. Class's member keys changed to match, for example `node:Shape/attribute/1/0.0`. Byte parity does not read keys, so no SVG changed.
+
+**Finding (usecase).** Pele's JSON errors carry V8's own `JSON.parse` wording. A Node pin change can change those messages, so rerun `usecase_front` after any Node bump.
