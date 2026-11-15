@@ -415,9 +415,9 @@ fn longer_alternatives_lex_as_pele_does() {
         }
     }
     println!("names over a keyword {}, keywords {}, names over a title {}", reach[0], reach[1], reach[2]);
-    assert!(reach.iter().all(|&count| count > 100), "some path is never reached: {reach:?}");
     let ours: BTreeMap<String, &Value> = inputs.iter().map(|input| input.to_string()).zip(&answers).collect();
     compare("random sources in a table with longer alternatives", &inputs, |input| ours[&input.to_string()].clone());
+    assert!(reach.iter().all(|&count| count > 100), "some path is never reached: {reach:?}");
 }
 
 fn bits(value: f64) -> String {
@@ -493,11 +493,14 @@ fn palette_ours(input: &Value) -> Value {
     let found = probe::palette(rule, &input["config"].to_string());
     let style = found.svg.split("font-family:var(--pele-font,sans-serif)").nth(1).expect("a root style");
     let style = &style[..style.find('"').expect("the style ends")];
-    json!({ "style": units(style), "fills": found.fills })
-}
-
-fn palette_theirs(answer: &Value) -> Value {
-    json!({ "style": answer["style"], "fills": answer["fills"] })
+    // The ink of each of the eight series is the colour its fill names.
+    let inks: Vec<Value> = found.fills[..8]
+        .iter()
+        .map(|fill| {
+            fill.strip_prefix(" fill=\"").and_then(|ink| ink.strip_suffix('"')).map_or(Value::Null, |ink| json!(ink))
+        })
+        .collect();
+    json!({ "style": units(style), "inks": inks, "fills": found.fills })
 }
 
 #[test]
@@ -557,24 +560,11 @@ fn palette_matches_pele() {
         };
         inputs.push(json!({ "fn": "palette", "type": kind, "config": config }));
     }
-    let theirs = ask(&inputs);
-    let mut differences = Vec::new();
-    let mut set = 0;
-    for (input, theirs) in inputs.iter().zip(&theirs) {
-        set += usize::from(!theirs["style"].as_array().is_some_and(Vec::is_empty));
-        if palette_ours(input) != palette_theirs(theirs) {
-            differences.push(format!("{input}\n  ours {}\n  Pele {theirs}", palette_ours(input)));
-        }
-    }
-    println!("random palettes: {} inputs, {set} setting a colour, {} different", inputs.len(), differences.len());
+    let set = inputs.iter().filter(|input| !palette_ours(input)["style"].as_array().is_some_and(Vec::is_empty)).count();
+    println!("{set} of the random palettes set a colour");
+    compare("random palettes", &inputs, palette_ours);
     assert!(set > 1000, "only {set} palettes set a colour");
-    assert!(differences.is_empty(), "{} differ:\n{:#?}", differences.len(), &differences[..differences.len().min(10)]);
-    let real = harvested("palette");
-    let theirs = ask(real);
-    let differing =
-        real.iter().zip(&theirs).filter(|(input, theirs)| palette_ours(input) != palette_theirs(theirs)).count();
-    println!("harvested palettes: {} inputs, {differing} different", real.len());
-    assert_eq!(differing, 0);
+    compare("harvested palettes", harvested("palette"), palette_ours);
 }
 
 fn label_json(label: &probe::LabelProbe) -> Value {
@@ -683,8 +673,8 @@ fn plain_and_fit_labels_match_pele() {
         })
         .count();
     println!("fitLabel cut words in {cut} labels");
-    assert!(cut > 500, "fitLabel cut words in only {cut} labels");
     compare("random plainLabel and fitLabel calls", &inputs, ours);
+    assert!(cut > 500, "fitLabel cut words in only {cut} labels");
     compare("harvested plainLabel calls", harvested("plain_label"), ours);
     compare("harvested fitLabel calls", harvested("fit_label"), ours);
 }
@@ -733,8 +723,8 @@ fn literal_labels_match_pele() {
     });
     let wrapped = wrapped.count();
     println!("literalLabel wrapped {wrapped} labels");
-    assert!(wrapped > 2000, "literalLabel wrapped only {wrapped} labels");
     compare("random literalLabel calls", &inputs, ours);
+    assert!(wrapped > 2000, "literalLabel wrapped only {wrapped} labels");
     compare("harvested literalLabel calls", harvested("literal_label"), ours);
 }
 
@@ -760,8 +750,8 @@ fn break_labels_match_pele() {
         })
         .count();
     println!("breakLabel broke {broken} labels");
-    assert!(broken > 2000, "breakLabel broke only {broken} labels");
     compare("random breakLabel calls", &inputs, ours);
+    assert!(broken > 2000, "breakLabel broke only {broken} labels");
     compare("harvested breakLabel calls", harvested("break_label"), ours);
 }
 
@@ -807,8 +797,8 @@ fn fit_text_matches_pele() {
         }] += 1;
     }
     println!("fitText kept {}, shrank {}, cut {} and gave up on {} texts", reach[0], reach[1], reach[2], reach[3]);
-    assert!(reach.iter().all(|&count| count > 500), "fitText misses a path: {reach:?}");
     compare("random fitText calls", &inputs, ours);
+    assert!(reach.iter().all(|&count| count > 500), "fitText misses a path: {reach:?}");
     compare("harvested fitText calls", harvested("fit_text"), ours);
 }
 
@@ -902,8 +892,8 @@ fn left_labels_write_as_pele_writes_them() {
     }
     let written = inputs.iter().filter(|input| !left_label_ours(input).as_array().is_some_and(Vec::is_empty)).count();
     println!("leftLabelSvg wrote text for {written} labels");
-    assert!(written > 6000, "leftLabelSvg wrote text for only {written} labels");
     compare("random leftLabelSvg calls", &inputs, left_label_ours);
+    assert!(written > 6000, "leftLabelSvg wrote text for only {written} labels");
     compare("harvested leftLabelSvg calls", harvested("left_label"), left_label_ours);
 }
 
@@ -1145,8 +1135,8 @@ fn outlines_tokenize_and_parse_as_pele_does() {
         "outlines with nodes {}, decorations {}, metadata {}, parse errors {}, lexical errors {}",
         reach[0], reach[1], reach[2], reach[3], reach[4]
     );
-    assert!(reach.iter().all(|&count| count > 100), "an outline path is never reached: {reach:?}");
     compare("random outlines", &inputs, outline_ours);
+    assert!(reach.iter().all(|&count| count > 100), "an outline path is never reached: {reach:?}");
     // Pele's own parse is the one place a render tokenizes an outline.
     let parses = harvested("outline_parse");
     assert!(parses.len() > 30, "only {} harvested outlines", parses.len());
