@@ -24,6 +24,7 @@ fn render_with(source: &str, options: &Value) -> Result<Rendered, RenderError> {
     let mut layout = LayoutOptions::default();
     let number = |value: &Value| value.as_f64().expect("a number");
     let flag = |value: &Value| value.as_bool().expect("a boolean");
+    let count = |value: &Value| usize::try_from(value.as_u64().expect("a count")).expect("a count");
     let text = |value: &Value| value.as_str().expect("a string").to_owned();
     let list = |value: &Value| value.as_array().expect("a list").iter().map(text).collect::<Vec<String>>();
     for (name, value) in options.as_object().expect("options are an object") {
@@ -39,6 +40,8 @@ fn render_with(source: &str, options: &Value) -> Result<Rendered, RenderError> {
             "linkSchemes" => layout.resources.link_schemes = list(value),
             "linkRel" => layout.resources.link_rel = text(value),
             "config" => parse.config = HostConfig::from_init_json(&value.to_string())?,
+            "limit" => parse.limits.source_utf16 = count(value),
+            "outputLimit" => parse.limits.svg_utf16 = count(value),
             other => panic!("{other} is not a render option this test maps"),
         }
     }
@@ -499,4 +502,70 @@ fn random_state_diagrams_match_pele() {
     let tally = run("random", &cases).finish("random state diagrams");
     assert!(tally.identical > 3000, "most random state diagrams render");
     tally.reaches_every_path("random state diagrams");
+}
+
+/// Pele's own worst cases for state diagrams (`tests/state/stress.test.ts`) that render, each
+/// with the source limit lifted as that test lifts it.
+fn stress() -> Vec<String> {
+    let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();
+    let head = "stateDiagram-v2\n";
+    let n = 50_000;
+    vec![
+        format!(
+            "{head}classDef hot fill:#f00,color:white,font-weight:bold,stroke-width:2px,stroke:yellow\n{}",
+            repeat(1500, &|_| "A --> B\nB --> A\nclass A hot\n".to_owned())
+        ),
+        format!("{head}{}a-->b\n{}", repeat(3000, &|i| format!("state s{i}{{\n")), "}\n".repeat(3000)),
+        format!("{head}{}a\n{}", repeat(2500, &|i| format!("state s{i}{{\nx{i}\n--\n")), "}\n".repeat(2500)),
+        format!("{head}{}", repeat(5000, &|i| format!("state s{i}{{\n}}\n"))),
+        format!("{head}state s{{\n{}z\n}}\n", repeat(8000, &|i| format!("a{i}\n--\n"))),
+        format!("{head}{}", repeat(5000, &|i| format!("n{i}-->n{}\n", i + 1))),
+        format!("{head}{}", repeat(5000, &|i| format!("c-->n{i}\n"))),
+        format!("{head}state f <<fork>>\n{}", repeat(5000, &|i| format!("f-->n{i}\n"))),
+        format!(
+            "{head}{}",
+            (0..60).flat_map(|i| (i + 1..60).map(move |j| format!("n{i}-->n{j}\n"))).collect::<String>()
+        ),
+        format!("{head}{}{}", "a-->b\n".repeat(3000), "a-->a\n".repeat(3000)),
+        format!("{head}{}", "[*]-->[*]\n".repeat(n / 12)),
+        format!("{head}{}", repeat(2500, &|i| format!("note {} of a:n\n", if i % 2 == 1 { "left" } else { "right" }))),
+        format!("{head}{}", repeat(2000, &|i| format!("note right of s{i}:n\n"))),
+        format!("{head}{}", "a:x\n".repeat(n / 4)),
+        format!("{head}a : {}", "word ".repeat(n / 5)),
+        format!("{head}note right of a\n{}end note\n", "word *b _c\n".repeat(n / 11)),
+        format!("{head}a --> b : {}", "#35;<br>x ".repeat(n / 10)),
+        format!("{head}state \"{}\" as s {{\na\n}}\n", "w ".repeat(n / 2)),
+        format!("{head}a\n{}", repeat(5000, &|i| format!("class a c{i}\n"))),
+        format!("{head}class {}z c\n", repeat(8000, &|i| format!("s{i},"))),
+        format!("{head}a\nclassDef c {}x\nclass a c\n", "fill:red,".repeat(n / 9)),
+        format!("{head}a-->b\n{}", "style a,b fill:red\n".repeat(3000)),
+        format!("{head}a-->b\n{}", "click a \"u\" \"t\"\n".repeat(3000)),
+        format!("{head}a\nclick a \"&{}x\" \"t\"\n", "#38;".repeat(n / 4)),
+        format!(
+            "{head}{}z\n{}{}",
+            repeat(1500, &|i| format!("state s{i}{{\n")),
+            "}\n".repeat(1500),
+            repeat(1500, &|i| format!("s{i}-->z\n"))
+        ),
+        format!(
+            "{head}{}z\n{}{}",
+            repeat(1500, &|i| format!("state s{i}{{\n")),
+            "}\n".repeat(1500),
+            repeat(3000, &|i| format!("o{i}-->z\n"))
+        ),
+        format!("{head}{}", repeat(2000, &|i| format!("state a{i}{{\nstate a{}{{\n}}\n}}\n", (i + 1) % 2000))),
+        format!(
+            "{head}{}{}",
+            repeat(1200, &|i| format!("state a{i}{{\nstate a{}{{\nz{i}\n}}\n}}\n", (i + 1) % 1200)),
+            repeat(3000, &|i| format!("o{i}-->z{}\n", i % 1200))
+        ),
+        format!("{head}state root {{\n a --> b\n}}\nroot --> root\n"),
+    ]
+}
+
+#[test]
+fn stress_sources_match_pele() {
+    let options = json!({ "limit": 1_000_000_000u64, "outputLimit": 1_000_000_000u64 });
+    let cases: Vec<(String, Value)> = stress().into_iter().map(|source| (source, options.clone())).collect();
+    run("stress", &cases).finish("Pele's worst-case state diagrams");
 }
