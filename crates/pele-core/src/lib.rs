@@ -19,6 +19,10 @@ pub mod layout;
 // the API.
 #[doc(hidden)]
 pub use diagrams::block::layout as block_layout;
+// Public so that `tests/xychart_ticks.rs` can hold it to Pele bit for bit, and hidden because it
+// is no part of the API.
+#[doc(hidden)]
+pub use diagrams::xychart::ticks as xychart_ticks;
 mod measure;
 pub mod scene;
 pub mod svg;
@@ -591,6 +595,34 @@ pub fn cynefin_front_json(source: &str, options: ParseOptions) -> Result<String,
     let model = diagrams::cynefin::parse(&front.context(&origin, options.limits))
         .map_err(|error| tagged(error, front.found))?;
     Ok(diagrams::cynefin::json::front_json(&model))
+}
+
+/// The wardley front end's model as JSON, in the words of the oracle's `wardley_front` op, for
+/// the differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn wardley_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Wardley {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::wardley::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::wardley::json::front_json(&model))
+}
+
+/// The xychart front end's db as JSON, in the words of the oracle's `xychart_front` op, for the
+/// differential test. A source of another type answers only that type.
+#[doc(hidden)]
+pub fn xychart_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
+    let front = front(source, &options)?;
+    if front.found.kind != DiagramKind::Xychart {
+        return Ok(format!("{{\"type\":\"{}\"}}", front.found.kind.name()));
+    }
+    let origin = Origin { source };
+    let model = diagrams::xychart::parse(&front.context(&origin, options.limits))
+        .map_err(|error| tagged(error, front.found))?;
+    Ok(diagrams::xychart::json::front_json(&model))
 }
 
 impl Prepared {

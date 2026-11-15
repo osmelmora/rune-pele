@@ -20,3 +20,5 @@ pub(crate) mod state;
 pub(crate) mod swimlane;
 pub(crate) mod tokens;
 pub(crate) mod usecase;
+pub(crate) mod wardley;
+pub(crate) mod xychart;

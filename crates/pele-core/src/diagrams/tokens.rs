@@ -472,6 +472,11 @@ impl<'a> Reader<'a> {
         self.tokens.kinds[self.i]
     }
 
+    /// The kind of the token `ahead` places after this one, or `None` past the end.
+    pub(crate) fn peek(&self, ahead: usize) -> Option<usize> {
+        self.tokens.kinds.get(self.i + ahead).copied().flatten()
+    }
+
     fn text(&self, index: usize) -> &'a [u16] {
         &self.src[self.tokens.starts[index]..self.tokens.ends[index]]
     }

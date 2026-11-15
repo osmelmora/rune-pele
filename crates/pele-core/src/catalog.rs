@@ -298,7 +298,11 @@ diagram_catalog! {
     QuadrantChart => { name: "quadrantChart", detectors: [(19, "quadrantChart", starts(&["quadrantChart"]))] },
     Sankey => { name: "sankey", detectors: [(20, "sankey", starts(&["sankey"]))] },
     Packet => { name: "packet", detectors: [(21, "packet", starts(&["packet"]))] },
-    Xychart => { name: "xychart", detectors: [(22, "xychart", starts(&["xychart"]))] },
+    Xychart => {
+        name: "xychart",
+        port: { diagram: diagrams::xychart::Xychart, section: "xyChart", palette: PaletteRule::PlotColors },
+        detectors: [(22, "xychart", starts(&["xychart"]))],
+    },
     Block => {
         name: "block",
         port: { diagram: diagrams::block::Block, section: "block", palette: PaletteRule::None },
@@ -322,7 +326,11 @@ diagram_catalog! {
         ],
     },
     Venn => { name: "venn", detectors: [(33, "venn", starts(&["venn-beta"]))] },
-    Wardley => { name: "wardley", detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())] },
+    Wardley => {
+        name: "wardley",
+        port: { diagram: diagrams::wardley::Wardley, section: "wardley-beta", palette: PaletteRule::None },
+        detectors: [(34, "wardley", starts(&["wardley-beta"]).caseless())],
+    },
     Cynefin => {
         name: "cynefin",
         port: { diagram: diagrams::cynefin::Cynefin, section: "cynefin", palette: PaletteRule::None },

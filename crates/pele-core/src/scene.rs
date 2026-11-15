@@ -744,6 +744,10 @@ impl PathProgram {
     pub(crate) fn a_by(self, radii: [Number; 2], large: bool, sweep: bool, end: [Number; 2]) -> Self {
         self.then(PathStep::ArcBy { radii, large, sweep, end })
     }
+
+    pub(crate) fn v_by(self, y: Number) -> Self {
+        self.then(PathStep::VerticalBy(y))
+    }
 }
 
 pub(crate) mod paths {
@@ -908,6 +912,12 @@ pub(crate) enum Transform {
     Rotate {
         degrees: Number,
         centre: [Number; 2],
+    },
+    /// A move by `translate`, then a turn by `degrees` about the point moved to, written
+    /// `translate(x,y) rotate(degrees)`.
+    TranslateRotate {
+        translate: [Number; 2],
+        degrees: Number,
     },
 }
 
@@ -1091,6 +1101,11 @@ impl Entity {
     /// its own, which Pele numbers in source order.
     pub(crate) fn node_written_as(name: &JsText, written: &JsText) -> Self {
         Entity { author_text: written.clone(), ..Entity::named(EntityKind::Node, name) }
+    }
+
+    /// A series of a chart, such as an xychart's bars or line, named by its title.
+    pub(crate) fn series(title: &JsText) -> Self {
+        Entity::named(EntityKind::Section, title)
     }
 
     pub(crate) fn note(id: &JsText) -> Self {
@@ -1427,6 +1442,14 @@ impl LayerSpec {
         self.with(Field::Stroke, |p| p.stroke = Some(paint))
     }
 
+    /// Moves the group's drawing to `point` and turns it there by `degrees`, as an xychart turns
+    /// its left axis title.
+    pub(crate) fn translate_rotate(self, point: Point, degrees: f64) -> Self {
+        let translate = [Number::num(point.x), Number::num(point.y)];
+        let transform = Transform::TranslateRotate { translate, degrees: Number::raw(degrees) };
+        self.with(Field::Transform, |p| p.transform = Some(transform))
+    }
+
     /// Turns the group's drawing by `degrees` about `centre`.
     pub(crate) fn rotate(self, degrees: f64, centre: Point) -> Self {
         let transform =
@@ -1548,6 +1571,13 @@ impl LabelLook {
     /// inside a stroked group is written with `stroke="none"`.
     pub(crate) fn stroke_paint(self, paint: Paint) -> Self {
         LabelLook(self.0.set(Field::Stroke, |p| p.stroke = Some(paint)))
+    }
+
+    /// Turns the text element by `degrees` about `centre`, written where this is called, as a
+    /// wardley map's visibility axis title is turned upright.
+    pub(crate) fn rotate(self, degrees: Number, centre: [Number; 2]) -> Self {
+        let transform = Transform::Rotate { degrees, centre };
+        LabelLook(self.0.set(Field::Transform, |p| p.transform = Some(transform)))
     }
 }
 
@@ -1967,6 +1997,57 @@ impl SceneBuilder {
         self.push(attributes, NodeContent::Text(text));
     }
 
+    /// Pele's `startLabel` (`wardley/render.ts`): a label whose lines start at `x`, with the
+    /// baseline of its first line at `baseline` and each next one a line height lower. Each line's
+    /// first run carries the line's point and a line with no runs writes nothing. No anchor is
+    /// written, so the text starts where the groups around it say. The emphasis every run has is
+    /// written once, unless the look already writes that attribute. Nothing is drawn when no line
+    /// has a run.
+    pub(crate) fn start_lines(
+        &mut self,
+        part: PartId,
+        facet: Facet,
+        label: &Label,
+        x: f64,
+        baseline: f64,
+        look: LabelLook,
+    ) {
+        let mut kept = Label { lines: Vec::new(), ..label.clone() };
+        let mut lines = Vec::new();
+        let mut y = baseline;
+        for line in &label.lines {
+            if !line.runs.is_empty() {
+                lines.push([Number::num(x), Number::num(y)]);
+                kept.lines.push(line.clone());
+            }
+            y += label.line_height;
+        }
+        if kept.lines.is_empty() {
+            return;
+        }
+        let runs = || label.lines.iter().flat_map(|line| &line.runs).filter(|run| !run.text.is_empty());
+        let shared = Emphasis {
+            bold: runs().all(|run| run.style.bold),
+            italic: runs().all(|run| run.style.italic),
+            mono: runs().all(|run| run.style.mono),
+            ..Emphasis::default()
+        };
+        let shared = if runs().next().is_some() { shared } else { Emphasis::default() };
+        let mut attributes = Attributes { part: Some(part), facet: Some(facet), ..look.0 };
+        let gives = |attributes: &Attributes, field: Field| attributes.emission.contains(&field);
+        if shared.bold && !gives(&attributes, Field::FontWeight) {
+            attributes = attributes.set(Field::FontWeight, |p| p.weight = Some(TextWeight::Bold));
+        }
+        if shared.italic && !gives(&attributes, Field::FontStyle) {
+            attributes.emission.push(Field::FontStyle);
+        }
+        if shared.mono && !gives(&attributes, Field::FontFamily) {
+            attributes = attributes.set(Field::FontFamily, |p| p.mono = true);
+        }
+        let text = PlacedText { label: kept, emission: TextEmission::Rich { lines, shared } };
+        self.push(attributes, NodeContent::Text(text));
+    }
+
     /// Plain text at a baseline point, for text whose group sets its anchor and size.
     pub(crate) fn baseline_text(&mut self, part: PartId, label: Label, at: [Number; 2], fill: Option<Paint>) {
         let mut attributes = Attributes::of(part, Facet::Label).geometry(&[GeometryField::X, GeometryField::Y]);
@@ -2225,6 +2306,10 @@ impl ShapeElement<'_> {
         self.with(Field::StrokeJoin, |p| p.join = Some(join))
     }
 
+    pub(crate) fn cap(self, cap: LineCap) -> Self {
+        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
+    }
+
     /// Dashes and the gaps between them, in turn.
     pub(crate) fn dash(self, pattern: &[Number]) -> Self {
         self.with(Field::DashArray, |p| p.dash = pattern.to_vec())
@@ -2233,10 +2318,6 @@ impl ShapeElement<'_> {
     /// A solid stroke inside a group that dashes its strokes: `stroke-dasharray="none"`.
     pub(crate) fn undashed(self) -> Self {
         self.with(Field::DashArray, |p| p.undashed = true)
-    }
-
-    pub(crate) fn cap(self, cap: LineCap) -> Self {
-        self.with(Field::StrokeCap, |p| p.cap = Some(cap))
     }
 
     pub(crate) fn style(mut self, style: Option<Style>) -> Self {
