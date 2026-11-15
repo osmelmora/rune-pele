@@ -341,3 +341,29 @@ That is 13 runs in all (inferred from the wave 1 rate). Wave 1 held at 2,100 to 
 - Sankey, treemap, journey and c4 put a `<title>` inside a shape.
 - Sequence and architecture use icons.
 - Math labels have no walk geometry yet.
+
+## 2026-11-15 Wave 2a: block and C4 merged
+
+**Result (measured, rerun by the parent after each merge).** Corpus: block 30 of 30 and c4 6 of 6, with every earlier type unchanged. Total `522 295 0 227 0`. `mise run check` passes and the doctor is ok.
+- **Block.**
+  - `block_front` covers 15,147 inputs.
+  - `block_layout` replays 2,947 recorded and 3,000 random grid layouts bit for bit.
+  - `block_parity` covers 25,527 inputs, with a 50-path coverage gate.
+  - All 0 different.
+  - `break-block.mjs` turns all 7 of its breaks red when the parent reruns it.
+  - Cost: 2,149 TS lines in one run.
+- **C4.**
+  - `c4_front` covers 20,586 inputs.
+  - `c4_layout` checks about 300,000 layouts and 85,000 routes bit for bit.
+  - `c4_parity` covers 31,746 inputs, with a 63-path coverage gate.
+  - All 0 different.
+  - Six deliberate breaks.
+  - Cost: 2,112 TS lines in one run.
+
+**Findings.**
+- `atan2` and `asin` (block) come from libm, as `sin` and `cos` do. Expect the same ulp-level risk. The tests show no differences.
+- C4's random generator never reaches Pele's "careless" routing mode, which starts at about 800 relations. One Pele worst case of 2,450 relations covers it, identically.
+- C4 has no walk test of Scene keys yet. Add one before C4's Rune gate opens.
+- Two workers (c4 and sequence) ended a turn to wait on a background job, which never resumes a delegated turn. Both were sent back. `wave2-common.md` now tells workers to run long commands in the foreground.
+
+**Doc rule.** The whole-corpus recipe in `features/parity.md` no longer lists each type's row. It says that every ported row reads `<n> <n> 0 0 0` and gives the current total.
