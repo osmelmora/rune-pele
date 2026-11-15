@@ -117,14 +117,11 @@ function errorOut(error: unknown): Json {
   return { message: units(error.message), line: error.line, column: error.column };
 }
 
-// An outline db that records each call the grammar's actions make.
+// An outline db that records each call the grammar's actions make. `getType` is Pele's own, whose
+// answer each addNode call shows.
 function recordingDb(calls: Json[]): OutlineDb {
   return {
-    getType(start, end) {
-      const type = getType(start, end);
-      calls.push({ call: 'getType', start: units(start), end: units(end), type });
-      return type;
-    },
+    getType,
     addNode(level, id, descr, type, shapeData) {
       calls.push({ call: 'addNode', level, id: units(id), descr: units(descr), type, shapeData: shapeData === undefined ? null : units(shapeData) });
     },

@@ -4,8 +4,8 @@
 
 use crate::Script;
 use crate::catalog::DrawContext;
-use crate::diagrams::scan;
 use crate::diagrams::tokens::{self, Matcher, TokenType};
+use crate::diagrams::{outline, scan};
 use crate::input::{self, JsObject, JsValue, Units};
 use crate::measure::{self, ArialMetrics, Emphasis, Label, LabelLine, LabelRun};
 use crate::scene::{
@@ -395,4 +395,58 @@ pub fn left_label_runs(label: &LabelProbe, x: f64, top: f64) -> Vec<BaselineRun>
             _ => None,
         })
         .collect()
+}
+
+/// One token of the outline grammar: its place in Pele's numbering, its text and its start.
+pub fn outline_tokenize(src: &[u16], kanban: bool) -> Vec<(u8, Vec<u16>, usize)> {
+    outline::tokenize(src, kanban)
+        .into_iter()
+        .map(|token| (token.kind as u8, token.text.to_vec(), token.start))
+        .collect()
+}
+
+/// A call the outline grammar's actions make on a db.
+#[derive(Clone, Debug, PartialEq)]
+pub enum OutlineCall {
+    AddNode { level: usize, id: Vec<u16>, descr: Vec<u16>, shape: u8, shape_data: Option<Vec<u16>> },
+    Icon(Vec<u16>),
+    Class(Vec<u16>),
+}
+
+struct Recording(Vec<OutlineCall>);
+
+impl outline::OutlineDb for Recording {
+    type Error = std::convert::Infallible;
+
+    fn add_node(&mut self, node: outline::OutlineNode<'_>) -> Result<(), Self::Error> {
+        self.0.push(OutlineCall::AddNode {
+            level: node.level,
+            id: node.id.to_vec(),
+            descr: node.descr.to_vec(),
+            shape: node.shape as u8,
+            shape_data: node.shape_data.map(<[u16]>::to_vec),
+        });
+        Ok(())
+    }
+
+    fn decorate_node(&mut self, decoration: outline::Decoration<'_>) {
+        self.0.push(match decoration {
+            outline::Decoration::Icon(icon) => OutlineCall::Icon(icon.to_vec()),
+            outline::Decoration::Class(class) => OutlineCall::Class(class.to_vec()),
+        });
+    }
+}
+
+/// Where the outline grammar stopped: the offset, Pele's detail, and whether no token matched.
+pub type OutlineStop = (usize, String, bool);
+
+/// Pele's `parseOutline` on a db that records each call, with where it stopped, if it did.
+pub fn outline_parse(src: &[u16], kanban: bool) -> (Vec<OutlineCall>, Option<OutlineStop>) {
+    let mut db = Recording(Vec::new());
+    let stop = match outline::parse_outline(src, &mut db, kanban) {
+        Ok(()) => None,
+        Err(outline::OutlineError::Syntax(error)) => Some((error.at, error.detail, error.lexical)),
+        Err(outline::OutlineError::Db(never)) => match never {},
+    };
+    (db.0, stop)
 }

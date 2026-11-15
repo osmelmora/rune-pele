@@ -6,7 +6,8 @@
 //   mise exec -- node scripts/harvest-common.mjs
 //
 // `sources` are each importing type's documentation corpus, then the string literals that hold a
-// line break in that type's folder of vendor/pele/tests and in its tests/support/<type>-oracle.ts.
+// line break in that type's folders of vendor/pele/tests, Pele's own and the Mermaid specs under
+// compat/, and in its tests/support/<type>-oracle.ts.
 // Rerunning at the same Pele pin writes the same file.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -57,7 +58,8 @@ function add(text, from) {
 for (const type of TYPES) {
   for (const text of JSON.parse(readFileSync(join(tests, `corpus/${type}-docs.json`), 'utf8'))) add(text, `corpus/${type}-docs.json`);
   const support = join(tests, `support/${type}-oracle.ts`);
-  for (const file of [...files(join(tests, type)), ...(existsSync(support) ? [support] : [])]) {
+  const folders = [join(tests, type), join(tests, 'compat', type)].filter((folder) => existsSync(folder));
+  for (const file of [...folders.flatMap(files), ...(existsSync(support) ? [support] : [])]) {
     const from = relative(tests, file);
     for (const match of readFileSync(file, 'utf8').matchAll(RE_LITERAL)) {
       const text = value(match[1] ?? match[2] ?? match[3]);

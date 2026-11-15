@@ -67,6 +67,9 @@ fn line(op: &str, value: &Value) -> String {
 
 /// Asks the oracle's `common` op once per input.
 fn ask(inputs: &[Value]) -> Vec<Value> {
+    if inputs.is_empty() {
+        return Vec::new();
+    }
     let requests: Vec<String> = inputs.iter().map(|input| line("common", input)).collect();
     pele_oracle::ask(&requests)
         .iter()
@@ -986,4 +989,171 @@ fn the_walk_places_left_label_runs_where_the_svg_does() {
     }
     println!("the walk placed {runs} runs where the SVG does");
     assert!(runs > 3000, "the walk placed only {runs} runs");
+}
+
+fn outline_ours(input: &Value) -> Value {
+    let src = units_of(&input["src"]);
+    let kanban = input["kanban"].as_bool().expect("kanban or not");
+    match input["fn"].as_str() {
+        Some("outline_tokenize") => {
+            let tokens = probe::outline_tokenize(&src, kanban);
+            json!({
+                "types": tokens.iter().map(|token| token.0).collect::<Vec<_>>(),
+                "texts": tokens.iter().map(|token| token.1.clone()).collect::<Vec<_>>(),
+                "starts": tokens.iter().map(|token| token.2).collect::<Vec<_>>(),
+            })
+        }
+        _ => {
+            let (calls, stop) = probe::outline_parse(&src, kanban);
+            let call = |call: &probe::OutlineCall| match call {
+                probe::OutlineCall::AddNode { level, id, descr, shape, shape_data } => json!({
+                    "call": "addNode", "level": level, "id": id, "descr": descr, "type": shape, "shapeData": shape_data,
+                }),
+                probe::OutlineCall::Icon(icon) => json!({ "call": "decorateNode", "icon": icon, "class": null }),
+                probe::OutlineCall::Class(class) => json!({ "call": "decorateNode", "icon": null, "class": class }),
+            };
+            let error = stop.map_or(Value::Null, |(at, detail, lexical)| syntax_error(&src, at, &detail, lexical));
+            json!({ "calls": calls.iter().map(call).collect::<Vec<_>>(), "error": error })
+        }
+    }
+}
+
+/// Lines an outline holds: nodes with and without delimiters and metadata, decorations and
+/// comments, each set in, with now and then a piece of noise.
+fn outline_lines(rng: &mut Rng, kanban: bool, noise: &[&str]) -> Vec<u16> {
+    let pairs = [
+        ("[", "]"),
+        ("(", ")"),
+        ("((", "))"),
+        ("))", "(("),
+        (")", "("),
+        ("{{", "}}"),
+        ("(-", "-)"),
+        ("-)", "(-"),
+        ("(", "]"),
+    ];
+    let mut out = String::new();
+    for _ in 0..1 + rng.below(8) {
+        out.push_str(rng.pick(&["", "  ", "    ", "\t", "      ", " "]));
+        match rng.below(7) {
+            0 | 1 => out.push_str(rng.pick(&["root", "Item 1", "id", "a b", "x"])),
+            2 | 3 => {
+                let (open, close) = *rng.pick(&pairs);
+                let descr = *rng.pick(&["text", "Two words", "\"quoted [x]\"", "\"`**md** b`\"", "a<br>b"]);
+                let id = *rng.pick(&["", "id", "n1"]);
+                out.push_str(&format!("{id}{open}{descr}{close}"));
+            }
+            4 => out.push_str(rng.pick(&["::icon(fa fa-book)", "::icon(mdi:home)", ":::urgent", ":::a b"])),
+            5 => out.push_str("%% a comment"),
+            _ => out.push_str(rng.pick(&["Task", "[Task]"])),
+        }
+        if kanban && rng.below(3) == 0 {
+            out.push_str(rng.pick(&[
+                "@{ shape: rect }",
+                "@{ ticket: \"MC-1\", label: \"a\n   b\" }",
+                "@{ priority: 'High' }",
+                "@{}",
+            ]));
+        }
+        if rng.below(12) == 0 {
+            out.push_str(rng.pick(noise));
+        }
+        out.push_str(rng.pick(&["\n", "\n", "\r\n", "\n\n"]));
+    }
+    units(&out)
+}
+
+#[test]
+fn outlines_tokenize_and_parse_as_pele_does() {
+    let pieces = [
+        "mindmap",
+        "kanban",
+        "MindMap",
+        "\n",
+        "\n",
+        "\n",
+        "  ",
+        "    ",
+        "\t",
+        "\r\n",
+        "root",
+        "id",
+        "Item 1",
+        "[",
+        "]",
+        "(",
+        ")",
+        "((",
+        "))",
+        "{{",
+        "}}",
+        "}",
+        "-)",
+        "(-",
+        "\"",
+        "\"quoted\"",
+        "`",
+        "\"`**md**`\"",
+        "::icon(fa fa-book)",
+        "::icon(",
+        ":::urgent",
+        ":::",
+        "::ICON(x)",
+        "%% comment",
+        "%%",
+        "@{",
+        "@{ shape: rect }",
+        "@{ label: \"a\n  b\" }",
+        "@{ ticket: \"x\" }",
+        "^",
+        "@",
+        "x y",
+        "é",
+        "😀",
+        "\u{a0}",
+        "\u{2028}",
+        "#",
+        ":",
+    ];
+    let mut rng = Rng(0x0071_1e55);
+    let mut inputs = Vec::new();
+    for round in 0..12_000 {
+        let kanban = rng.below(2) == 0;
+        let mut src = if rng.below(5) == 0 { Vec::new() } else { units(if kanban { "kanban\n" } else { "mindmap\n" }) };
+        if round % 2 == 0 {
+            src.extend(rng.text(&pieces, 16));
+        } else {
+            src.extend(outline_lines(&mut rng, kanban, &pieces));
+        }
+        let helper = if rng.below(3) == 0 { "outline_tokenize" } else { "outline_parse" };
+        inputs.push(json!({ "fn": helper, "src": text_value(&src), "kanban": kanban }));
+    }
+    // A parse that draws nodes, decorates one, carries metadata, or stops with each kind of error.
+    let mut reach = [0usize; 5];
+    for input in inputs.iter().filter(|input| input["fn"] == "outline_parse") {
+        let answer = outline_ours(input);
+        let calls = answer["calls"].as_array().expect("calls");
+        reach[0] += usize::from(calls.iter().filter(|call| call["call"] == "addNode").count() > 1);
+        reach[1] += usize::from(calls.iter().any(|call| call["call"] == "decorateNode"));
+        reach[2] += usize::from(calls.iter().any(|call| !call["shapeData"].is_null() && call["call"] == "addNode"));
+        let message = &answer["error"]["message"];
+        let message = if message.is_null() { String::new() } else { String::from_utf16_lossy(&units_of(message)) };
+        reach[3] += usize::from(message.starts_with("Parse error"));
+        reach[4] += usize::from(message.starts_with("Lexical error"));
+    }
+    println!(
+        "outlines with nodes {}, decorations {}, metadata {}, parse errors {}, lexical errors {}",
+        reach[0], reach[1], reach[2], reach[3], reach[4]
+    );
+    assert!(reach.iter().all(|&count| count > 100), "an outline path is never reached: {reach:?}");
+    compare("random outlines", &inputs, outline_ours);
+    // Pele's own parse is the one place a render tokenizes an outline.
+    let parses = harvested("outline_parse");
+    assert!(parses.len() > 30, "only {} harvested outlines", parses.len());
+    let tokenizations: Vec<Value> = parses
+        .iter()
+        .map(|input| json!({ "fn": "outline_tokenize", "src": input["src"], "kanban": input["kanban"] }))
+        .collect();
+    compare("harvested outline tokenizations", &tokenizations, outline_ours);
+    compare("harvested outline parses", parses, outline_ours);
 }
