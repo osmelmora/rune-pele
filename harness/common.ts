@@ -5,8 +5,8 @@
 // travel as JSON, and answer as arrays of UTF-16 code units, so a lone surrogate survives both
 // ways. Doubles travel as 16 hex digits of their bits, as in oracle.ts.
 //
-// `common_record` renders a source as the corpus test does and answers every distinct input the
-// render gave the helpers, in the form `common` takes. harness/build.mjs routes the helpers through
+// `common_record` renders a source as the corpus test does, with any render options laid over, and
+// answers every distinct input the render gave the helpers, in the form `common` takes. harness/build.mjs routes the helpers through
 // `globalThis.peleCommonTap`, which is how a call made by a real render is seen.
 import { PeleError, render } from '../vendor/pele/src/index.ts';
 import { ACC_TITLE, DIRECTIVE, NEWLINE, SINGLE_LINE_COMMENT, STRING, WHITESPACE, YAML, keyword, titleBefore, tokenize, type TokenType } from '../vendor/pele/src/diagrams/common/tokens.ts';
@@ -256,7 +256,7 @@ function wellFormed(value: unknown): boolean {
   return true;
 }
 
-function record(source: string): Json {
+function record(source: string, options: Json): Json {
   const seen = new Set<string>();
   const inputs: Json[] = [];
   const skipped: Record<string, number> = {};
@@ -294,7 +294,7 @@ function record(source: string): Json {
   let type: string | null = null;
   (globalThis as { peleCommonTap?: Tap }).peleCommonTap = tap;
   try {
-    type = render(source, { measurer: metricsMeasurer, now: Date.UTC(2026, 0, 15, 12) }).type;
+    type = render(source, { measurer: metricsMeasurer, now: Date.UTC(2026, 0, 15, 12), ...options }).type;
   } catch (error) {
     type = error instanceof PeleError ? error.type : null;
   } finally {
@@ -313,5 +313,5 @@ export const commonOps: Record<string, (args: string[]) => string> = {
     if (!helper) throw new Error(`oracle: no common helper ${json.fn}`);
     return JSON.stringify(helper(json));
   },
-  common_record: ([source]) => JSON.stringify(record(JSON.parse(source) as string)),
+  common_record: ([source, options]) => JSON.stringify(record(JSON.parse(source) as string, options ? (JSON.parse(options) as Json) : {})),
 };

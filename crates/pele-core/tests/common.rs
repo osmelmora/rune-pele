@@ -83,7 +83,13 @@ fn harvested(helper: &str) -> &'static [Value] {
         let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         let harvest: Value = serde_json::from_str(&text).expect("the harvest is JSON");
         let sources = harvest["sources"].as_array().expect("a list of sources");
-        let requests: Vec<String> = sources.iter().map(|source| line("common_record", source)).collect();
+        // Each source as Pele draws it by default, and in a host 320 and 640 pixels wide.
+        let requests: Vec<String> = [json!({}), json!({ "maxWidth": 320 }), json!({ "maxWidth": 640 })]
+            .iter()
+            .flat_map(|options| {
+                sources.iter().map(move |source| format!("{}\t{options}", line("common_record", source)))
+            })
+            .collect();
         let mut seen = HashSet::new();
         let mut by_helper: BTreeMap<String, Vec<Value>> = BTreeMap::new();
         for answer in pele_oracle::ask(&requests) {
@@ -407,4 +413,161 @@ fn longer_alternatives_lex_as_pele_does() {
     assert!(reach.iter().all(|&count| count > 100), "some path is never reached: {reach:?}");
     let ours: BTreeMap<String, &Value> = inputs.iter().map(|input| input.to_string()).zip(&answers).collect();
     compare("random sources in a table with longer alternatives", &inputs, |input| ours[&input.to_string()].clone());
+}
+
+fn bits(value: f64) -> String {
+    format!("{:016x}", value.to_bits())
+}
+
+fn double(value: &Value) -> f64 {
+    f64::from_bits(u64::from_str_radix(value.as_str().expect("a double as hex"), 16).expect("16 hex digits"))
+}
+
+fn optional(value: &Value) -> Option<f64> {
+    (!value.is_null()).then(|| double(value))
+}
+
+/// A double as the oracle answers it, with every NaN spelled as JavaScript's one NaN.
+fn number(value: f64) -> String {
+    if value.is_nan() { bits(f64::NAN) } else { bits(value) }
+}
+
+#[test]
+fn cap_width_matches_pele() {
+    let mut rng = Rng(0xca9_3d7);
+    let width = |rng: &mut Rng| match rng.below(8) {
+        0 => f64::NAN,
+        1 => 0.0,
+        2 => -(rng.below(500) as f64),
+        3 => f64::INFINITY,
+        _ => rng.below(200_000) as f64 / 100.0,
+    };
+    let mut inputs = Vec::new();
+    for _ in 0..20_000 {
+        let max_width = if rng.below(4) == 0 { Value::Null } else { json!(bits(width(&mut rng))) };
+        let around = if rng.below(3) == 0 { Value::Null } else { json!(bits(width(&mut rng))) };
+        let (natural, least) = (bits(width(&mut rng)), bits(width(&mut rng)));
+        inputs.push(
+            json!({ "fn": "cap_width", "maxWidth": max_width, "natural": natural, "least": least, "around": around }),
+        );
+    }
+    let ours = |input: &Value| {
+        let natural = double(&input["natural"]);
+        let width = probe::cap_width(
+            optional(&input["maxWidth"]),
+            natural,
+            double(&input["least"]),
+            optional(&input["around"]),
+        );
+        json!(number(width))
+    };
+    compare("random capWidth calls", &inputs, ours);
+    compare("harvested capWidth calls", harvested("cap_width"), ours);
+}
+
+/// Pele's `PALETTES`, and xychart's list, as this port's rules. Kept beside the type names so
+/// that the oracle, which reads Pele's own table, checks each one.
+const PALETTES: [(&str, probe::Palette); 10] = [
+    ("pie", probe::Palette::Slots("pie", 1)),
+    ("gitGraph", probe::Palette::Slots("git", 0)),
+    ("timeline", probe::Palette::Slots("cScale", 0)),
+    ("radar", probe::Palette::Slots("cScale", 0)),
+    ("treemap", probe::Palette::Slots("cScale", 0)),
+    ("mindmap", probe::Palette::Slots("cScale", 1)),
+    ("venn", probe::Palette::Repeated("venn", 1)),
+    ("xychart", probe::Palette::PlotColors),
+    ("journey", probe::Palette::None),
+    ("flowchart", probe::Palette::None),
+];
+
+/// What our palette writes, in the form of the oracle's answer: the style the root appends, and
+/// the fill of text on each series.
+fn palette_ours(input: &Value) -> Value {
+    let kind = input["type"].as_str().expect("a type");
+    let rule = PALETTES.iter().find(|(name, _)| *name == kind).map_or(probe::Palette::None, |(_, rule)| *rule);
+    let found = probe::palette(rule, &input["config"].to_string());
+    let style = found.svg.split("font-family:var(--pele-font,sans-serif)").nth(1).expect("a root style");
+    let style = &style[..style.find('"').expect("the style ends")];
+    json!({ "style": units(style), "fills": found.fills })
+}
+
+fn palette_theirs(answer: &Value) -> Value {
+    json!({ "style": answer["style"], "fills": answer["fills"] })
+}
+
+#[test]
+fn palette_matches_pele() {
+    let colours = [
+        json!("#4c78a8"),
+        json!("#ABCDEF"),
+        json!("#12"),
+        json!("  red  "),
+        json!("grey"),
+        json!("Gray"),
+        json!("nope"),
+        json!("rgb(1, 2, 3)"),
+        json!("rgb(1,\u{b}2,3)"),
+        json!("rgba(0,0,0,0.2)"),
+        json!("hsl(120, 100%, 25%)"),
+        json!("var(--pele-accent)"),
+        json!("var(--other)"),
+        json!("url(x)"),
+        json!(""),
+        json!(null),
+        json!(5),
+        json!(true),
+        json!("red;x"),
+        json!("rgb(1,2,3"),
+        json!(")("),
+        json!("color-mix(in srgb, red 20%, blue)"),
+        json!("light-dark(#fff, #000)"),
+        json!("transparent"),
+        json!("a".repeat(201)),
+        json!(["red"]),
+        json!("#11223380"),
+        json!("rgb(0 128 255 / 50%)"),
+    ];
+    let mut rng = Rng(0x9a1e_77e5);
+    let mut inputs = Vec::new();
+    for _ in 0..4000 {
+        let (kind, rule) = PALETTES[rng.below(PALETTES.len())];
+        let prefix = match rule {
+            probe::Palette::Slots(prefix, _) | probe::Palette::Repeated(prefix, _) => prefix,
+            _ => *rng.pick(&["pie", "cScale", "venn", "git"]),
+        };
+        let mut variables = serde_json::Map::new();
+        for _ in 0..rng.below(10) {
+            variables.insert(format!("{prefix}{}", rng.below(11)), rng.pick(&colours).clone());
+        }
+        if rng.below(3) == 0 {
+            let list: Vec<String> =
+                (0..rng.below(6)).map(|_| rng.pick(&colours).as_str().unwrap_or("#000").to_owned()).collect();
+            let list = if rng.below(6) == 0 { json!(7) } else { json!(list.join(rng.pick(&[",", ", ", " ,"]))) };
+            variables.insert("xyChart".to_owned(), json!({ "plotColorPalette": list }));
+        }
+        let config = match rng.below(12) {
+            0 => json!({ "themeVariables": "red" }),
+            1 => json!({ "themeVariables": [variables] }),
+            _ => json!({ "themeVariables": variables }),
+        };
+        inputs.push(json!({ "fn": "palette", "type": kind, "config": config }));
+    }
+    let theirs = ask(&inputs);
+    let mut differences = Vec::new();
+    let mut set = 0;
+    for (input, theirs) in inputs.iter().zip(&theirs) {
+        set += usize::from(!theirs["style"].as_array().is_some_and(Vec::is_empty));
+        if palette_ours(input) != palette_theirs(theirs) {
+            differences.push(format!("{input}\n  ours {}\n  Pele {theirs}", palette_ours(input)));
+        }
+    }
+    println!("random palettes: {} inputs, {set} setting a colour, {} different", inputs.len(), differences.len());
+    assert!(set > 1000, "only {set} palettes set a colour");
+    assert!(differences.is_empty(), "{} differ:\n{:#?}", differences.len(), &differences[..differences.len().min(10)]);
+    let real = harvested("palette");
+    let theirs = ask(real);
+    let differing =
+        real.iter().zip(&theirs).filter(|(input, theirs)| palette_ours(input) != palette_theirs(theirs)).count();
+    println!("harvested palettes: {} inputs, {differing} different", real.len());
+    assert_eq!(differing, 0);
 }

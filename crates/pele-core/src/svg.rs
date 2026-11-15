@@ -53,7 +53,7 @@ fn role(role: Role) -> &'static str {
 }
 
 /// The value of a paint attribute, or `None` where Pele writes no attribute at all.
-fn paint(scene: &Scene, paint: Paint) -> Option<String> {
+pub(crate) fn paint(scene: &Scene, paint: Paint) -> Option<String> {
     Some(match paint {
         Paint::None => "none".to_owned(),
         Paint::Role(named) => role(named).to_owned(),

@@ -179,13 +179,19 @@ pub enum Facet {
     Row,
 }
 
-/// Mermaid's palette theme variables for one diagram type: the name before the number, and the
-/// number of the variable for the first series.
+/// Where a diagram type's theme variables set its series colours, as Pele's `PALETTES` says.
 #[derive(Clone, Copy)]
 pub(crate) enum PaletteRule {
     /// The type has no series colours.
     None,
+    /// One variable per series: the name before the number, and the number of the variable for
+    /// the first series.
     Slots(&'static str, usize),
+    /// As `Slots`, but the colours that are set repeat in order to fill all eight series, as
+    /// venn's do.
+    Repeated(&'static str, usize),
+    /// xychart's `xyChart.plotColorPalette`: colours between commas, repeated to fill all eight.
+    PlotColors,
 }
 
 /// A series colour the source sets, as it was accepted and as it is written.
@@ -205,12 +211,36 @@ pub(crate) struct SourcePalette {
 impl SourcePalette {
     /// Pele's `palette`: an entry that is not a usable colour leaves its series in the theme's colour.
     pub(crate) fn from_config(rule: PaletteRule, config: &JsObject) -> Self {
-        let PaletteRule::Slots(prefix, first) = rule else {
-            return SourcePalette::default();
-        };
         let variables = config.get("themeVariables").and_then(JsValue::as_record);
+        let numbered = |prefix: &str, first: usize| -> Vec<Option<JsValue>> {
+            (0..8).map(|index| variables?.get(&format!("{prefix}{}", first + index)).cloned()).collect()
+        };
+        // The entries for the series in turn, repeated when there are fewer than eight.
+        let list = match rule {
+            PaletteRule::None => return SourcePalette::default(),
+            PaletteRule::Slots(prefix, first) => numbered(prefix, first),
+            PaletteRule::Repeated(prefix, first) => numbered(prefix, first)
+                .into_iter()
+                .filter(|entry| match entry {
+                    None | Some(JsValue::Null) => false,
+                    Some(JsValue::String(text)) => !text.is_empty(),
+                    Some(_) => true,
+                })
+                .collect(),
+            PaletteRule::PlotColors => {
+                let list = variables
+                    .and_then(|variables| variables.get("xyChart")?.as_record()?.get("plotColorPalette")?.as_text());
+                let Some(list) = list else {
+                    return SourcePalette::default();
+                };
+                split_colours(list).into_iter().map(|part| Some(JsValue::String(part.into()))).collect()
+            }
+        };
+        if list.is_empty() {
+            return SourcePalette::default();
+        }
         let slot = |index: usize| {
-            let spelling = safe_color(variables?.get(&format!("{prefix}{}", first + index))?)?;
+            let spelling = safe_color(list[index % list.len()].as_ref()?)?;
             let ink = ink(&spelling);
             Some(SourceColour { spelling, ink })
         };
@@ -224,6 +254,25 @@ impl SourcePalette {
     pub(crate) fn ink(&self, slot: SeriesSlot) -> Option<Role> {
         self.slots[slot.index()].as_ref()?.ink
     }
+}
+
+/// Pele's `splitList`: the colours between the commas of a list, not those inside `rgb()` and
+/// other functions, each trimmed.
+fn split_colours(list: &[u16]) -> Vec<&[u16]> {
+    let mut parts = Vec::new();
+    let (mut depth, mut start) = (0i32, 0);
+    for (index, &c) in list.iter().enumerate() {
+        if c == u16::from(b'(') {
+            depth += 1;
+        } else if c == u16::from(b')') {
+            depth -= 1;
+        } else if c == u16::from(b',') && depth == 0 {
+            parts.push(&list[start..index]);
+            start = index + 1;
+        }
+    }
+    parts.push(&list[start..]);
+    parts.into_iter().map(|part| part.trim_js()).collect()
 }
 
 const FUNCTIONS: [&str; 13] =

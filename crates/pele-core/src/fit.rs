@@ -45,6 +45,15 @@ pub(crate) fn title_room(options: &LayoutOptions) -> f64 {
     available(options).map_or(4000.0, |available| js::max(80.0, available - 2.0 * options.padding))
 }
 
+/// Pele's `capWidth`, for a chart that is drawn to a set width: its own, or the host's when that
+/// is smaller, but not under `least`. `around` is what the chart adds outside that width.
+pub(crate) fn cap_width(options: &LayoutOptions, natural: f64, least: f64, around: f64) -> f64 {
+    let Some(available) = available(options) else {
+        return natural;
+    };
+    js::max(js::min(least, natural), js::min(natural, available - around))
+}
+
 /// Under this width, a diagram that runs across may be drawn running down instead.
 const BREAKPOINT: f64 = 640.0;
 

@@ -2,9 +2,13 @@
 //! values, calls the crate's own helper, and answers in plain values, so the helpers' types stay
 //! private to the crate.
 
+use crate::catalog::DrawContext;
 use crate::diagrams::scan;
 use crate::diagrams::tokens::{self, Matcher, TokenType};
-use crate::input::{self, Units};
+use crate::input::{self, JsObject, JsValue, Units};
+use crate::measure::ArialMetrics;
+use crate::scene::{Accessible, Paint, PaletteRule, Scene, SceneBuilder, SeriesSlot, Size, SourcePalette};
+use crate::{DiagramKind, LayoutOptions, Limits, ParityScene, fit, svg};
 
 /// The classes of `util/chars.ts` a UTF-16 code unit is in, one bit each: `isSpace` 1, `isBlank`
 /// 2, `isLineEnd` 4, `isDigit` 8, `isLetter` 16, `isHex` 32 and `isWord` 64.
@@ -127,4 +131,70 @@ pub fn title_before(title: TitleRest, src: &[u16], at: usize) -> Option<usize> {
 pub fn lex(title: TitleRest, src: &[u16]) -> Result<Vec<(Option<usize>, usize, usize)>, usize> {
     let tokens = tokens::tokenize(src, &lex_table(title)).map_err(|error| error.at)?;
     Ok((0..tokens.kinds.len()).map(|i| (tokens.kinds[i], tokens.starts[i], tokens.ends[i])).collect())
+}
+
+/// Pele's `capWidth` for a host that gives `max_width`, with `around` left out where it is.
+pub fn cap_width(max_width: Option<f64>, natural: f64, least: f64, around: Option<f64>) -> f64 {
+    let options = LayoutOptions { max_width, ..LayoutOptions::default() };
+    fit::cap_width(&options, natural, least, around.unwrap_or(0.0))
+}
+
+/// Draws a Scene with Pele's parity metrics and default options.
+fn drawn(palette: &SourcePalette, draw: impl FnOnce(&mut SceneBuilder)) -> Scene {
+    let options = LayoutOptions::default();
+    let config = JsObject::default();
+    let cx = DrawContext {
+        kind: DiagramKind::Pie,
+        measure: &ArialMetrics,
+        options: &options,
+        config: &config,
+        palette,
+        responsive: true,
+        limits: Limits::default(),
+    };
+    let mut out =
+        SceneBuilder::new(&cx, Size { width: 100.0, height: 100.0 }, Accessible { title: None, description: None });
+    draw(&mut out);
+    out.finish().expect("a drawing finishes")
+}
+
+/// Where a type's theme variables set its series colours, as the crate's `PaletteRule` says.
+#[derive(Clone, Copy, Debug)]
+pub enum Palette {
+    None,
+    Slots(&'static str, usize),
+    Repeated(&'static str, usize),
+    PlotColors,
+}
+
+/// What a source palette writes.
+#[derive(Clone, Debug)]
+pub struct PaletteProbe {
+    /// The SVG of an empty drawing, whose root's style ends in the palette.
+    pub svg: String,
+    /// Pele's `seriesInkFill(i)` for each `i` from 0 to 23.
+    pub fills: Vec<String>,
+}
+
+/// The palette that `config`, a JSON object, sets under `rule`.
+pub fn palette(rule: Palette, config: &str) -> PaletteProbe {
+    let rule = match rule {
+        Palette::None => PaletteRule::None,
+        Palette::Slots(prefix, first) => PaletteRule::Slots(prefix, first),
+        Palette::Repeated(prefix, first) => PaletteRule::Repeated(prefix, first),
+        Palette::PlotColors => PaletteRule::PlotColors,
+    };
+    let config = match input::parse_json(&config.encode_utf16().collect::<Vec<_>>()) {
+        Ok(JsValue::Object(config)) => config,
+        _ => JsObject::default(),
+    };
+    let scene = drawn(&SourcePalette::from_config(rule, &config), |_| {});
+    let fills = (0..24)
+        .map(|index| {
+            let ink = svg::paint(&scene, Paint::OnSeries(SeriesSlot::new(index)));
+            ink.map_or_else(String::new, |ink| format!(" fill=\"{ink}\""))
+        })
+        .collect();
+    let svg = svg::write(&ParityScene { scene }).expect("an empty drawing is in its limit").svg;
+    PaletteProbe { svg, fills }
 }
