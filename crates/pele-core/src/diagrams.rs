@@ -2,4 +2,5 @@
 
 pub(crate) mod flowchart;
 pub(crate) mod pie;
+pub(crate) mod state;
 pub(crate) mod tokens;
