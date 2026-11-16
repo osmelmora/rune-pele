@@ -680,9 +680,23 @@ fn a_resize_lays_out_once_a_step_and_lowers_at_most_once_a_frame() {
         first.layouts
     )
     .unwrap();
+
+    // Before Rune has a width the view lays the diagram out at its own size, which a fit needs
+    // first anyway, and the same commit runs it again with the width.
+    let mut narrow = self::window(&capturer, &fixture("across"), ViewOptions::fit(), (400.0, 1200.0), 1.0);
+    let at_first = fitted(&mut narrow, 400.0);
+    writeln!(
+        report,
+        "a view 400 points wide from its first frame: laid out at {:.1} wide, zoom {:.4}, {} layouts \
+         (its own size, the probe at width 1, the step under 400) and {} lowerings",
+        at_first.laid, at_first.zoom, at_first.layouts, at_first.lowerings
+    )
+    .unwrap();
     print!("{report}");
     write_report("resize.txt", &report);
     assert!(laid_out <= crossed.len() as u64, "{laid_out} layouts for {} steps", crossed.len());
+    assert_eq!(at_first.layouts, 3, "the first frame lays out its own size, the probe and one step");
+    assert!(at_first.lowerings <= 2, "{} lowerings on the first frame", at_first.lowerings);
 }
 
 #[test]
