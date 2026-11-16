@@ -17,9 +17,9 @@ restore() {
   touch "$1"
 }
 
-# break <name> <file> <test filter> <from> <to>
+# break <name> <file> <test filter> <from> <to> [test binary, lowering unless given]
 break_one() {
-  name=$1 file=$src/$2 filter=$3 from=$4 to=$5
+  name=$1 file=$src/$2 filter=$3 from=$4 to=$5 test=${6:-lowering}
   cp "$file" "$file.unbroken"
   FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
   if [ $? -ne 0 ]; then
@@ -28,7 +28,7 @@ break_one() {
     failed=1
     return
   fi
-  if cargo test -q --release -p rune-pele --test lowering "$filter" > "$logs/$name.log" 2>&1; then
+  if cargo test -q --release -p rune-pele --test "$test" "$filter" > "$logs/$name.log" 2>&1; then
     echo "break $name: tests still PASS with it; $filter does not catch it"
     failed=1
   else
@@ -80,6 +80,26 @@ break_one gradient-bands-misplaced lower.rs a_fill_along \
 break_one gradients-only-with-a-prefix lib.rs a_sankey_fills_its_links \
   'id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()),' \
   'id_prefix: None,'
+break_one kept-drawing-dropped lib.rs the_unchanged_look_shows \
+  '_ => self.session.borrow().drawn.clone(),' \
+  '_ => None,' \
+  keep_view
+break_one kept-error-unreported lib.rs every_prefix \
+  'Some(Outcome::Kept(error) | Outcome::Failed(error)) => Some(error.clone()),' \
+  'Some(Outcome::Kept(_)) => None, Some(Outcome::Failed(error)) => Some(error.clone()),' \
+  keep_view
+break_one kept-faded-piecewise kept.rs the_dimmed_look_fades \
+  'col().key(key).child(el().layer_opacity(DIMMED).child(drawing)).child(edge)' \
+  'col().key(key).child(el().child(drawing).dim(DIMMED)).child(edge)' \
+  keep_view
+break_one kept-error-below-the-drawing kept.rs the_dimmed_look_fades \
+  '.pin(Some(0.0), Some(-line), Some(0.0), None)' \
+  '.pin(Some(0.0), Some(0.0), Some(0.0), None)' \
+  keep_view
+break_one kept-rune-mermaid-dark-unchanged lib.rs a_palette_or_dark_mode \
+  'if drawing.dark == dark {' \
+  'if true {' \
+  keep_view
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
