@@ -518,4 +518,16 @@ All are 0 different, except one `log10` result (below).
 - A shape's tooltip is found in a row of 16 point boxes along it, so one tooltip may be carried by several elements. Tests check the distinct texts.
 - The probe's "source theme colours" cause was an inference, and it was wrong. Two workers measured the real cause independently.
 
-**Open.** Whether the view should draw sankey gradients without an `idPrefix`. Pele's `render` draws flat links without one; Pele's `mount` always sets one. It is left as `render` behaves, pending the user's choice.
+**Open, then decided.** Whether the view should draw sankey gradients without an `idPrefix`. Decided in the next entry.
+
+## 2026-11-16 A view lays out under Pele's default id prefix
+
+**Decision.** When the app gives no `ViewOptions::id_prefix`, the view lays out under `pele`. A sankey's links are then gradients by default, as Pele draws them in a page. A prefix the app gives still decides, so one Pele cannot name an id with, such as `two words`, still gives links of one colour, as in Pele.
+
+**Why.**
+- Pele's own default is `linkColor: 'gradient'` (`sankey/render.ts:78`). It turns gradients off without a prefix only because two SVGs in one page would share a gradient's id, and Chrome then paints a hidden or differently themed copy's gradient (`render.ts:201`). A view declares no ids, so that cause does not apply.
+- Pele's `mount` always gives a prefix (`mount.ts:141`), so in a page Pele's links are gradients.
+- `id_prefix` was documented as naming ids only, yet it changed how a sankey looked. Now it does so only where Pele's would too.
+- `pele` is the prefix Pele seeds a cynefin's boundaries from when it has none (`cynefin/render.ts:72`), so cynefin is drawn as before. `mount`'s own prefix, `pele-<copy>-<n>`, would change a cynefin's boundaries with the order of mounting.
+
+**Not changed.** `pele parity` and the SVG writer, which draw as `render` does: no prefix, links of one colour. The side by side now draws Pele's SVG under `idPrefix` `pele` for every type, so sankey's gradients are compared by default. `tests/lowering.rs` checks the default, an app's prefix and a prefix Pele rejects; `break-lowering.sh` removes the default and that test fails.

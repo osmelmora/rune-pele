@@ -77,6 +77,9 @@ break_one gradient-one-colour lower.rs a_fill_along \
 break_one gradient-bands-misplaced lower.rs a_fill_along \
   'places.push(((band.middle - from) / (to - from)).clamp(0.0, 1.0) as f32);' \
   'places.push(((band.middle - from) / (to - from)).clamp(0.0, 0.5) as f32);'
+break_one gradients-only-with-a-prefix lib.rs a_sankey_fills_its_links \
+  'id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()),' \
+  'id_prefix: None,'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

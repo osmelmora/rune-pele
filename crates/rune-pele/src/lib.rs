@@ -126,16 +126,24 @@ enum Metrics {
     Pele,
 }
 
+/// The id prefix a view lays out under when the app gives none: Pele's own default.
+const DEFAULT_ID_PREFIX: &str = "pele";
+
 impl ViewOptions {
     /// A view at most `width` points wide. A diagram that can draw itself narrower does.
     pub fn new(width: f32) -> Self {
-        let layout = LayoutOptions { max_width: Some(f64::from(width)), ..LayoutOptions::default() };
+        let layout = LayoutOptions { max_width: Some(f64::from(width)), ..Self::natural().layout };
         ViewOptions { layout, palette: None, metrics: Metrics::Drawn }
     }
 
     /// A view as wide as the diagram lays itself out.
     pub fn natural() -> Self {
-        ViewOptions { layout: LayoutOptions::default(), palette: None, metrics: Metrics::Drawn }
+        // Pele draws a sankey's links along gradients only under an id prefix, so that two SVGs
+        // in one page never share a gradient's id; its `mount` always gives one. A view has no
+        // ids to share, so it lays out under Pele's own default prefix, which also seeds a
+        // cynefin's boundaries as Pele does without one.
+        let layout = LayoutOptions { id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()), ..LayoutOptions::default() };
+        ViewOptions { layout, palette: None, metrics: Metrics::Drawn }
     }
 
     /// Lays the diagram out with Pele's own text metrics instead of the fonts it is drawn in,
@@ -159,7 +167,9 @@ impl ViewOptions {
     }
 
     /// Pele's `idPrefix`, which names the ids an SVG of this drawing declares. Elements are keyed
-    /// by what they draw, so it changes no key.
+    /// by what they draw, so it changes no key. It is `pele` unless set. As in Pele, it also
+    /// seeds a cynefin's boundaries, and a prefix of other characters than letters, digits, `_`
+    /// and `-` draws a sankey's links in one colour each.
     pub fn id_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.layout.id_prefix = Some(prefix.into());
         self
