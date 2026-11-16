@@ -465,3 +465,34 @@ All are 0 different, except one `log10` result (below).
 **Merge.** Wardley/xychart and venn/quadrant each added `Transform::TranslateRotate`, under different field names. One shape (`translate: [Number; 2]`) and one builder were kept. Combined as they stood, the walk would have applied the translation twice. Each transform now moves the origin once. All four types' walk tests pass, along with xychart's break test of the turn centre.
 
 **Oracle client.** `pele-oracle` turns on serde_json's `float_roundtrip`. The default parser had read a 7.6e150 height one ulp off.
+
+## 2026-11-16 All 33 types ported: corpus 522 of 522
+
+**Result (measured, rerun by the parent after the final merge at `5066616`).** `pele parity` reads `522 522 0 0 0`. Every type of Pele 1.13.0 is ported, and every doc source is byte-identical to Pele. `mise run check`, the doctor, `pele-core`'s type tests, the Rune view tests and `mise run rune-corpus` pass.
+
+**Wave 2c merges** (each run by one worker, figures from the workers and rerun by the parent).
+
+| Unit | Types | Front inputs | Render inputs | Notes |
+|---|---|---|---|---|
+| evtreerad | eventmodeling, treeview, radar | about 28,700 | about 44,300 | Coverage gates of 39, 30 and 27 paths. |
+| gitsankpack | git, sankey, packet | about 43,500 | about 57,800 | `sankey_layout` checks 27,406 calls. Coverage gates of 32, 17 and 14 paths. |
+| kanmindish | kanban, mindmap, ishikawa | about 51,700 | about 75,900 | Coverage gates of 35, 32 and 24 paths. |
+| maptimejour | treemap, timeline, journey | about 39,800 | about 54,200 | `treemap_layout` checks 482,542 boxes bit for bit, and 22,655 formatted values byte for byte. |
+
+**Merge decisions.**
+- **One `IconGlyph`.** `scene/glyph.rs` holds architecture's five built-in icons and treeview's folder and file. Each glyph carries its stroke colour, `var(--_fg)` or `var(--_m)`.
+- **One "tooltip inside a shape" flag**, `titled`, shared by sankey's links and journey's actor dots. The walk now wraps any such shape in a group carrying its tooltip.
+- **Two decoded flags.** Sankey's `decoded` (label and tooltip) and treemap's `tooltip_decoded` (tooltip only) are kept apart, because one flag would change how treemap escapes its `data-id`. `EntityRecord::tooltip_text` reads either.
+- Text forms `Painted` (railroad) and `Tailed` (sankey) both stay. The walk gives each its own run fills.
+- **The "not ported" path is unreachable at Pele 1.13.0.** The catalog's `_ => NotPorted` arms stay, with `allow(unreachable_patterns)`, for a type a later pin adds. `tests/fixtures/not-ported.mmd` is removed. The Rune fallback tests now use sequence, which is ported but not lowered (`NotLowered(Kind(Sequence))`).
+
+**Follow-ups, not done.**
+- **Padding.** `LayoutOptions.padding_given` sits beside `padding: f64`, and the two must agree. Folding them into `Option<f64>` touches 77 call sites. Deferred, because the current form is correct.
+- **Number helpers.** Treemap's `toExponential` and `toPrecision`, and xychart's fdlibm `log10`, live in their types, not in `js.rs`. They are checked against the oracle, but not proved with Kani.
+- **Walk tests.** C4, git, sankey and packet have no walk test of Scene keys yet. Add them before their Rune gates open.
+- **Rune gates.** The Rune view draws pie and the eight graph types natively. The 24 newer types fall back to rune-mermaid. The known lowering gaps are:
+  - translate+rotate groups (xychart, quadrant);
+  - gradients and shape tooltips (sankey);
+  - glyphs in icon boxes;
+  - math labels.
+- **Trig.** The Intel Node check on trig is offered to the user (see the venn entry).
