@@ -340,6 +340,64 @@ fn a_curved_edge_with_no_stroke_over_it_is_soft_all_along_and_where_the_curve_is
 }
 
 #[test]
+fn a_fill_along_a_gradient_steps_from_one_colour_to_the_other_between_its_ends() {
+    use rune_pele::lower::Unsupported;
+    let scale = 2.0;
+    // A link from 10 to 190 whose gradient starts at 40 and ends at 160: blue, to orange at
+    // half opacity.
+    let (from, to, thick) = ([10.0, 70.0], [190.0, 40.0], 24.0);
+    let (program, d) = band(from, to, thick);
+    let ends = [colour(BLUE), faded(ORANGE, 0.5)];
+    let link = |axis: [f64; 2]| {
+        let figure = Figure::along(&Outline::lower(&program), axis, None, scale).expect("a level gradient");
+        draw(figure.expect("a link").el_along(ends, None).into_iter().collect(), scale)
+    };
+    // What SVG paints `along` the gradient, over white: each channel and the alpha step evenly.
+    let over_page = |along: f64| {
+        let alpha = 1.0 - 0.5 * along;
+        let channel =
+            |c: usize| f64::from(levels(BLUE)[c]) + (f64::from(levels(ORANGE)[c]) - f64::from(levels(BLUE)[c])) * along;
+        [0, 1, 2].map(|c| (255.0 + (channel(c) - 255.0) * alpha).round() as u8)
+    };
+    let ours = link([40.0, 160.0]);
+    let turned = link([160.0, 40.0]);
+    let mut before: Option<[u8; 4]> = None;
+    for column in 24..376 {
+        // The middle of the pixel column, and the link's middle line there.
+        let x = (f64::from(column) + 0.5) / 2.0;
+        let t = (0..=2000)
+            .map(|i| f64::from(i) / 2000.0)
+            .min_by(|a, b| (along_band(from, to, *a)[0] - x).abs().total_cmp(&(along_band(from, to, *b)[0] - x).abs()));
+        let y = along_band(from, to, t.expect("a place on the curve"))[1] + thick / 2.0;
+        let along = ((x - 40.0) / 120.0).clamp(0.0, 1.0);
+        let (drawn, back) = (ours.at(column, (y * 2.0) as u32), turned.at(column, (y * 2.0) as u32));
+        assert!(near(drawn, over_page(along), 3), "at {x}, {along:.2} along: {drawn:?} for {:?}", over_page(along));
+        assert!(
+            near(back, over_page(1.0 - along), 3),
+            "the other way at {x}: {back:?} for {:?}",
+            over_page(1.0 - along)
+        );
+        // One band meets the next with no seam: no pixel is lighter or darker than both beside it.
+        assert!(before.is_none_or(|before| near(drawn, [before[0], before[1], before[2]], 3)), "a seam at {x}");
+        before = Some(drawn);
+    }
+    assert_eq!(over_page(0.0), levels(BLUE), "before its start the gradient is its first colour");
+
+    let body = format!(
+        "<linearGradient id=\"g\" gradientUnits=\"userSpaceOnUse\" x1=\"40\" x2=\"160\">\
+         <stop offset=\"0\" stop-color=\"{BLUE}\"/><stop offset=\"1\" stop-color=\"{ORANGE}\" stop-opacity=\"0.5\"/>\
+         </linearGradient><path d=\"{d}\" fill=\"url(#g)\"/>"
+    );
+    as_resvg_draws("gradient", &ours, &body, scale);
+
+    // A shape with a hole is not cut into bands, and says so.
+    let donut: Vec<Segment> =
+        circle([50.0, 60.0], 40.0, true).into_iter().chain(circle([50.0, 60.0], 20.0, false)).collect();
+    let holed = Figure::along(&Outline::lower(&donut), [10.0, 90.0], None, scale);
+    assert!(matches!(holed, Err(Unsupported::Gradient)), "a hole in a gradient");
+}
+
+#[test]
 fn a_translucent_stroke_is_one_colour_through_its_joints() {
     let scale = 2.0;
     let zigzag = [[20.0, 30.0], [70.0, 90.0], [120.0, 30.0], [170.0, 90.0]];

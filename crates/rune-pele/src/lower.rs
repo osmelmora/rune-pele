@@ -8,6 +8,9 @@
 //! A [`Drawing`] is made once per layout, with every outline flattened and every run shaped and
 //! placed. Painting it only looks its paints up, so a palette change shapes nothing.
 //!
+//! A fill along a gradient is bands of one colour each, cut on device pixels: Rune fills a
+//! polygon in one colour, and runs a gradient only over an element's own box.
+//!
 //! [`Drawing::new`] is also the one place that says a Scene cannot be drawn here, as an
 //! [`Unsupported`]. The view then draws the source another way; it never draws part of a Scene.
 
@@ -18,6 +21,7 @@ use pele_core::scene::{
     ResolvedPaints, Rgba, StrokeStyle,
 };
 use pele_core::{DiagramKind, Scene};
+use rune::color::{srgb_decode, srgb_encode};
 use rune::shape::LineCap;
 use rune::{Color, Cursor, El, Shadow, Shape, Span, TextStyle, Tx, canvas, el};
 
@@ -54,6 +58,9 @@ pub enum Unsupported {
     CrossingFill,
     /// A picture the host would have to load.
     Image,
+    /// A fill along a gradient that does not run level in the drawing, or of a shape with a
+    /// hole: neither is cut into the upright bands a gradient is drawn in.
+    Gradient,
 }
 
 impl std::fmt::Display for Unsupported {
@@ -63,6 +70,9 @@ impl std::fmt::Display for Unsupported {
             Unsupported::Style(style) => write!(f, "the style `{style}` cannot be drawn natively"),
             Unsupported::CrossingFill => f.write_str("a fill whose outline crosses itself cannot be drawn natively"),
             Unsupported::Image => f.write_str("pictures are not drawn natively yet"),
+            Unsupported::Gradient => {
+                f.write_str("a gradient that is not level, or fills a shape with a hole, cannot be drawn natively")
+            }
         }
     }
 }
@@ -91,6 +101,10 @@ const SLIVER: f64 = 0.75;
 /// [`bands`]. Rune's fan of a band is whole while the band's own cut sees all of it, which a
 /// band this narrow nearly always does.
 const BAND: f64 = 16.0;
+
+/// The most bands a fill is cut into along its gradient. Two stops are at most 255 levels
+/// apart, so a band differs from the next by two levels at the most.
+const MOST_BANDS: f64 = 128.0;
 
 /// The least turn of a corner that Rune softens whole, in radians: 15 degrees. Beyond the
 /// line of a side that turns away by this much, the soft edge it loses is under two pixels long.
@@ -179,10 +193,51 @@ struct Coat {
     overlaps: bool,
 }
 
+/// What a shape is filled with: one paint, or the paints a gradient starts and ends in.
+#[derive(Clone, Copy)]
+enum Fill {
+    Flat(Paint),
+    Along([Paint; 2]),
+}
+
+/// What a coat is painted in: one colour, or the colours a gradient starts and ends in.
+#[derive(Clone, Copy)]
+enum Ink {
+    Flat(Color),
+    Along([Color; 2]),
+}
+
+impl Ink {
+    /// The colour `along` the way from a gradient's start to its end, as SVG steps between two
+    /// stops: each sRGB channel and the alpha on its own.
+    fn at(self, along: f32) -> Color {
+        match self {
+            Ink::Flat(colour) => colour,
+            Ink::Along([from, to]) => {
+                let step = |from: f32, to: f32| from + (to - from) * along;
+                let channel = |from: f32, to: f32| srgb_decode(step(srgb_encode(from), srgb_encode(to)));
+                Color {
+                    r: channel(from.r, to.r),
+                    g: channel(from.g, to.g),
+                    b: channel(from.b, to.b),
+                    a: step(from.a, to.a),
+                }
+            }
+        }
+    }
+
+    fn seen(self) -> bool {
+        match self {
+            Ink::Flat(colour) => colour.a > 0.0,
+            Ink::Along(ends) => ends.iter().any(|end| end.a > 0.0),
+        }
+    }
+}
+
 struct ShapeItem {
     key: String,
     figure: Figure,
-    fill: Paint,
+    fill: Fill,
     fill_opacity: f32,
     /// The stroke's paint and its `stroke-opacity`.
     stroke: Option<(Paint, f32)>,
@@ -191,8 +246,20 @@ struct ShapeItem {
 
 enum Op {
     Fill(Vec<[f32; 2]>),
-    Round { points: Vec<[f32; 2]>, closed: bool, width: f32 },
-    Butt { points: Vec<[f32; 2]>, width: f32 },
+    /// A band of a fill along a gradient, and how far along the gradient it lies, from 0 to 1.
+    Band {
+        points: Vec<[f32; 2]>,
+        along: f32,
+    },
+    Round {
+        points: Vec<[f32; 2]>,
+        closed: bool,
+        width: f32,
+    },
+    Butt {
+        points: Vec<[f32; 2]>,
+        width: f32,
+    },
 }
 
 /// One run of text as what Rune draws, placed as SVG places it. Its colours come when it is
@@ -353,11 +420,13 @@ impl Frame {
 }
 
 impl Coat {
-    /// The coat's ops in `colour`, added to `shape`.
-    fn paint(&self, mut shape: Shape, colour: Color) -> Shape {
+    /// The coat's ops in `ink`, added to `shape`.
+    fn paint(&self, mut shape: Shape, ink: Ink) -> Shape {
+        let colour = ink.at(0.0);
         for op in &self.ops {
             shape = match op {
                 Op::Fill(points) => shape.fill(points.clone(), colour),
+                Op::Band { points, along } => shape.fill(points.clone(), ink.at(*along)),
                 Op::Round { points, closed, width } => {
                     shape.stroke_with(points.clone(), *closed, *width, LineCap::Round, colour)
                 }
@@ -378,26 +447,67 @@ impl Figure {
         scale: f32,
     ) -> Result<Option<Figure>, Crossing> {
         let scale = f64::from(scale);
-        let flatness = if look.is_some() { FLATNESS } else { BARE_FLATNESS };
-        let lines: Vec<Polyline> = outline.flatten(flatness / scale);
+        let lines = flattened(outline, look, scale);
         let mut fills = if filled { fill(&lines, SLIVER / scale)? } else { Default::default() };
         // A fill with a hole is one polygon through a slit a hair wide, which is left whole.
         if look.is_none() && !fills.overlaps {
             fills.polygons = fills.polygons.into_iter().flat_map(|polygon| in_bands(polygon, scale)).collect();
         }
-        let strokes = look.map(|look| stroke(&lines, look, VISIBLE / scale)).unwrap_or_default();
+        Ok(Figure::of(&fills.polygons, None, fills.overlaps, &lines, look, scale))
+    }
+
+    /// `outline` filled along a level gradient that starts at the x `axis[0]` and ends at
+    /// `axis[1]`, and stroked in `look`. The fill is upright bands, each as far along the
+    /// gradient as its middle is: one to a device pixel, or wider where that is more than
+    /// [`MOST_BANDS`].
+    pub fn along(
+        outline: &Outline,
+        axis: [f64; 2],
+        look: Option<&StrokeLook>,
+        scale: f32,
+    ) -> Result<Option<Figure>, Unsupported> {
+        let scale = f64::from(scale);
+        let lines = flattened(outline, look, scale);
+        let fills = fill(&lines, SLIVER / scale).map_err(|Crossing| Unsupported::CrossingFill)?;
+        if fills.overlaps {
+            return Err(Unsupported::Gradient);
+        }
+        let [from, to] = axis;
+        let step = ((to - from).abs() * scale / MOST_BANDS).ceil().clamp(1.0, BAND);
+        let (mut pieces, mut places) = (Vec::new(), Vec::new());
+        for polygon in &fills.polygons {
+            for band in bands(polygon, &columns(polygon, step, scale)).ok_or(Unsupported::Gradient)? {
+                places.push(((band.middle - from) / (to - from)).clamp(0.0, 1.0) as f32);
+                pieces.push(band.outline);
+            }
+        }
+        Ok(Figure::of(&pieces, Some(&places), false, &lines, look, scale))
+    }
+
+    /// The figure of a fill's `pieces`, each as far along a gradient as `places` says where
+    /// there is one, under the stroke of `lines` in `look`.
+    fn of(
+        pieces: &[Vec<Point>],
+        places: Option<&[f32]>,
+        overlaps: bool,
+        lines: &[Polyline],
+        look: Option<&StrokeLook>,
+        scale: f64,
+    ) -> Option<Figure> {
+        let strokes = look.map(|look| stroke(lines, look, VISIBLE / scale)).unwrap_or_default();
         let width = look.map_or(0.0, |look| look.width);
-        let Some([low, high]) = extent(&fills.polygons, &strokes, width / 2.0) else { return Ok(None) };
+        let [low, high] = extent(pieces, &strokes, width / 2.0)?;
         // A point of room, so that an antialiased edge is not cut off at the box.
         let frame = frame([low[0] - 1.0, low[1] - 1.0], [high[0] + 1.0, high[1] + 1.0], scale);
         let local = |points: &[Point]| -> Vec<[f32; 2]> {
             let at = frame.at.map(f64::from);
             points.iter().map(|p| [(p[0] - at[0]) as f32, (p[1] - at[1]) as f32]).collect()
         };
-        let fill = (!fills.polygons.is_empty()).then(|| Coat {
-            ops: fills.polygons.iter().map(|polygon| Op::Fill(local(polygon))).collect(),
-            overlaps: fills.overlaps,
-        });
+        let piece = |(index, piece): (usize, &Vec<Point>)| match places {
+            Some(places) => Op::Band { points: local(piece), along: places[index] },
+            None => Op::Fill(local(piece)),
+        };
+        let fill = (!pieces.is_empty()).then(|| Coat { ops: pieces.iter().enumerate().map(piece).collect(), overlaps });
         let width = width as f32;
         let butt = strokes.butt.iter().map(|points| Op::Butt { points: local(points), width });
         let round =
@@ -405,7 +515,7 @@ impl Figure {
         let patches = strokes.patches.iter().map(|patch| Op::Fill(local(patch)));
         let stroke = (!strokes.is_empty())
             .then(|| Coat { ops: butt.chain(round).chain(patches).collect(), overlaps: strokes.overlaps() });
-        Ok(Some(Figure { frame, shape: FigureShape::Coats { fill, stroke } }))
+        Some(Figure { frame, shape: FigureShape::Coats { fill, stroke } })
     }
 
     /// SVG's `<rect>` at `origin` with one corner radius, or with a radius of half its side its
@@ -439,19 +549,26 @@ impl Figure {
     /// The fill in `fill`, then the stroke in `stroke` over it, as SVG paints one element, in
     /// the figure's place in the drawing.
     pub fn el(&self, fill: Option<Color>, stroke: Option<Color>) -> Option<El> {
-        self.painted(fill, stroke).map(|element| self.frame.placed(element, [0.0; 2]))
+        self.painted(fill.map(Ink::Flat), stroke).map(|element| self.frame.placed(element, [0.0; 2]))
     }
 
-    fn painted(&self, fill: Option<Color>, stroke: Option<Color>) -> Option<El> {
-        let seen = |colour: Option<Color>| colour.filter(|colour| colour.a > 0.0);
+    /// [`Figure::el`] for a figure filled along a gradient, from `ends[0]` to `ends[1]`.
+    pub fn el_along(&self, ends: [Color; 2], stroke: Option<Color>) -> Option<El> {
+        self.painted(Some(Ink::Along(ends)), stroke).map(|element| self.frame.placed(element, [0.0; 2]))
+    }
+
+    fn painted(&self, fill: Option<Ink>, stroke: Option<Color>) -> Option<El> {
+        let seen = |ink: Option<Ink>| ink.filter(|ink| ink.seen());
+        let (fill, stroke) = (seen(fill), seen(stroke.map(Ink::Flat)));
         match &self.shape {
             FigureShape::Coats { fill: filled, stroke: stroked } => {
-                let coats = [(filled, seen(fill)), (stroked, seen(stroke))];
-                self.coats(coats.into_iter().filter_map(|(coat, colour)| Some((coat.as_ref()?, colour?))).collect())
+                let coats = [(filled, fill), (stroked, stroke)];
+                self.coats(coats.into_iter().filter_map(|(coat, ink)| Some((coat.as_ref()?, ink?))).collect())
             }
             FigureShape::Box(shape) => {
-                let fill = seen(fill).filter(|_| shape.filled);
-                let border = shape.border.as_ref().and_then(|border| Some((border, seen(stroke)?)));
+                let (fill, stroke) = (fill.map(|ink| ink.at(0.0)), stroke.map(|ink| ink.at(0.0)));
+                let fill = fill.filter(|_| shape.filled);
+                let border = shape.border.as_ref().and_then(|border| Some((border, stroke?)));
                 self.boxes(shape.radius, fill, border)
             }
         }
@@ -459,25 +576,26 @@ impl Figure {
 
     /// A translucent coat whose pieces overlap is drawn opaque in an element of its own, which
     /// fades it once.
-    fn coats(&self, coats: Vec<(&Coat, Color)>) -> Option<El> {
-        let coats: Vec<(&Coat, Color, f32)> = coats
+    fn coats(&self, coats: Vec<(&Coat, Ink)>) -> Option<El> {
+        let coats: Vec<(&Coat, Ink, f32)> = coats
             .into_iter()
-            .map(|(coat, colour)| {
+            .map(|(coat, ink)| {
+                // The bands of a fill along a gradient lie side by side.
+                let Ink::Flat(colour) = ink else { return (coat, ink, 1.0) };
                 let once = coat.overlaps && colour.a < 1.0;
-                (coat, Color { a: if once { 1.0 } else { colour.a }, ..colour }, if once { colour.a } else { 1.0 })
+                let drawn = Color { a: if once { 1.0 } else { colour.a }, ..colour };
+                (coat, Ink::Flat(drawn), if once { colour.a } else { 1.0 })
             })
             .collect();
         if coats.is_empty() {
             return None;
         }
         if coats.iter().all(|&(_, _, fade)| fade == 1.0) {
-            return Some(canvas(
-                coats.iter().fold(Shape::new(), |shape, (coat, colour, _)| coat.paint(shape, *colour)),
-            ));
+            return Some(canvas(coats.iter().fold(Shape::new(), |shape, (coat, ink, _)| coat.paint(shape, *ink))));
         }
         let whole = Frame { at: [0.0; 2], ..self.frame };
-        Some(el().children(coats.iter().map(|(coat, colour, fade)| {
-            whole.placed(canvas(coat.paint(Shape::new(), *colour)), [0.0; 2]).layer_opacity(*fade)
+        Some(el().children(coats.iter().map(|(coat, ink, fade)| {
+            whole.placed(canvas(coat.paint(Shape::new(), *ink)), [0.0; 2]).layer_opacity(*fade)
         })))
     }
 
@@ -521,7 +639,13 @@ impl ShapeItem {
             Some(Color { a: colour.a * opacity, ..colour })
         };
         let stroke = self.stroke.and_then(|(paint, opacity)| faded(paint, opacity));
-        let element = self.figure.painted(faded(self.fill, self.fill_opacity), stroke)?;
+        let fill = match self.fill {
+            Fill::Flat(paint) => faded(paint, self.fill_opacity).map(Ink::Flat),
+            Fill::Along(ends) => {
+                Some(Ink::Along(ends.map(|end| faded(end, self.fill_opacity).unwrap_or(Color::TRANSPARENT))))
+            }
+        };
+        let element = self.figure.painted(fill, stroke)?;
         Some(self.figure.frame.placed(element.key(self.key.as_str()), origin).layer_opacity(self.opacity))
     }
 }
@@ -735,6 +859,12 @@ fn look(stroke: &StrokeStyle) -> StrokeLook {
     }
 }
 
+/// `outline` as polylines for a window at `scale`: as fine as its edge shows.
+fn flattened(outline: &Outline, look: Option<&StrokeLook>, scale: f64) -> Vec<Polyline> {
+    let flatness = if look.is_some() { FLATNESS } else { BARE_FLATNESS };
+    outline.flatten(flatness / scale)
+}
+
 /// Whether a corner of `polygon` turns by less than [`SHARP`]: a point of a flattened curve.
 fn curved(polygon: &[Point]) -> bool {
     let n = polygon.len();
@@ -836,12 +966,33 @@ fn lower_draw(
     };
     let look = style.stroke.as_ref().map(look);
     let filled = style.fill != Paint::None;
-    let upright = boxed.filter(|_| to_drawing.is_translation()).and_then(|(origin, size, radius)| {
+    // Where the gradient of a fill starts and ends in the drawing, and the paints it runs between.
+    let graded = match style.gradient.filter(|_| filled) {
+        Some(gradient) => {
+            let [from, to] = [gradient.from, gradient.to].map(|end| to_drawing.apply(point(end)));
+            if from[1] != to[1] {
+                return Err(Unsupported::Gradient);
+            }
+            Some(([from[0], to[0]], gradient.stops))
+        }
+        None => None,
+    };
+    let (fill, axis) = match graded {
+        // A gradient with no length is its last paint throughout.
+        Some((axis, [_, last])) if axis[0] == axis[1] => (Fill::Flat(last), None),
+        Some((axis, ends)) => (Fill::Along(ends), Some(axis)),
+        None => (Fill::Flat(style.fill), None),
+    };
+    let upright = boxed.filter(|_| axis.is_none() && to_drawing.is_translation()).and_then(|(origin, size, radius)| {
         Figure::boxed(to_drawing.apply(origin), size, radius, filled, look.as_ref())
     });
-    let figure = match upright {
-        Some(figure) => Some(figure),
-        None => {
+    let figure = match (upright, axis) {
+        (Some(figure), _) => Some(figure),
+        (None, Some(axis)) => {
+            let outline = Outline::lower(&program).transformed(to_drawing);
+            Figure::along(&outline, axis, look.as_ref(), scale as f32)?
+        }
+        (None, None) => {
             let outline = Outline::lower(&program).transformed(to_drawing);
             Figure::new(&outline, filled, look.as_ref(), scale as f32).map_err(|Crossing| Unsupported::CrossingFill)?
         }
@@ -850,7 +1001,7 @@ fn lower_draw(
         Item::Shape(ShapeItem {
             key,
             figure,
-            fill: style.fill,
+            fill,
             fill_opacity: style.fill_opacity as f32,
             stroke: style.stroke.map(|stroke| (stroke.paint, stroke.opacity as f32)),
             opacity: style.opacity as f32,

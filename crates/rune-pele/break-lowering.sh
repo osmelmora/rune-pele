@@ -65,6 +65,12 @@ break_one bare-fill-cut-coarse lower.rs a_curved_edge \
 break_one curved-fill-left-whole lower.rs a_curved_edge \
   'if !curved(&polygon) {' \
   'if true {'
+break_one gradient-one-colour lower.rs a_fill_along \
+  'let step = |from: f32, to: f32| from + (to - from) * along;' \
+  'let step = |from: f32, to: f32| from + (to - from) * 0.5;'
+break_one gradient-bands-misplaced lower.rs a_fill_along \
+  'places.push(((band.middle - from) / (to - from)).clamp(0.0, 1.0) as f32);' \
+  'places.push(((band.middle - from) / (to - from)).clamp(0.0, 0.5) as f32);'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
