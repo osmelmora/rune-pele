@@ -738,6 +738,10 @@ impl PathProgram {
         self.then(PathStep::HorizontalBy(x))
     }
 
+    pub(crate) fn v_by(self, y: Number) -> Self {
+        self.then(PathStep::VerticalBy(y))
+    }
+
     pub(crate) fn q_by(self, handle: [Number; 2], end: [Number; 2]) -> Self {
         self.then(PathStep::QuadBy([handle, end]))
     }
@@ -754,10 +758,6 @@ impl PathProgram {
     /// An arc that ends `end` away from where it starts.
     pub(crate) fn a_by(self, radii: [Number; 2], large: bool, sweep: bool, end: [Number; 2]) -> Self {
         self.then(PathStep::ArcBy { radii, large, sweep, end })
-    }
-
-    pub(crate) fn v_by(self, y: Number) -> Self {
-        self.then(PathStep::VerticalBy(y))
     }
 }
 
@@ -965,7 +965,8 @@ pub(crate) struct Properties {
     /// A gradient the fill runs along. The fill is then the colour drawn where the gradient
     /// cannot be, and the SVG writes both in the one `fill`.
     pub(crate) gradient: Option<GradientId>,
-    /// Whether the shape holds its entity's tooltip, as sankey's links do.
+    /// Whether the shape holds its entity's tooltip as a child, as sankey's links and a journey's
+    /// actor dots do: `<circle …><title>…</title></circle>`.
     pub(crate) titled: bool,
 }
 
@@ -1047,7 +1048,7 @@ pub struct EntityKey {
 pub enum EntityKind {
     /// The diagram as a whole, which owns its title and what belongs to no other entity.
     Diagram,
-    /// A pie section, named by its label.
+    /// A pie section or another series a legend names, such as a journey's actor, named by its label.
     Section,
     Node,
     /// A group of nodes, such as a flowchart's subgraph.
@@ -1098,12 +1099,27 @@ pub(crate) struct Entity {
     author_text: JsText,
     tooltip: Option<JsText>,
     decoded: bool,
+    tooltip_decoded: bool,
 }
 
 impl Entity {
     fn named(kind: EntityKind, name: &JsText) -> Self {
         let key = EntityKey { kind, name: EntityName::Named(name.to_vec()), duplicate: 0 };
-        Entity { key, author_text: name.clone(), tooltip: None, decoded: false }
+        Entity { key, author_text: name.clone(), tooltip: None, decoded: false, tooltip_decoded: false }
+    }
+
+    /// A series that a legend names, such as a journey's actor or an xychart's bars or line. It is
+    /// the kind of a pie's section, whose label is its identity.
+    pub(crate) fn series(label: &JsText) -> Self {
+        Entity::named(EntityKind::Section, label)
+    }
+
+    /// A tooltip the diagram has already turned into text, as treemap's path of section names
+    /// is, so that its entity codes are not read again.
+    pub(crate) fn decoded_tooltip(mut self, tooltip: JsText) -> Self {
+        self.tooltip = Some(tooltip);
+        self.tooltip_decoded = true;
+        self
     }
 
     pub(crate) fn diagram() -> Self {
@@ -1123,11 +1139,6 @@ impl Entity {
     /// its own, which Pele numbers in source order.
     pub(crate) fn node_written_as(name: &JsText, written: &JsText) -> Self {
         Entity { author_text: written.clone(), ..Entity::named(EntityKind::Node, name) }
-    }
-
-    /// A series of a chart, such as an xychart's bars or line, named by its title.
-    pub(crate) fn series(title: &JsText) -> Self {
-        Entity::named(EntityKind::Section, title)
     }
 
     pub(crate) fn note(id: &JsText) -> Self {
@@ -1150,7 +1161,7 @@ impl Entity {
     /// two ends, and `duplicate` the edge's place among those with the same name.
     pub(crate) fn edge(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
         let key = EntityKey { kind: EntityKind::Edge, name, duplicate };
-        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false }
+        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false, tooltip_decoded: false }
     }
 
     /// A note the author gives no name, such as a sequence diagram's. `written_id` is the id
@@ -1158,7 +1169,7 @@ impl Entity {
     /// is what the note is attached to, and `duplicate` its place among those with the same name.
     pub(crate) fn note_between(written_id: &JsText, name: EntityName, duplicate: u32) -> Self {
         let key = EntityKey { kind: EntityKind::Note, name, duplicate };
-        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false }
+        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false, tooltip_decoded: false }
     }
 
     /// A region of the diagram's area that several sets share, such as an overlap of a venn
@@ -1166,7 +1177,7 @@ impl Entity {
     /// regions; `name` tells them apart.
     pub(crate) fn overlap(written_id: &JsText, name: &JsText) -> Self {
         let key = EntityKey { kind: EntityKind::Section, name: EntityName::Named(name.to_vec()), duplicate: 0 };
-        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false }
+        Entity { key, author_text: written_id.clone(), tooltip: None, decoded: false, tooltip_decoded: false }
     }
 
     pub(crate) fn tooltip(mut self, tooltip: Option<&JsText>) -> Self {
@@ -1191,13 +1202,16 @@ pub(crate) struct EntityRecord {
     pub(crate) tooltip: Option<JsText>,
     /// Whether `author_text` and `tooltip` have their entity codes decoded already.
     pub(crate) decoded: bool,
+    /// Whether `tooltip` alone is text already, rather than written with entity codes.
+    pub(crate) tooltip_decoded: bool,
 }
 
 impl EntityRecord {
-    /// The tooltip as it reads, its entity codes decoded.
+    /// The tooltip as it reads, its entity codes decoded: Pele's `escText` reads the codes of a
+    /// tooltip as written, and a decoded one is text already.
     pub(crate) fn tooltip_text(&self) -> Option<Vec<u16>> {
         let tooltip = self.tooltip.as_ref()?;
-        Some(if self.decoded { tooltip.to_vec() } else { decode_entities(tooltip) })
+        Some(if self.decoded || self.tooltip_decoded { tooltip.to_vec() } else { decode_entities(tooltip) })
     }
 }
 
@@ -1724,6 +1738,7 @@ impl SceneBuilder {
             author_text: entity.author_text,
             tooltip: entity.tooltip,
             decoded: entity.decoded,
+            tooltip_decoded: entity.tooltip_decoded,
         });
         PartId(index as u32)
     }
@@ -2450,7 +2465,8 @@ impl ShapeElement<'_> {
         self
     }
 
-    /// Writes the entity's tooltip inside the shape.
+    /// Writes the entity's tooltip inside the shape, as Pele writes sankey's links and a
+    /// journey's actor dots: `<circle …><title>…</title></circle>`.
     pub(crate) fn titled(mut self) -> Self {
         self.attributes.properties.titled = true;
         self

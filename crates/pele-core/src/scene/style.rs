@@ -62,6 +62,14 @@ impl Style {
         rounded
     }
 
+    /// [`Style::rounded`] with the theme's radius capped at `cap` pixels, as treemap rounds a box
+    /// too small for it: `rx:min(var(--_r),{cap}px)`.
+    pub(crate) fn rounded_at_most(style: Option<&Style>, cap: f64) -> Style {
+        let mut rounded = Style::rounded(style);
+        rounded.declarations[0].written = format!("min(var(--_r),{}px)", crate::js::num(cap));
+        rounded
+    }
+
     /// The value of the `style` attribute.
     pub(crate) fn write(&self, out: &mut String) {
         for (index, declaration) in self.declarations.iter().enumerate() {
@@ -379,6 +387,8 @@ pub(crate) enum Radius {
     /// The theme's.
     Theme,
     Px(f64),
+    /// The theme's, but no more than this many pixels.
+    ThemeAtMost(f64),
 }
 
 /// What a node's style declarations mean to an interpreter that has no CSS: each value it can
@@ -426,6 +436,7 @@ impl Style {
                 "stroke-opacity" => meaning.stroke_opacity = share().or(meaning.stroke_opacity),
                 "stroke-dasharray" => meaning.dash = dashes(&lower).or(meaning.dash.take()),
                 "rx" if lower == "var(--_r)" => meaning.radius = Some(Radius::Theme),
+                "rx" if let Some(cap) = theme_capped(&lower) => meaning.radius = Some(Radius::ThemeAtMost(cap)),
                 "rx" => meaning.radius = px(written).filter(|r| !r.is_nan()).map(Radius::Px).or(meaning.radius),
                 "font-size" => {
                     meaning.font_size = px(written).filter(|&size| size > 0.0 && size <= 200.0).or(meaning.font_size);
@@ -435,6 +446,12 @@ impl Style {
         }
         meaning
     }
+}
+
+/// The cap of `min(var(--_r),{cap}px)`, as [`Style::rounded_at_most`] writes it.
+fn theme_capped(lower: &str) -> Option<f64> {
+    let cap = lower.strip_prefix("min(var(--_r),")?.strip_suffix(')')?;
+    px(cap).filter(|cap| !cap.is_nan())
 }
 
 /// A dash pattern: lengths in pixels between spaces or commas, or `none`.

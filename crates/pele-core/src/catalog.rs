@@ -185,6 +185,8 @@ macro_rules! diagram_catalog {
             pub(crate) fn port(self) -> Option<PortPolicy> {
                 match self {
                     $($(DiagramKind::$kind => Some(PortPolicy { section: $section, palette: $palette }),)?)+
+                    // Every kind of Pele 1.13.0 is ported. The arm stays for a kind a later pin adds.
+                    #[allow(unreachable_patterns)]
                     _ => None,
                 }
             }
@@ -200,6 +202,8 @@ macro_rules! diagram_catalog {
         pub(crate) fn parse(kind: DiagramKind, cx: &ParseContext<'_>) -> Result<PreparedModel, RenderError> {
             match kind {
                 $($(DiagramKind::$kind => <$port as Diagram>::parse(cx).map(PreparedModel::$kind),)?)+
+                // Every kind of Pele 1.13.0 is ported. The arm stays for a kind a later pin adds.
+                #[allow(unreachable_patterns)]
                 _ => Err(RenderError::NotPorted),
             }
         }
@@ -295,7 +299,11 @@ diagram_catalog! {
         port: { diagram: diagrams::swimlane::Swimlane, section: "swimlane", palette: PaletteRule::None },
         detectors: [(13, "swimlane", starts(&["swimlane-beta"]).then(End::WordBoundary))],
     },
-    Timeline => { name: "timeline", detectors: [(15, "timeline", starts(&["timeline"]))] },
+    Timeline => {
+        name: "timeline",
+        port: { diagram: diagrams::timeline::Timeline, section: "timeline", palette: PaletteRule::Slots("cScale", 0) },
+        detectors: [(15, "timeline", starts(&["timeline"]))],
+    },
     GitGraph => {
         name: "gitGraph",
         port: { diagram: diagrams::git::Git, section: "gitGraph", palette: PaletteRule::Slots("git", 0) },
@@ -306,7 +314,11 @@ diagram_catalog! {
         port: { diagram: diagrams::state::State, section: "state", palette: PaletteRule::None },
         detectors: [(17, "stateDiagram", starts(&["stateDiagram"]))],
     },
-    Journey => { name: "journey", detectors: [(18, "journey", starts(&["journey"]))] },
+    Journey => {
+        name: "journey",
+        port: { diagram: diagrams::journey::Journey, section: "journey", palette: PaletteRule::None },
+        detectors: [(18, "journey", starts(&["journey"]))],
+    },
     QuadrantChart => {
         name: "quadrantChart",
         port: { diagram: diagrams::quadrant::Quadrant, section: "quadrantChart", palette: PaletteRule::None },
@@ -352,7 +364,11 @@ diagram_catalog! {
         port: { diagram: diagrams::ishikawa::Ishikawa, section: "ishikawa", palette: PaletteRule::None },
         detectors: [(27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary))],
     },
-    Treemap => { name: "treemap", detectors: [(28, "treemap", starts(&["treemap"]))] },
+    Treemap => {
+        name: "treemap",
+        port: { diagram: diagrams::treemap::Treemap, section: "treemap", palette: PaletteRule::Slots("cScale", 0) },
+        detectors: [(28, "treemap", starts(&["treemap"]))],
+    },
     Railroad => {
         name: "railroad",
         port: { diagram: diagrams::railroad::Railroad, section: "railroad", palette: PaletteRule::None },

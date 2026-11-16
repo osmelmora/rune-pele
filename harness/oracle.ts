@@ -434,6 +434,12 @@ import { mindmapOps } from './mindmap.ts';
 Object.assign(ops, mindmapOps);
 import { ishikawaOps } from './ishikawa.ts';
 Object.assign(ops, ishikawaOps);
+import { treemapOps } from './treemap.ts';
+Object.assign(ops, treemapOps);
+import { timelineOps } from './timeline.ts';
+Object.assign(ops, timelineOps);
+import { journeyOps } from './journey.ts';
+Object.assign(ops, journeyOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');
