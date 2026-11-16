@@ -56,6 +56,9 @@ break_one group-faded-piecewise lower.rs a_group_fades \
 break_one text-turned-the-other-way lower.rs turned_text_turns \
   'element.rotate(turn.radians).origin(pivot[0], pivot[1])' \
   'element.rotate(-turn.radians).origin(pivot[0], pivot[1])'
+break_one group-turned-without-its-move lower.rs a_group_that_moves_and_turns \
+  'Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]).then(&moved),' \
+  'Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]),'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

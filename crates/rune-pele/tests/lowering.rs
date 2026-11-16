@@ -7,11 +7,12 @@ mod common;
 use std::f64::consts::PI;
 
 use common::{Apart, compare, in_a_row, marked, rasterise};
+use pele_core::scene::{Group, Rotation};
 use rune::color::hex;
 use rune::{Color, Cx, El, Env, TextStyle, el};
 use rune_pele::capture::{Capturer, Pixels};
 use rune_pele::geometry::{Affine, Arc, Cubic, Outline, Point, Segment};
-use rune_pele::lower::{Figure, TextRun};
+use rune_pele::lower::{Figure, TextRun, group_map};
 use rune_pele::stroke::{Cap, Join, StrokeLook};
 use rune_pele::text::{Anchor, BaselinePoint, Baselines};
 use rune_pele::{Diagram, FontCatalog, Palette, ViewOptions};
@@ -492,6 +493,57 @@ fn turned_text_turns_about_its_anchor_on_the_baseline() {
             );
         }
     }
+}
+
+#[test]
+fn a_group_that_moves_and_turns_takes_a_shape_and_a_run_where_svg_does() {
+    let scale = 2.0;
+    // `translate(100,60) rotate(-90)` as the walk gives it: the move, and a turn about the point
+    // moved to.
+    let to = pele_core::scene::Point { x: 100.0, y: 60.0 };
+    let group = Group {
+        part: None,
+        translate: to,
+        rotate: Some(Rotation { degrees: -90.0, centre: to }),
+        opacity: 1.0,
+        link: None,
+        tooltip: None,
+        untouchable: false,
+    };
+    let map = group_map(&group);
+    // SVG turns first and moves after, so (x, y) in the group goes to (100 + y, 60 - x).
+    for [x, y] in [[0.0, 0.0], [10.0, 0.0], [-20.0, 16.0], [20.0, 6.0]] {
+        let [mx, my] = map.apply([x, y]);
+        assert!((mx - (100.0 + y)).abs() < 1e-9 && (my - (60.0 - x)).abs() < 1e-9, "({x}, {y}) goes to ({mx}, {my})");
+    }
+    assert!((map.turn() + PI / 2.0).abs() < 1e-12, "a quarter turn anticlockwise: {}", map.turn());
+
+    // A bar from (-20, 6) to (20, 16) in the group stands upright from (106, 40) to (116, 80).
+    let bar = polyline(&[[-20.0, 6.0], [20.0, 6.0], [20.0, 16.0], [-20.0, 16.0]], true);
+    let turned = Figure::new(&Outline::lower(&bar).transformed(&map), true, None, scale);
+    let turned = turned.expect("no crossing").expect("a bar");
+    let shape = draw(turned.el(Some(colour(BLUE)), None).into_iter().collect(), scale);
+    let [left, top, right, bottom] = ink_box(&shape, levels(BLUE), 2).expect("the bar");
+    let edges = [left, top, right + 1, bottom + 1].map(|px| f64::from(px) / 2.0);
+    assert_eq!(edges, [106.0, 40.0, 116.0, 80.0], "the bar's edges in points");
+    let body = format!(
+        "<g transform=\"translate(100,60) rotate(-90)\"><rect x=\"-20\" y=\"6\" width=\"40\" height=\"10\" fill=\"{BLUE}\"/></g>"
+    );
+    as_resvg_draws("moved-and-turned-shape", &shape, &body, scale);
+
+    // A run from (10, 0) in the group, as the lowering places it: its anchor where the map takes
+    // it, turned as the map turns. It reads upwards from (100, 50), its capitals left of x = 100.
+    let [x, y] = map.apply([10.0, 0.0]).map(|c| c as f32);
+    let at = BaselinePoint { x, y, anchor: Anchor::Start };
+    let text = run("HHHH", TextStyle::new(16.0, 400.0), at, map.turn() as f32, None, scale);
+    let ink = draw(text.el(Some(colour(INK)), None).into_iter().collect(), scale);
+    common::save_in(RUN, &in_a_row(&[&shape, &ink], 8), "lowering/moved-and-turned@2x.png");
+    let [left, top, right, bottom] = ink_box(&ink, levels(INK), 60).expect("the run's ink");
+    let [left, top, right, bottom] = [left, top, right + 1, bottom + 1].map(|px| f64::from(px) / 2.0);
+    assert!((bottom - 50.0).abs() <= 1.5, "the run starts at y = 50 and reads upwards: ink ends at {bottom}");
+    assert!((40.0..60.0).contains(&(bottom - top)), "four capitals at 16 points, upwards: {}", bottom - top);
+    assert!((right - 100.0).abs() <= 1.0, "the baseline is on x = 100: ink ends at {right}");
+    assert!((left - (100.0 - 0.73 * 16.0)).abs() <= 1.0, "the capitals rise to its left: ink from {left}");
 }
 
 #[test]
