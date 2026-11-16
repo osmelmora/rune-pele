@@ -580,29 +580,67 @@ fn every_sankey_source_with_an_id_prefix_fills_its_links_along_gradients_as_pele
     assert!(findings.is_empty(), "{} are not drawn as Pele draws them:\n{}", findings.len(), findings.join("\n"));
 }
 
-/// The link of the sankey fixture from `from` to `to`: its tooltip, and three points along its
-/// middle, in the window.
-fn link_of(scene: &pele_core::Scene, from: &str, to: &str) -> [(f32, f32); 3] {
+/// A sankey link as its Scene draws it: a band between two S curves, in the window's points.
+struct Band {
+    key: String,
+    tooltip: String,
+    /// Where the upper curve starts and ends. Its handles are level with them, half way along.
+    ends: [[f64; 2]; 2],
+    depth: f64,
+}
+
+impl Band {
+    /// The upper curve at `t`, from 0 at its start to 1 at its end.
+    fn top(&self, t: f64) -> [f64; 2] {
+        let ([from, to], u) = (self.ends, 1.0 - t);
+        let middle = (from[0] + to[0]) / 2.0;
+        let x = from[0] * u * u * u + 3.0 * middle * u * t + to[0] * t * t * t;
+        [x, from[1] + (to[1] - from[1]) * (3.0 - 2.0 * t) * t * t]
+    }
+
+    /// A point on the band's middle line.
+    fn middle(&self, t: f64) -> (f32, f32) {
+        let [x, y] = self.top(t);
+        (x as f32, (y + self.depth / 2.0) as f32)
+    }
+
+    fn covers(&self, (x, y): (f32, f32)) -> bool {
+        let (x, y) = (f64::from(x), f64::from(y));
+        let along = (0..=400).map(|i| self.top(f64::from(i) / 400.0));
+        let nearest = along.min_by(|a, b| (a[0] - x).abs().total_cmp(&(b[0] - x).abs()));
+        nearest.is_some_and(|[at, top]| (at - x).abs() < 1.0 && (top - 1.0..=top + self.depth + 1.0).contains(&y))
+    }
+}
+
+/// The links of a sankey Scene in paint order, each with the tooltip of the group it is in.
+fn bands(scene: &pele_core::Scene) -> Vec<Band> {
     use pele_core::scene::{Geometry, PaintVisit, PathCommand};
+    let mut bands = Vec::new();
+    let mut tooltip = None;
+    for visit in scene.paint() {
+        match visit {
+            PaintVisit::Begin(group) => tooltip = group.tooltip,
+            PaintVisit::Draw(draw) => {
+                let (Some(tooltip), Geometry::Path(commands)) = (tooltip.take(), &draw.geometry) else { continue };
+                let [PathCommand::Move(start), PathCommand::Cubic { end, .. }, PathCommand::Line(below), ..] =
+                    commands[..]
+                else {
+                    panic!("a link is two curves and two sides: {commands:?}")
+                };
+                let ends = [start, end].map(|p| [draw.origin.x + p.x, draw.origin.y + p.y]);
+                bands.push(Band { key: draw.key.to_string(), tooltip, ends, depth: below.y - end.y });
+            }
+            PaintVisit::End => {}
+        }
+    }
+    bands
+}
+
+/// Three points along the middle of the fixture's link from `from` to `to`.
+fn link_of(scene: &pele_core::Scene, from: &str, to: &str) -> [(f32, f32); 3] {
     let key = format!("edge:{from}~{to}~link/shape");
-    let draw = scene.paint().find_map(|visit| match visit {
-        PaintVisit::Draw(draw) if draw.key.to_string() == key => Some(draw),
-        _ => None,
-    });
-    let draw = draw.unwrap_or_else(|| panic!("no {key}"));
-    let Geometry::Path(commands) = &draw.geometry else { panic!("a link is a path") };
-    // The upper edge from its start to its end, then straight down by the link's depth.
-    let [PathCommand::Move(start), PathCommand::Cubic { end, .. }, PathCommand::Line(below), ..] = commands[..] else {
-        panic!("a link is two curves and two sides: {commands:?}")
-    };
-    let depth = below.y - end.y;
-    [0.02, 0.5, 0.98].map(|t: f64| {
-        // The curve's handles are level with its ends, half way along.
-        let (u, middle) = (1.0 - t, (start.x + end.x) / 2.0);
-        let x = start.x * u * u * u + 3.0 * middle * u * t + end.x * t * t * t;
-        let y = start.y + (end.y - start.y) * (3.0 - 2.0 * t) * t * t + depth / 2.0;
-        ((draw.origin.x + x) as f32, (draw.origin.y + y) as f32)
-    })
+    let band = bands(scene).into_iter().find(|band| band.key == key).unwrap_or_else(|| panic!("no {key}"));
+    [0.02, 0.5, 0.98].map(|t| band.middle(t))
 }
 
 #[test]
@@ -640,8 +678,33 @@ fn a_shape_that_holds_its_tooltip_shows_it_wherever_the_pointer_rests_on_the_sha
         writeln!(report, "resting at ({x:.1}, {y:.1}) off every link: {shown:?}").unwrap();
         assert_eq!(shown, None, "at ({x}, {y})");
     }
+
+    // Where links lie close, the box round one takes in its neighbours. Rune finds the pointer
+    // in boxes, so a link is found in a row of narrow ones along it. In the corpus's densest
+    // sankey, 68 links in 600 points, a point on a link then shows that link's tooltip nine
+    // times in ten. One box round each link shows it four times in ten.
+    let dense = corpus("sankey").remove(0);
+    let mut window = self::window(&capturer, &dense, as_pele(), (616.0, 424.0), 1.0);
+    window.capture();
+    let links = bands(&window.state().diagram.scene().expect("a native scene"));
+    let (mut own, mut other) = (0, 0);
+    for (index, link) in links.iter().enumerate() {
+        for point in [0.1, 0.3, 0.5, 0.7, 0.9].map(|t| link.middle(t)) {
+            // A link drawn later over the point is rightly the one found there.
+            if links[index + 1..].iter().any(|later| later.covers(point)) {
+                continue;
+            }
+            window.rest(point.0, point.1, 2.0);
+            let shown = window.runtime().help_tooltip().map(|(text, _)| text.to_owned());
+            if shown.as_deref() == Some(link.tooltip.as_str()) { own += 1 } else { other += 1 }
+        }
+    }
+    let close = links.len();
+    writeln!(report, "{close} close links, 5 points on each: {own} show the link's own tooltip, {other} another's")
+        .unwrap();
     print!("{report}");
     write_report("shape-tooltips.txt", &report);
+    assert!(own >= 8 * (own + other) / 10, "{own} points show their link's tooltip and {other} another's");
 }
 
 #[test]

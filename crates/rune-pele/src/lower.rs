@@ -111,6 +111,9 @@ const MOST_BANDS: f64 = 128.0;
 /// line of a side that turns away by this much, the soft edge it loses is under two pixels long.
 const SHARP: f64 = 0.26;
 
+/// How wide a box the pointer finds a fill in is, in points: see [`spots`].
+const SPOT: f64 = 16.0;
+
 /// The copies of a text that draw its outline, set round a circle of the outline's reach.
 const HALO_COPIES: usize = 12;
 
@@ -162,6 +165,8 @@ fn frame(low: Point, high: Point, scale: f64) -> Frame {
 pub struct Figure {
     frame: Frame,
     shape: FigureShape,
+    /// The boxes the pointer finds the figure in.
+    spots: Vec<Frame>,
 }
 
 enum FigureShape {
@@ -298,6 +303,8 @@ struct GroupItem {
     key: String,
     frame: Frame,
     children: Vec<Item>,
+    /// Where the pointer finds a group that only shows a tooltip: the boxes of what it draws.
+    spots: Vec<Frame>,
     opacity: f32,
     link: Option<LinkRef>,
     tooltip: Option<String>,
@@ -401,6 +408,14 @@ impl Item {
             Item::Shape(shape) => shape.figure.frame,
             Item::Text(text) => text.run.bounds(),
             Item::Group(group) => group.frame,
+        }
+    }
+
+    /// The boxes the pointer finds the item in.
+    fn spots(&self) -> Vec<Frame> {
+        match self {
+            Item::Shape(shape) => shape.figure.spots.clone(),
+            Item::Text(_) | Item::Group(_) => vec![self.frame()],
         }
     }
 
@@ -516,7 +531,8 @@ impl Figure {
         let patches = strokes.patches.iter().map(|patch| Op::Fill(local(patch)));
         let stroke = (!strokes.is_empty())
             .then(|| Coat { ops: butt.chain(round).chain(patches).collect(), overlaps: strokes.overlaps() });
-        Some(Figure { frame, shape: FigureShape::Coats { fill, stroke } })
+        let spots = if pieces.is_empty() { vec![frame] } else { spots(pieces, f64::from(width) / 2.0) };
+        Some(Figure { frame, shape: FigureShape::Coats { fill, stroke }, spots })
     }
 
     /// SVG's `<rect>` at `origin` with one corner radius, or with a radius of half its side its
@@ -544,7 +560,8 @@ impl Figure {
             width: look.width as f32,
             radius: if radius > 0.0 || look.join == Join::Round { (radius + half) as f32 } else { 0.0 },
         });
-        Some(Figure { frame, shape: FigureShape::Box(BoxShape { radius: radius as f32, filled, border }) })
+        let shape = FigureShape::Box(BoxShape { radius: radius as f32, filled, border });
+        Some(Figure { frame, shape, spots: vec![frame] })
     }
 
     /// The fill in `fill`, then the stroke in `stroke` over it, as SVG paints one element, in
@@ -759,10 +776,15 @@ impl GroupItem {
             let end = [at[0] + f64::from(frame.size[0]), at[1] + f64::from(frame.size[1])];
             ([low[0].min(at[0]), low[1].min(at[1])], [high[0].max(end[0]), high[1].max(end[1])])
         });
+        let spots = match (&group.tooltip, &group.link) {
+            (Some(_), None) => children.iter().flat_map(Item::spots).collect(),
+            _ => Vec::new(),
+        };
         Some(GroupItem {
             key,
             frame: frame(low, high, scale),
             children,
+            spots,
             opacity: group.opacity as f32,
             link: group.link,
             tooltip: group.tooltip,
@@ -772,13 +794,19 @@ impl GroupItem {
 
     fn el<S: 'static>(&self, paints: &ResolvedPaints, origin: [f32; 2], on_event: Option<Handler<S>>) -> El {
         let children = self.children.iter().filter_map(|child| child.el(paints, self.frame.at, on_event));
+        // A tooltip in several boxes is on an empty element over each, and the group's own box
+        // shows none.
+        let tooltip = self.tooltip.as_deref();
+        let spots = self.spots.iter().filter(|_| self.spots.len() > 1);
+        let spots = spots.filter_map(|spot| Some(spot.placed(el().help(tooltip?), self.frame.at)));
+        let children: Vec<El> = children.chain(spots).collect();
         let mut element =
             self.frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);
         if self.inert {
             element = element.inert();
         }
-        if let Some(tooltip) = &self.tooltip {
-            element = element.help(tooltip.as_str());
+        if let Some(tooltip) = tooltip.filter(|_| self.spots.len() <= 1) {
+            element = element.help(tooltip);
         }
         if let (Some(link), Some(on_event)) = (&self.link, on_event) {
             let activated = link.clone();
@@ -858,6 +886,29 @@ fn look(stroke: &StrokeStyle) -> StrokeLook {
         join: if stroke.join == LineJoin::Round { Join::Round } else { Join::Miter },
         dash: stroke.dash.clone(),
     }
+}
+
+/// The boxes round a fill's `pieces`, one to each upright strip [`SPOT`] wide that a piece's
+/// middle lies in, with `reach` of room for a stroke. Rune finds the pointer in an element's
+/// box, and one box round a slanted band takes in whatever lies beside the band.
+fn spots(pieces: &[Vec<Point>], reach: f64) -> Vec<Frame> {
+    let mut strips: std::collections::BTreeMap<i64, [Point; 2]> = std::collections::BTreeMap::new();
+    for piece in pieces {
+        let ends = |axis: usize, pick: fn(f64, f64) -> f64, from: f64| piece.iter().map(|p| p[axis]).fold(from, pick);
+        let low = [ends(0, f64::min, f64::MAX) - reach, ends(1, f64::min, f64::MAX) - reach];
+        let high = [ends(0, f64::max, f64::MIN) + reach, ends(1, f64::max, f64::MIN) + reach];
+        let strip = ((low[0] + high[0]) / 2.0 / SPOT).floor() as i64;
+        let around = strips.entry(strip).or_insert([low, high]);
+        *around = [
+            [around[0][0].min(low[0]), around[0][1].min(low[1])],
+            [around[1][0].max(high[0]), around[1][1].max(high[1])],
+        ];
+    }
+    let boxed = |[low, high]: [Point; 2]| Frame {
+        at: low.map(|c| c as f32),
+        size: [(high[0] - low[0]) as f32, (high[1] - low[1]) as f32],
+    };
+    strips.into_values().map(boxed).collect()
 }
 
 /// `outline` as polylines for a window at `scale`: as fine as its edge shows.
