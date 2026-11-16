@@ -63,8 +63,8 @@ const BREAKS = [
     name: 'Scene: a decoded tooltip has its entity codes read again',
     test: 'treemap_parity',
     file: `${src}/scene.rs`,
-    from: 'Some(if self.tooltip_decoded { tooltip.to_vec() } else { decode_entities(tooltip) })',
-    to: 'Some(decode_entities(tooltip))',
+    from: 'Some(if self.decoded || self.tooltip_decoded { tooltip.to_vec() } else { decode_entities(tooltip) })',
+    to: 'Some(if self.decoded { tooltip.to_vec() } else { decode_entities(tooltip) })',
   },
   {
     name: 'timeline front end: an event ends at any colon',
