@@ -1,13 +1,14 @@
-//! Any Mermaid source drawn by rune-pele: natively where its type is drawn from the Scene, and
-//! by rune-mermaid otherwise. The line above the diagram says which, and names the last link
+//! Any Mermaid source drawn by rune-pele, fitted to its window: natively where its type is drawn
+//! from the Scene, and by rune-mermaid otherwise. The line above the diagram says which, the
+//! width a native diagram is laid out at and the zoom it is shown at, and names the last link
 //! pressed.
 //!
-//! `cargo run -p rune-pele --example diagram -- tests/fixtures/flow.mmd` opens the window.
-//! Add `--snap out.png` to render it headless, with `--theme light` or `--theme dark` and
-//! `--size 900x700`.
+//! `cargo run -p rune-pele --example diagram -- tests/fixtures/rune/across.mmd` opens the window;
+//! narrow it to watch the diagram turn, then shrink, then scroll sideways. Add `--snap out.png`
+//! to render it headless, with `--theme light` or `--theme dark` and `--size 900x700`.
 
 use rune::tok::{self, type_};
-use rune::{AppSpec, Cx, El, col, text};
+use rune::{AppSpec, Cx, El, ScrollSpec, col, text};
 use rune_pele::{Diagram, Event, Fallback, FontCatalog, RenderStatus, ViewOptions};
 
 const SIZE: (f32, f32) = (900.0, 700.0);
@@ -38,9 +39,16 @@ fn on_event(state: &mut State, event: Event, _: &mut rune::Tx) {
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = tok::theme(cx.system_dark());
-    let drawn = s.diagram.view_with(cx, &s.source, ViewOptions::new(SIZE.0 - 40.0), on_event);
+    let drawn = s.diagram.view_with(cx, &s.source, ViewOptions::fit(), on_event);
     let by = match (s.diagram.status(), s.diagram.fallback()) {
-        (RenderStatus::Pele, _) => "Drawn by rune-pele".to_owned(),
+        (RenderStatus::Pele, _) => match (s.diagram.scene(), s.diagram.zoom()) {
+            (Some(scene), Some(zoom)) => format!(
+                "Drawn by rune-pele, laid out {:.0} points wide, shown at {:.0}%",
+                scene.size().width,
+                zoom * 100.0
+            ),
+            _ => "Drawn by rune-pele".to_owned(),
+        },
         (_, Some(Fallback::NotLowered(why))) => format!("Drawn by rune-mermaid: {why}"),
         (RenderStatus::RuneMermaid, _) => "Drawn by rune-mermaid: the type is not ported".to_owned(),
         (RenderStatus::Unrendered, _) => "Not drawn".to_owned(),
@@ -50,8 +58,16 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         None => by,
     };
     let diagram = drawn.unwrap_or_else(|error| text(error.to_string()).color(t.text));
-    let status = text(by).key("status").font(type_::BODY).color(t.text_secondary);
-    col().w_full().h_full().fill(t.bg).padding(20.0).gap(12.0).child(status).child(diagram)
+    let status = text(by).key("status").font(type_::BODY).color(t.text_secondary).wrap();
+    col()
+        .w_full()
+        .h_full()
+        .fill(t.bg)
+        .padding(20.0)
+        .gap(12.0)
+        .scroll(ScrollSpec { stick_bottom: false })
+        .child(status)
+        .child(diagram)
 }
 
 fn main() {
