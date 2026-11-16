@@ -576,6 +576,70 @@ fn a_link_tells_the_app_and_a_tooltip_shows_where_the_pointer_rests() {
     assert_eq!(elsewhere, None);
 }
 
+/// What the pointer can do on one opened type's fixture.
+struct Interaction {
+    kind: &'static str,
+    /// Each link's address and the browsing context it asks for, in paint order.
+    links: &'static [(&'static str, Option<&'static str>)],
+    tooltips: &'static [&'static str],
+}
+
+/// The fixtures of the opened types whose Scenes have links or tooltips.
+const INTERACTIONS: [Interaction; 5] = [
+    Interaction { kind: "gantt", links: &[("https://example.com/implement", None)], tooltips: &[] },
+    Interaction {
+        kind: "c4",
+        links: &[("https://example.com/checkout", None)],
+        tooltips: &["Card details go over TLS"],
+    },
+    Interaction { kind: "kanban", links: &[("https://example.com/browse/DOC-12", Some("_blank"))], tooltips: &[] },
+    Interaction { kind: "treemap", links: &[], tooltips: &["Marketing and outreach to new customers"] },
+    Interaction { kind: "journey", links: &[], tooltips: &["Me", "Cat"] },
+];
+
+#[test]
+fn the_links_of_each_opened_type_tell_the_app_and_its_tooltips_show_where_the_pointer_rests() {
+    let capturer = Capturer::new();
+    let mut report = String::new();
+    for Interaction { kind, links, tooltips } in INTERACTIONS {
+        let options = ViewOptions::new(VIEWPORT.0).palette(Palette::pele());
+        let mut window = window(&capturer, one(kind), options, VIEWPORT, 1.0);
+        window.capture();
+        assert_eq!(window.state().diagram.status(), RenderStatus::Pele, "{kind} is drawn natively");
+        let elements = window.runtime().elements();
+        let centre = |rect: [f32; 4]| (rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
+
+        let pressable: Vec<_> = elements.iter().filter(|element| element.role == "link").collect();
+        let labels: Vec<Option<&str>> = pressable.iter().map(|link| link.label.as_deref()).collect();
+        let hrefs: Vec<Option<&str>> = links.iter().map(|(href, _)| Some(*href)).collect();
+        assert_eq!(labels, hrefs, "{kind}: one pressable element per link");
+        for (link, (href, target)) in pressable.iter().zip(links) {
+            let before = window.state().followed.len();
+            let (x, y) = centre(link.rect);
+            window.press(x, y);
+            let followed = &window.state().followed[before..];
+            assert_eq!(followed.len(), 1, "{kind}: one press, one event: {followed:?}");
+            assert_eq!((followed[0].href.as_str(), followed[0].target), (*href, *target), "{kind}");
+            writeln!(report, "{kind:<8} press at ({x}, {y}) told the app {:?}", followed[0]).unwrap();
+        }
+
+        let helps: std::collections::BTreeSet<&str> =
+            elements.iter().filter_map(|element| element.help.as_deref()).collect();
+        assert_eq!(helps, tooltips.iter().copied().collect(), "{kind}: the tooltips the groups carry");
+        for tooltip in tooltips {
+            let holder =
+                elements.iter().find(|element| element.help.as_deref() == Some(*tooltip)).expect("found above");
+            let (x, y) = centre(holder.rect);
+            window.rest(x, y, 2.0);
+            let shown = window.runtime().help_tooltip().map(|(text, _)| text.to_owned());
+            writeln!(report, "{kind:<8} rest at ({x}, {y}) showed {shown:?}").unwrap();
+            assert_eq!(shown.as_deref(), Some(*tooltip), "{kind}: the tooltip shows where the pointer rests");
+        }
+    }
+    print!("{report}");
+    write_report("interaction-opened.txt", &report);
+}
+
 #[test]
 fn a_casing_lets_the_pointer_through_and_a_view_without_a_handler_has_no_links() {
     fn inert_view(s: &Viewer, cx: &mut Cx<Viewer>) -> El {
