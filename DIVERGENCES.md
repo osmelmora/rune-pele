@@ -4,7 +4,7 @@ Parity mode (`pele_core::render`, `pele parity`) is byte-identical to Pele 1.13.
 
 Product mode (`rune_pele::Diagram::view`) draws the same Scene natively in Rune. Each deliberate difference from Pele's look is listed here with its reason. A difference that is not listed is a bug.
 
-Pie, flowchart, class, state, er, requirement, usecase and swimlane are drawn this way. Every other type is drawn by Rune's own `rune-mermaid`, and so is a source of these types that the last table lists.
+The 25 types `rune_pele::lower::NATIVE` lists are drawn this way: pie, the eight graph types (flowchart, class, state, er, requirement, usecase, swimlane and agentflow), and sequence, gantt, block, c4, railroad, info, cynefin, wardley, venn, packet, eventmodeling, treemap, mindmap, journey, kanban and ishikawa. Every other type is drawn by Rune's own `rune-mermaid`, and so is a source of these types that the last table lists.
 
 ## What is drawn differently
 
@@ -18,6 +18,7 @@ Pie, flowchart, class, state, er, requirement, usecase and swimlane are drawn th
 | Outline behind a title an edge runs through | The title's glyphs stroked 5 wide with round joins, in the colour behind them. | Twelve copies of the title in that colour, set round a circle 2.5 across, under the title. | Rune strokes no glyph outlines. The outline is within a tenth of a point of the stroked one. |
 | Hairlines at one device pixel a point | A browser's or resvg's coverage of a 1 point stroke, by the area of each pixel it covers. | Rune's coverage, by each pixel's distance from the stroke's centre line. A slanted or curved hairline is up to a tenth of full coverage darker along its middle. Upright and level ones, and everything at 2×, are the same. | Rune's renderer. Measured over the corpus: `side-by-side.txt` lists the sources where it shows. |
 | Curved strokes | One stroke along the curve. | A segment for each stretch of the curve that stays within a quarter of a device pixel of it, each antialiased on its own. Where two meet, a pixel the edge half covers is up to a quarter of full coverage darker. | Rune's `Shape` strokes polylines. Rectangles and circles are Rune boxes instead, which have no joints. |
+| Subpaths of one stroke that meet | One stroke over all of a path's subpaths, so where two meet or run along each other, as a railroad branch leaves its track, each pixel is covered once. | Each subpath is stroked and antialiased on its own. At 1× a pixel two of them half cover is darker, by up to a third of full coverage over the few pixels where a branch leaves its track. At 2× the corpus comparison finds no pixel it cannot explain. | Rune paints each stroke on its own and has no union of shapes. Measured on railroad's corpus: `hairlines.txt` lists the pixels. |
 | Icons | The icon's box is left for the page's host to fill. | The box is left empty. | No host fills it yet. An app cannot give `ViewOptions` its icons so far. |
 | Where a link is pressed | Anywhere on the shapes and text inside the link. | Anywhere in the box around them. | Rune hit-tests an element's box. |
 | Tooltips | The browser's, from the SVG's `<title>`. | Rune's `help` tooltip in the system's look, after the system's hover delay. | Rune's own tooltip. |
