@@ -16,7 +16,8 @@ use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-graph";
-const TYPES: [&str; 8] = ["flowchart", "class", "state", "er", "requirement", "usecase", "swimlane", "agentflow"];
+const TYPES: [&str; 9] =
+    ["flowchart", "class", "state", "er", "requirement", "usecase", "swimlane", "agentflow", "sankey"];
 
 // What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
 // in resvg. Every other pixel is compared with the pixels within one of it in the other
@@ -273,7 +274,7 @@ fn every_corpus_source_of_the_graph_types_draws_as_pele_draws_it_at_1x_and_2x() 
 
 /// One source of each opened type, and an edit of it that changes a value and keeps what it
 /// names: `tests/fixtures/rune/<type>.mmd`.
-const FIXTURES: [(&str, &str, [&str; 2]); 8] = [
+const FIXTURES: [(&str, &str, [&str; 2]); 9] = [
     ("flowchart", include_str!("../../../tests/fixtures/rune/flowchart.mmd"), ["Checkout", "Clone the repository"]),
     ("class", include_str!("../../../tests/fixtures/rune/class.mmd"), ["float radius", "float diameter"]),
     ("state", include_str!("../../../tests/fixtures/rune/state.mmd"), ["Keeps the last error", "Remembers why"]),
@@ -282,6 +283,7 @@ const FIXTURES: [(&str, &str, [&str; 2]); 8] = [
     ("usecase", include_str!("../../../tests/fixtures/rune/usecase.mmd"), ["Browse the catalogue", "Look around"]),
     ("swimlane", include_str!("../../../tests/fixtures/rune/swimlane.mmd"), ["[Pack]", "[Wrap it up]"]),
     ("agentflow", include_str!("../../../tests/fixtures/rune/agentflow.mmd"), ["Gather sources", "Collect sources"]),
+    ("sankey", include_str!("../../../tests/fixtures/rune/sankey.mmd"), ["Gas,Power,18", "Gas,Power,12"]),
 ];
 
 const VIEWPORT: (f32, f32) = (720.0, 900.0);
@@ -511,6 +513,180 @@ fn a_link_tells_the_app_and_a_tooltip_shows_where_the_pointer_rests() {
     write_report("interaction.txt", &report);
     assert_eq!(shown.map(|(text, _)| text).as_deref(), Some("Fetch the sources"));
     assert_eq!(elsewhere, None);
+}
+
+/// Pele fills a sankey link along a gradient only where the drawing has an id prefix to name
+/// the gradient by, which its corpus is drawn without. So each sankey source of the corpus,
+/// and the fixture, is drawn here with one, beside Pele's SVG with the same.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "18 drawings compared pixel by pixel take a minute unoptimised: run with --release"
+)]
+fn every_sankey_source_with_an_id_prefix_fills_its_links_along_gradients_as_pele_does() {
+    let capturer = Capturer::new();
+    let mut sources = corpus("sankey");
+    sources.push(one("sankey").to_owned());
+    let cases: Vec<(String, String)> =
+        sources.iter().map(|source| (source.clone(), "{\"idPrefix\":\"view\"}".to_owned())).collect();
+    let mut report = String::from("source scale   compared patch  share flat  gradients  over\n");
+    let mut findings = Vec::new();
+    for (index, (source, pele)) in sources.iter().zip(&pele_oracle::render_all_with(&cases)).enumerate() {
+        let PeleRender::Svg { svg, width, height, .. } = pele else { panic!("Pele draws sankey {index}: {pele:?}") };
+        let gradients = svg.matches("<linearGradient ").count();
+        assert!(gradients > 0, "sankey {index}: Pele fills its links along gradients");
+        let size = (width.ceil() as f32, height.ceil() as f32);
+        let page = as_a_page_reads(svg);
+        for scale in [1.0f32, 2.0] {
+            let mut window = window(&capturer, source, as_pele().id_prefix("view"), size, scale);
+            let ours = window.capture();
+            let diagram = &window.state().diagram;
+            assert_eq!((window.state().error.borrow().clone(), diagram.fallback()), (None, None), "sankey {index}");
+            let scene = diagram.scene().expect("a native scene");
+            let graded = scene.paint().filter(|visit| match visit {
+                pele_core::scene::PaintVisit::Draw(draw) => draw.style.gradient.is_some(),
+                _ => false,
+            });
+            assert!(graded.count() >= gradients, "sankey {index}: the Scene has a gradient for each of Pele's");
+            let theirs = rasterise(&page, scale);
+            let (apart, differ) = compare(&ours, &theirs, &text_boxes(&scene), f64::from(scale));
+            let row = in_a_row(&[&ours, &theirs, &marked(&ours, &differ)], (16.0 * scale) as u32);
+            common::save_in(RUN, &row, &format!("side-by-side/sankey-gradient/{index:03}@{scale}x.png"));
+            let (sharp, other) = over(&apart, f64::from(scale));
+            let failed: Vec<&String> =
+                if scale == 1.0 { other.iter().collect() } else { sharp.iter().chain(&other).collect() };
+            writeln!(
+                report,
+                "{index:>6} {scale:>5} {:>10} {:>5} {:>6.2} {:>4} {gradients:>10}  {}",
+                apart.compared,
+                apart.largest_blob,
+                apart.share(),
+                apart.flat_error,
+                sharp.iter().chain(&other).cloned().collect::<Vec<_>>().join("; ")
+            )
+            .unwrap();
+            if !failed.is_empty() {
+                let near = |image: &rune_pele::capture::Pixels| around_pixel(image, apart.blob_at, 24);
+                let close = in_a_row(&[&near(&ours), &near(&theirs), &near(&marked(&ours, &differ))], 4);
+                let name = format!("side-by-side/sankey-gradient/{index:03}@{scale}x.over.png");
+                common::save_in(RUN, &magnified(&close, 8), &name);
+                let failed: Vec<&str> = failed.iter().map(|f| f.as_str()).collect();
+                findings.push(format!("sankey {index}@{scale}x: {}", failed.join("; ")));
+            }
+        }
+    }
+    print!("{report}");
+    write_report("gradients.txt", &report);
+    assert!(findings.is_empty(), "{} are not drawn as Pele draws them:\n{}", findings.len(), findings.join("\n"));
+}
+
+/// The link of the sankey fixture from `from` to `to`: its tooltip, and three points along its
+/// middle, in the window.
+fn link_of(scene: &pele_core::Scene, from: &str, to: &str) -> [(f32, f32); 3] {
+    use pele_core::scene::{Geometry, PaintVisit, PathCommand};
+    let key = format!("edge:{from}~{to}~link/shape");
+    let draw = scene.paint().find_map(|visit| match visit {
+        PaintVisit::Draw(draw) if draw.key.to_string() == key => Some(draw),
+        _ => None,
+    });
+    let draw = draw.unwrap_or_else(|| panic!("no {key}"));
+    let Geometry::Path(commands) = &draw.geometry else { panic!("a link is a path") };
+    // The upper edge from its start to its end, then straight down by the link's depth.
+    let [PathCommand::Move(start), PathCommand::Cubic { end, .. }, PathCommand::Line(below), ..] = commands[..] else {
+        panic!("a link is two curves and two sides: {commands:?}")
+    };
+    let depth = below.y - end.y;
+    [0.02, 0.5, 0.98].map(|t: f64| {
+        // The curve's handles are level with its ends, half way along.
+        let (u, middle) = (1.0 - t, (start.x + end.x) / 2.0);
+        let x = start.x * u * u * u + 3.0 * middle * u * t + end.x * t * t * t;
+        let y = start.y + (end.y - start.y) * (3.0 - 2.0 * t) * t * t + depth / 2.0;
+        ((draw.origin.x + x) as f32, (draw.origin.y + y) as f32)
+    })
+}
+
+#[test]
+fn a_shape_that_holds_its_tooltip_shows_it_wherever_the_pointer_rests_on_the_shape() {
+    let capturer = Capturer::new();
+    let options = ViewOptions::new(VIEWPORT.0).palette(Palette::pele());
+    let mut window = window(&capturer, one("sankey"), options, VIEWPORT, 1.0);
+    window.capture();
+    assert_eq!(window.state().diagram.status(), RenderStatus::Pele);
+    let scene = window.state().diagram.scene().expect("a native scene");
+    let links = [
+        ("Coal", "Power", "Coal \u{2192} Power: 25"),
+        ("Gas", "Power", "Gas \u{2192} Power: 18"),
+        ("Solar", "Power", "Solar \u{2192} Power: 7"),
+        ("Power", "Homes", "Power \u{2192} Homes: 22"),
+        ("Power", "Industry", "Power \u{2192} Industry: 20"),
+        ("Power", "Losses", "Power \u{2192} Losses: 8"),
+    ];
+    let mut report = String::new();
+    assert_eq!(window.runtime().help_tooltip(), None);
+    for (from, to, tooltip) in links {
+        for (x, y) in link_of(&scene, from, to) {
+            window.rest(x, y, 2.0);
+            let shown = window.runtime().help_tooltip().map(|(text, _)| text.to_owned());
+            writeln!(report, "resting at ({x:.1}, {y:.1}) on {from} to {to}: {shown:?}").unwrap();
+            assert_eq!(shown.as_deref(), Some(tooltip), "at ({x}, {y}) on the link from {from} to {to}");
+        }
+    }
+    // A node holds no tooltip, and neither does the page.
+    let elements = window.runtime().elements();
+    let node = elements.iter().find(|element| element.key.as_deref() == Some("node:Power/shape")).expect("a node");
+    for (x, y) in [(node.rect[0] + node.rect[2] / 2.0, node.rect[1] + node.rect[3] / 2.0), (2.0, 2.0)] {
+        window.rest(x, y, 2.0);
+        let shown = window.runtime().help_tooltip().map(|(text, _)| text.to_owned());
+        writeln!(report, "resting at ({x:.1}, {y:.1}) off every link: {shown:?}").unwrap();
+        assert_eq!(shown, None, "at ({x}, {y})");
+    }
+    print!("{report}");
+    write_report("shape-tooltips.txt", &report);
+}
+
+#[test]
+fn a_palette_change_recolours_a_gradient_without_laying_out_or_measuring() {
+    let capturer = Capturer::new();
+    let srgb = |levels: [u8; 3]| {
+        let [r, g, b] = levels.map(|level| rune::color::srgb_decode(f32::from(level) / 255.0));
+        Color { r, g, b, a: 1.0 }
+    };
+    // Gas is the third node and Power the second: the link between them runs from the third
+    // series colour to the second, at Pele's 40% for links, over the white page.
+    let half_way = |gas: [u8; 3], power: [u8; 3]| {
+        [0, 1, 2].map(|c| (255.0 + ((f64::from(gas[c]) + f64::from(power[c])) / 2.0 - 255.0) * 0.4).round() as u8)
+    };
+    let close = |got: [u8; 4], want: [u8; 3]| got.iter().zip(want).all(|(g, w)| g.abs_diff(w) <= 3);
+    let options = ViewOptions::new(VIEWPORT.0).palette(Palette::pele()).id_prefix("view");
+    let mut window = window(&capturer, one("sankey"), options, VIEWPORT, 2.0);
+    let first = window.capture();
+    let scene = window.state().diagram.scene().expect("a native scene");
+    let (x, y) = link_of(&scene, "Gas", "Power")[1];
+    let at = |pixels: &rune_pele::capture::Pixels| pixels.at((x * 2.0) as u32, (y * 2.0) as u32);
+    let pele = half_way([0x54, 0xa2, 0x4b], [0xf5, 0x85, 0x18]);
+    assert!(close(at(&first), pele), "half way along, in Pele's colours: {:?} for {pele:?}", at(&first));
+    let laid_out = window.state().diagram.stats();
+
+    let (red, blue) = ([200, 30, 30], [20, 40, 220]);
+    let other = Palette::pele().with_series(2, srgb(red)).with_series(1, srgb(blue));
+    window.update(|viewer| viewer.options = viewer.options.clone().palette(other));
+    let repainted = window.capture();
+    common::save_in(RUN, &repainted, "native/sankey-gradient.other-palette@2x.png");
+    let want = half_way(red, blue);
+    assert!(close(at(&repainted), want), "half way along, in the new colours: {:?} for {want:?}", at(&repainted));
+    let after = window.state().diagram.stats();
+    assert_eq!(
+        after,
+        rune_pele::ViewStats { paints: laid_out.paints + 1, ..laid_out },
+        "a palette change paints once more and lays out and measures nothing"
+    );
+    let report = format!(
+        "half way along the link from Gas to Power: {:?} in Pele's palette, {:?} in the other\nbefore {laid_out:?}\nafter  {after:?}\n",
+        at(&first),
+        at(&repainted)
+    );
+    print!("{report}");
+    write_report("gradient-theme-change.txt", &report);
 }
 
 #[test]
