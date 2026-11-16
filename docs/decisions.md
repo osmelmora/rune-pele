@@ -496,3 +496,26 @@ All are 0 different, except one `log10` result (below).
   - glyphs in icon boxes;
   - math labels.
 - **Trig.** The Intel Node check on trig is offered to the user (see the venn entry).
+
+## 2026-11-16 Every type drawn natively in Rune
+
+**Decision.** The Rune view draws all 33 types natively. `lower::NATIVE` lists every kind, and a test fails if a later pin adds one that is not in it. The fallback to rune-mermaid remains for a source whose Scene the lowering refuses (`Style`, `Image`, `CrossingFill`, `Gradient`).
+
+**Why it was cheap.** A probe opened both gates for the 24 newer types and ran the corpus side by side. All 268 sources lowered with no `Unsupported`. 16 types already passed. The other 8 failed for four shared causes, not per type. So one unit opened the 16, and four units fixed one cause each, all in parallel from `ea0c0a6`.
+
+| Unit | Types | Cause and fix |
+|---|---|---|
+| rune-open16 | 16 types | None needed. `ViewOptions::now` pins gantt's today marker. 1x overs classified by `tests/hairlines.rs`. |
+| rune-icons | architecture, treeview | Built-in glyphs were not drawn. `IconGlyph::drawn_in` gives the path the SVG draws. |
+| rune-turn | xychart, quadrant | A group that moved and turned used only the turn. `lower::group_map` composes move then turn, as SVG does, and `text_boxes` uses it too. |
+| rune-theme | git, radar, timeline | The view was right. The test helper `as_a_page_reads` took every `var()` fallback, not the root's declared value. |
+| rune-gradient | sankey | The corpus has no gradients (they need an `idPrefix`). The patches were polygon fills: collinear corners, independent flattening of shared edges, and per-triangle softening. Gradients lower to bands of one colour. |
+
+**Decision: source theme colours.** With `Palette::pele()`, a source's `themeVariables` series colours win, as in Pele. With any other palette, the app's palette wins. `Palette` carries the choice as `ThemeSeries`. Listed in `DIVERGENCES.md`.
+
+**Merge decisions.**
+- The fallback tests use `tests/fixtures/rune/unlowered.mmd` (an unread style). `closed.mmd` is removed: no kind stays closed.
+- A shape's tooltip is found in a row of 16 point boxes along it, so one tooltip may be carried by several elements. Tests check the distinct texts.
+- The probe's "source theme colours" cause was an inference, and it was wrong. Two workers measured the real cause independently.
+
+**Open.** Whether the view should draw sankey gradients without an `idPrefix`. Pele's `render` draws flat links without one; Pele's `mount` always sets one. It is left as `render` behaves, pending the user's choice.
