@@ -15,7 +15,7 @@ use rune_pele::geometry::{Affine, Arc, Cubic, Outline, Point, Segment};
 use rune_pele::lower::{Figure, TextRun, group_map};
 use rune_pele::stroke::{Cap, Join, StrokeLook};
 use rune_pele::text::{Anchor, BaselinePoint, Baselines};
-use rune_pele::{Diagram, FontCatalog, Palette, ViewOptions};
+use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewOptions};
 
 const RUN: &str = "rune-graph";
 const BLUE: &str = "#4c78a8";
@@ -544,6 +544,67 @@ fn a_group_that_moves_and_turns_takes_a_shape_and_a_run_where_svg_does() {
     assert!((40.0..60.0).contains(&(bottom - top)), "four capitals at 16 points, upwards: {}", bottom - top);
     assert!((right - 100.0).abs() <= 1.0, "the baseline is on x = 100: ink ends at {right}");
     assert!((left - (100.0 - 0.73 * 16.0)).abs() <= 1.0, "the capitals rise to its left: ink from {left}");
+}
+
+/// A source drawn in Pele's metrics and colours on a white page of its size.
+struct Page {
+    diagram: Diagram,
+    source: String,
+    size: (f32, f32),
+}
+
+fn page_view(s: &Page, cx: &mut Cx<Page>) -> El {
+    let options = ViewOptions::natural().pele_metrics().palette(Palette::pele());
+    let drawn = s.diagram.view(cx, &s.source, options).expect("the source draws");
+    el().size(s.size.0, s.size.1).fill(Color::WHITE).child(drawn)
+}
+
+/// The least box around the pixels of `pixels` darker than the page within `[left, top, right,
+/// bottom)`, as `[left, top, right, bottom]` in points.
+fn ink_within(pixels: &Pixels, [left, top, right, bottom]: [u32; 4], scale: f32) -> Option<[f64; 4]> {
+    let mut found: Option<[u32; 4]> = None;
+    for y in top..bottom.min(pixels.height) {
+        for x in left..right.min(pixels.width) {
+            if pixels.at(x, y)[..3].iter().any(|&c| c < 160) {
+                let [l, t, r, b] = found.unwrap_or([x, y, x + 1, y + 1]);
+                found = Some([l.min(x), t.min(y), r.max(x + 1), b.max(y + 1)]);
+            }
+        }
+    }
+    found.map(|edges| edges.map(|px| f64::from(px) / f64::from(scale)))
+}
+
+#[test]
+fn a_turned_axis_title_is_drawn_where_pele_draws_it() {
+    let scale = 2.0;
+    let source = pele_oracle::corpus()
+        .into_iter()
+        .find(|(kind, _)| kind == "quadrant")
+        .and_then(|(_, sources)| sources.into_iter().next())
+        .expect("quadrant's first corpus source");
+    let pele = pele_oracle::render_all(std::slice::from_ref(&source));
+    let pele_oracle::PeleRender::Svg { svg, width, height, .. } = &pele[0] else { panic!("Pele draws it: {pele:?}") };
+    let theirs = rasterise(&common::as_a_page_reads(svg), scale);
+    let size = (width.ceil() as f32, height.ceil() as f32);
+    let page = Page { diagram: Diagram::new("quadrant", FontCatalog::rune()), source, size };
+    let capturer = Capturer::new();
+    let mut window = capturer.window(page, page_view, size, Env::new(false, scale));
+    let ours = window.capture();
+    assert_eq!(window.state().diagram.status(), RenderStatus::Pele, "quadrant is drawn natively");
+    common::save_in(RUN, &in_a_row(&[&ours, &theirs], 8), "lowering/turned-axis-title@2x.png");
+    // Left of the quadrants, which start at x = 34, are only the two y-axis titles: each a run
+    // in a group moved to (18.5, y) and turned there, read upwards, one above y = 254 and one
+    // below. Inter is a little wider than Arial, so each run is held at its middle and its sides.
+    for (name, [top, bottom]) in [("High Engagement", [0, 254]), ("Low Engagement", [254, 480])] {
+        let strip = [0, top * 2, 33 * 2, bottom * 2];
+        let ours = ink_within(&ours, strip, scale).unwrap_or_else(|| panic!("{name} is drawn"));
+        let theirs = ink_within(&theirs, strip, scale).expect("Pele draws it");
+        let middle = |ink: [f64; 4]| (ink[1] + ink[3]) / 2.0;
+        assert!((middle(ours) - middle(theirs)).abs() <= 1.0, "{name} is centred where Pele's is: {ours:?} {theirs:?}");
+        assert!((ours[0] - theirs[0]).abs() <= 1.0, "{name}'s capitals reach as far left: {ours:?} {theirs:?}");
+        assert!((ours[2] - theirs[2]).abs() <= 1.0, "{name}'s descenders reach as far right: {ours:?} {theirs:?}");
+        assert!(ours[3] - ours[1] > 4.0 * (ours[2] - ours[0]), "{name} reads upwards: {ours:?}");
+    }
 }
 
 #[test]
