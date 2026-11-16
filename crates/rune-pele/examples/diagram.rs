@@ -41,6 +41,7 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
     let drawn = s.diagram.view_with(cx, &s.source, ViewOptions::new(SIZE.0 - 40.0), on_event);
     let by = match (s.diagram.status(), s.diagram.fallback()) {
         (RenderStatus::Pele, _) => "Drawn by rune-pele".to_owned(),
+        (RenderStatus::Kept, _) => "The last drawing that drew, kept".to_owned(),
         (_, Some(Fallback::NotLowered(why))) => format!("Drawn by rune-mermaid: {why}"),
         (RenderStatus::RuneMermaid, _) => "Drawn by rune-mermaid: the type is not ported".to_owned(),
         (RenderStatus::Unrendered, _) => "Not drawn".to_owned(),
