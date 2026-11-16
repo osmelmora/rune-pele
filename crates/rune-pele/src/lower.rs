@@ -5,8 +5,13 @@
 //! element: fade as a whole, lead somewhere, show a tooltip or let the pointer through. A turn is
 //! applied to what the group holds: shapes are turned point by point, text by Rune.
 //!
-//! A [`Drawing`] is made once per layout, with every outline flattened and every run shaped and
-//! placed. Painting it only looks its paints up, so a palette change shapes nothing.
+//! A [`Drawing`] is made once per layout and zoom, with every outline flattened and every run
+//! shaped and placed. Painting it only looks its paints up, so a palette change shapes nothing.
+//!
+//! A zoom multiplies the drawing's geometry before anything is flattened, snapped or cut into
+//! bands, so that edges land on the device pixels they are drawn on, and sets its text at the
+//! zoomed size in its zoomed box. Rune's own `El::scale` would move pixels already snapped at
+//! the unzoomed size between device pixels instead.
 //!
 //! A fill along a gradient is bands of one colour each, cut on device pixels: Rune fills a
 //! polygon in one colour, and runs a gradient only over an element's own box.
@@ -23,6 +28,7 @@ use pele_core::scene::{
 use pele_core::{DiagramKind, Scene};
 use rune::color::{srgb_decode, srgb_encode};
 use rune::shape::LineCap;
+use rune::tok::OpticalSize;
 use rune::{Color, Cursor, El, Shadow, Shape, Span, TextStyle, Tx, canvas, el};
 
 use crate::Event;
@@ -366,14 +372,26 @@ impl Drawing {
         baselines: &mut Baselines,
         scale: f32,
     ) -> Result<Drawing, Unsupported> {
+        Drawing::zoomed(kind, scene, baselines, scale, 1.0)
+    }
+
+    /// [`Drawing::new`] at `zoom` times the size the Scene is laid out at: its geometry, strokes
+    /// and text, and the boxes the pointer finds its links and tooltips in.
+    pub fn zoomed(
+        kind: DiagramKind,
+        scene: &Scene,
+        baselines: &mut Baselines,
+        scale: f32,
+        zoom: f32,
+    ) -> Result<Drawing, Unsupported> {
         if !NATIVE.contains(&kind) {
             return Err(Unsupported::Kind(kind));
         }
         if let Some(style) = scene.unread_styles().into_iter().next() {
             return Err(Unsupported::Style(style));
         }
-        let scale = f64::from(scale);
-        let mut open = vec![Open { to_drawing: Affine::IDENTITY, element: None, children: Vec::new() }];
+        let (scale, zoom) = (f64::from(scale), f64::from(zoom));
+        let mut open = vec![Open { to_drawing: Affine::scale(zoom), element: None, children: Vec::new() }];
         for visit in scene.paint() {
             match visit {
                 PaintVisit::Begin(group) => {
@@ -392,13 +410,13 @@ impl Drawing {
                 }
                 PaintVisit::Draw(draw) => {
                     let group = open.last_mut().expect("the root stays open");
-                    group.children.extend(lower_draw(draw, &group.to_drawing, baselines, scale)?);
+                    group.children.extend(lower_draw(draw, &group.to_drawing, zoom, baselines, scale)?);
                 }
             }
         }
         let size = scene.size();
         let root = open.pop().expect("the root stays open");
-        Ok(Drawing { size: [size.width as f32, size.height as f32], items: root.children })
+        Ok(Drawing { size: [(size.width * zoom) as f32, (size.height * zoom) as f32], items: root.children })
     }
 
     /// The drawing as keyed elements in paint order, in `paints`' colours. A link tells
@@ -408,6 +426,28 @@ impl Drawing {
         // The drawing is one picture: nothing in it moves to the pixel grid on its own, so that
         // an edge still ends on the border it runs to.
         el().size(self.size[0], self.size[1]).pixel_snap(false).children(children)
+    }
+
+    /// Only the drawing's text, every run in `ink` and without its outline, where the drawing
+    /// places it: for a check of where its glyphs land.
+    pub fn text_only(&self, ink: Color) -> El {
+        fn runs(items: &[Item], ink: Color, into: &mut Vec<El>) {
+            for item in items {
+                match item {
+                    Item::Text(text) => into.extend(text.run.placed(Some(ink), None, [0.0; 2])),
+                    Item::Group(group) => runs(&group.children, ink, into),
+                    Item::Shape(_) => {}
+                }
+            }
+        }
+        let mut texts = Vec::new();
+        runs(&self.items, ink, &mut texts);
+        el().size(self.size[0], self.size[1]).pixel_snap(false).children(texts)
+    }
+
+    /// The drawing's size in points.
+    pub fn size(&self) -> [f32; 2] {
+        self.size
     }
 
     pub fn census(&self) -> Census {
@@ -873,6 +913,12 @@ fn path(commands: &[PathCommand]) -> Vec<Segment> {
         .collect()
 }
 
+/// `style` set `zoom` times as large, in the design of its own size: a font with optical sizes
+/// would otherwise draw a smaller size wider and looser than the size its box was measured at.
+fn zoomed(style: TextStyle, zoom: f64) -> TextStyle {
+    TextStyle { size: style.size * zoom as f32, optical_size: OpticalSize::Fixed(style.size), ..style }
+}
+
 /// SVG's `<ellipse>`, and with equal radii its `<circle>`: two half turns from the top.
 fn ellipse([cx, cy]: Point, radii: [f64; 2]) -> Vec<Segment> {
     let half = |to: Point| Segment::Arc(Arc { radii, rotation: 0.0, large: true, sweep: true, to });
@@ -910,12 +956,13 @@ fn polygon(points: &[Point]) -> Vec<Segment> {
     program
 }
 
-fn look(stroke: &StrokeStyle) -> StrokeLook {
+/// `stroke` as drawn at `zoom`: its width and dashes zoomed with what it strokes.
+fn look(stroke: &StrokeStyle, zoom: f64) -> StrokeLook {
     StrokeLook {
-        width: stroke.width,
+        width: stroke.width * zoom,
         cap: if stroke.cap == SceneCap::Round { Cap::Round } else { Cap::Butt },
         join: if stroke.join == LineJoin::Round { Join::Round } else { Join::Miter },
-        dash: stroke.dash.clone(),
+        dash: stroke.dash.iter().map(|length| length * zoom).collect(),
     }
 }
 
@@ -991,9 +1038,12 @@ fn extent(fills: &[Vec<Point>], strokes: &Strokes, half: f64) -> Option<[Point; 
     })
 }
 
+/// `draw` in the drawing's points, which `to_drawing` maps its coordinates to: `zoom` times the
+/// Scene's, moved and turned by the groups around it.
 fn lower_draw(
     draw: Draw,
     to_drawing: &Affine,
+    zoom: f64,
     baselines: &mut Baselines,
     scale: f64,
 ) -> Result<Option<Item>, Unsupported> {
@@ -1007,7 +1057,8 @@ fn lower_draw(
             opacity: draw.style.opacity,
             gradient: None,
         };
-        return lower_draw(Draw { geometry: Geometry::Path(outline), style, ..draw }, to_drawing, baselines, scale);
+        let draw = Draw { geometry: Geometry::Path(outline), style, ..draw };
+        return lower_draw(draw, to_drawing, zoom, baselines, scale);
     }
     let key = draw.key.to_string();
     let style = draw.style;
@@ -1045,10 +1096,11 @@ fn lower_draw(
                 pele_core::Script::Super => SUPER_SHIFT * run.font.size,
             };
             let [x, y] = to_drawing.apply([run.baseline.x, run.baseline.y + shift]).map(|c| c as f32);
-            let halo = style.stroke.as_ref().map(|stroke| (stroke.width / 2.0) as f32);
+            let halo = style.stroke.as_ref().map(|stroke| (stroke.width * zoom / 2.0) as f32);
             let turn = to_drawing.turn() as f32;
             let at = BaselinePoint { x, y, anchor };
-            let lowered = TextRun::new(run.text, text_style(&run.font), at, turn, halo, run.underline, baselines);
+            let lowered =
+                TextRun::new(run.text, zoomed(text_style(&run.font), zoom), at, turn, halo, run.underline, baselines);
             return Ok(Some(Item::Text(TextItem {
                 key,
                 run: lowered,
@@ -1059,7 +1111,7 @@ fn lower_draw(
             })));
         }
     };
-    let look = style.stroke.as_ref().map(look);
+    let look = style.stroke.as_ref().map(|stroke| look(stroke, zoom));
     let filled = style.fill != Paint::None;
     // Where the gradient of a fill starts and ends in the drawing, and the paints it runs between.
     let graded = match style.gradient.filter(|_| filled) {
@@ -1078,8 +1130,8 @@ fn lower_draw(
         Some((axis, ends)) => (Fill::Along(ends), Some(axis)),
         None => (Fill::Flat(style.fill), None),
     };
-    let upright = boxed.filter(|_| axis.is_none() && to_drawing.is_translation()).and_then(|(origin, size, radius)| {
-        Figure::boxed(to_drawing.apply(origin), size, radius, filled, look.as_ref())
+    let upright = boxed.filter(|_| axis.is_none() && to_drawing.is_upright()).and_then(|(origin, size, radius)| {
+        Figure::boxed(to_drawing.apply(origin), size.map(|side| side * zoom), radius * zoom, filled, look.as_ref())
     });
     let figure = match (upright, axis) {
         (Some(figure), _) => Some(figure),
