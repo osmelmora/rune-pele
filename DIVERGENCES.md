@@ -29,9 +29,21 @@ Every one of Pele 1.13.0's 33 types is drawn this way: `rune_pele::lower::NATIVE
 | Tooltips | The browser's, from the SVG's `<title>`. | Rune's `help` tooltip in the system's look, after the system's hover delay. | Rune's own tooltip. |
 | Following a link | The browser follows `href` into `target`. | The view opens nothing. The app's handler is told the link, its target and whether it names a note of the host. | The app decides where a link may lead. |
 
+## While a source fails
+
+As Pele's `mount` does, a source that fails after one that drew leaves that drawing shown: by default at 0.4 opacity, as one layer, with the message's first and last lines over its bottom edge and the whole message as their tooltip. `Diagram::status()` is then `RenderStatus::Kept`, and `Diagram::error()` says why. `KeptLook::Unchanged` shows the drawing as it was, for a source still streaming in.
+
+| Area | Pele's `mount` | rune-pele product mode | Why |
+| --- | --- | --- | --- |
+| A failure with nothing drawn yet | The whole message in the element, in monospace, in the error colour. | The view is the error, and the app shows it. | As the view was before it kept drawings: an app decides how to show an error. |
+| A change of width, fonts or device scale while the source fails | The last text that parsed is drawn again for the new width or fonts. | The kept drawing stays as it was laid out. A palette or dark-mode change repaints it. | A kept drawing lays nothing out again. A source streaming in replaces it within frames. |
+| The error's colour | `--pele-error`, else `#e45756`. | The palette's critical colour: Pele's `#e45756` in `Palette::pele()` and in the window's Rune theme. | The palette has no error role, and Pele's two fallbacks are the same red. |
+| The error's text | 0.8 of the host element's font size, in its font. | 0.8 of the view's font size, 16 unless set, in the app's sans font. | The view's font size stands in for the element's, which Rune has no notion of. |
+| The error's width | The element's, cut with an ellipsis. | The drawing's, or the parent's where the parent stretches the view across, cut with an ellipsis. | The view is no block: it is as wide as its drawing unless its parent stretches it. |
+
 ## What is drawn by rune-mermaid instead
 
-`Diagram::status()` is then `RenderStatus::RuneMermaid`, and `Diagram::fallback()` says why. Where rune-mermaid cannot draw the source either, the view is an error and draws nothing.
+`Diagram::status()` is then `RenderStatus::RuneMermaid`, and `Diagram::fallback()` says why. Where rune-mermaid cannot draw the source either, the view keeps the last drawing that drew, as the next section says, or with none is an error and draws nothing.
 
 | Source | Why it is not drawn natively |
 | --- | --- |
