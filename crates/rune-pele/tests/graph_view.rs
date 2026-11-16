@@ -435,9 +435,9 @@ fn what_is_not_drawn_natively_is_drawn_by_rune_mermaid_and_says_why() {
 
     // Every type of Pele 1.13.0 is ported, so no source falls back as `NotPorted`.
     // A type pele-core draws stays with rune-mermaid until the view lowers its Scene.
-    let sequence = include_str!("../../../tests/fixtures/sequence.mmd");
-    let closed = Fallback::NotLowered(Unsupported::Kind(pele_core::DiagramKind::Sequence));
-    assert_eq!(fell_back("sequence", sequence), (RenderStatus::RuneMermaid, Some(closed), None));
+    let xychart = include_str!("../../../tests/fixtures/rune/closed.mmd");
+    let closed = Fallback::NotLowered(Unsupported::Kind(pele_core::DiagramKind::Xychart));
+    assert_eq!(fell_back("xychart", xychart), (RenderStatus::RuneMermaid, Some(closed), None));
 
     // A line through text is a declaration the Scene's walk does not read.
     let struck = include_str!("../../../tests/fixtures/rune/unlowered.mmd");

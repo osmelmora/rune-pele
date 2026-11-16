@@ -17,7 +17,7 @@ use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewError, ViewOpti
 const RUN: &str = "pie-rune";
 const PETS: &str = include_str!("../../../tests/fixtures/pie-pets.mmd");
 /// A type pele-core draws and the Rune view does not lower yet.
-const NOT_LOWERED: &str = include_str!("../../../tests/fixtures/sequence.mmd");
+const NOT_LOWERED: &str = include_str!("../../../tests/fixtures/rune/closed.mmd");
 const VIEWPORT: (f32, f32) = (480.0, 400.0);
 
 struct Viewer {
@@ -413,7 +413,7 @@ fn only_a_type_the_view_does_not_lower_falls_back_to_rune_mermaid() {
     unlowered.capture();
     assert_eq!(*unlowered.state().error.borrow(), None);
     assert_eq!(unlowered.state().diagram.status(), RenderStatus::RuneMermaid);
-    let closed = rune_pele::Fallback::NotLowered(rune_pele::lower::Unsupported::Kind(pele_core::DiagramKind::Sequence));
+    let closed = rune_pele::Fallback::NotLowered(rune_pele::lower::Unsupported::Kind(pele_core::DiagramKind::Xychart));
     assert_eq!(unlowered.state().diagram.fallback(), Some(closed));
 
     let mut bad = window(&capturer, "pie\n \"a\" 1", Palette::pele(), 1.0);
