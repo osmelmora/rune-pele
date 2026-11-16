@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant App
+    participant Store as Order store
+    User->>App: Place the order
+    activate App
+    App->>Store: Save the order
+    Store-->>App: Saved
+    alt paid
+        App-->>User: Confirmation
+    else declined
+        App--xUser: Try another card
+    end
+    deactivate App
+    Note over App,Store: Orders are kept for a year

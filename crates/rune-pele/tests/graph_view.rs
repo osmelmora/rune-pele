@@ -16,7 +16,7 @@ use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-graph";
-const TYPES: [&str; 15] = [
+const TYPES: [&str; 30] = [
     "flowchart",
     "class",
     "state",
@@ -32,6 +32,21 @@ const TYPES: [&str; 15] = [
     "timeline",
     "xychart",
     "quadrant",
+    "sequence",
+    "gantt",
+    "block",
+    "railroad",
+    "info",
+    "cynefin",
+    "wardley",
+    "venn",
+    "packet",
+    "eventmodeling",
+    "treemap",
+    "mindmap",
+    "journey",
+    "kanban",
+    "ishikawa",
 ];
 
 // What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
@@ -289,7 +304,7 @@ fn every_corpus_source_of_the_graph_types_draws_as_pele_draws_it_at_1x_and_2x() 
 
 /// One source of each opened type, and an edit of it that changes a value and keeps what it
 /// names: `tests/fixtures/rune/<type>.mmd`.
-const FIXTURES: [(&str, &str, [&str; 2]); 15] = [
+const FIXTURES: [(&str, &str, [&str; 2]); 31] = [
     ("flowchart", include_str!("../../../tests/fixtures/rune/flowchart.mmd"), ["Checkout", "Clone the repository"]),
     ("class", include_str!("../../../tests/fixtures/rune/class.mmd"), ["float radius", "float diameter"]),
     ("state", include_str!("../../../tests/fixtures/rune/state.mmd"), ["Keeps the last error", "Remembers why"]),
@@ -305,6 +320,26 @@ const FIXTURES: [(&str, &str, [&str; 2]); 15] = [
     ("timeline", include_str!("../../../tests/fixtures/rune/timeline.mmd"), ["Public beta", "Open beta"]),
     ("xychart", include_str!("../../../tests/fixtures/rune/xychart.mmd"), ["7500", "7900"]),
     ("quadrant", include_str!("../../../tests/fixtures/rune/quadrant.mmd"), ["[0.3, 0.6]", "[0.35, 0.62]"]),
+    ("sequence", include_str!("../../../tests/fixtures/rune/sequence.mmd"), ["Place the order", "Send the order"]),
+    ("gantt", include_str!("../../../tests/fixtures/rune/gantt.mmd"), ["Implement", "Write code"]),
+    ("block", include_str!("../../../tests/fixtures/rune/block.mmd"), ["(\"Store\")", "(\"Data store\")"]),
+    ("c4", include_str!("../../../tests/fixtures/rune/c4.mmd"), ["Takes payments", "Takes card payments"]),
+    ("railroad", include_str!("../../../tests/fixtures/rune/railroad.mmd"), ["\"Numbers\"", "\"Whole numbers\""]),
+    ("info", include_str!("../../../tests/fixtures/rune/info.mmd"), [" showInfo", ""]),
+    ("cynefin", include_str!("../../../tests/fixtures/rune/cynefin.mmd"), ["Incident Response", "Incident Handling"]),
+    ("wardley", include_str!("../../../tests/fixtures/rune/wardley.mmd"), ["[0.43, 0.35]", "[0.45, 0.35]"]),
+    ("venn", include_str!("../../../tests/fixtures/rune/venn.mmd"), ["A good feature", "A great feature"]),
+    ("packet", include_str!("../../../tests/fixtures/rune/packet.mmd"), ["UDP Packet", "UDP Datagram"]),
+    (
+        "eventmodeling",
+        include_str!("../../../tests/fixtures/rune/eventmodeling.mmd"),
+        ["description: string", "description: text"],
+    ),
+    ("treemap", include_str!("../../../tests/fixtures/rune/treemap.mmd"), ["120", "121"]),
+    ("mindmap", include_str!("../../../tests/fixtures/rune/mindmap.mmd"), ["Ship it", "Ship the release"]),
+    ("journey", include_str!("../../../tests/fixtures/rune/journey.mmd"), ["Make tea: 5", "Make tea: 3"]),
+    ("kanban", include_str!("../../../tests/fixtures/rune/kanban.mmd"), ["Write the docs", "Write the guide"]),
+    ("ishikawa", include_str!("../../../tests/fixtures/rune/ishikawa.mmd"), ["as of March", "as of April"]),
 ];
 
 const VIEWPORT: (f32, f32) = (720.0, 900.0);
@@ -345,13 +380,26 @@ fn drawn_keys(scene: &pele_core::Scene) -> Vec<String> {
     keys
 }
 
-/// A palette that differs from Pele's in every role the graph types draw in.
+/// A palette that differs from Pele's in every role and series the opened types draw in.
 fn other_palette() -> Palette {
     let srgb = |r: f32, g: f32, b: f32| {
         let [r, g, b] = [r, g, b].map(rune::color::srgb_decode);
         Color { r, g, b, a: 1.0 }
     };
-    Palette::pele()
+    let series = [
+        srgb(0.85, 0.37, 0.65),
+        srgb(0.40, 0.76, 0.65),
+        srgb(0.99, 0.55, 0.38),
+        srgb(0.55, 0.63, 0.80),
+        srgb(0.65, 0.85, 0.33),
+        srgb(1.00, 0.85, 0.18),
+        srgb(0.90, 0.77, 0.58),
+        srgb(0.70, 0.70, 0.70),
+    ];
+    let palette =
+        series.into_iter().enumerate().fold(Palette::pele(), |palette, (at, colour)| palette.with_series(at, colour));
+    palette
+        .with(rune_pele::Role::Accent, srgb(0.95, 0.60, 0.20))
         .with(rune_pele::Role::Background, srgb(0.10, 0.11, 0.13))
         .with(rune_pele::Role::Foreground, srgb(0.93, 0.93, 0.95))
         .with(rune_pele::Role::Line, srgb(0.80, 0.82, 0.88))
@@ -428,13 +476,18 @@ fn a_palette_change_repaints_every_opened_type_without_laying_out_or_measuring()
         common::save_in(RUN, &repainted, &format!("native/{kind}.other-palette@2x.png"));
         let after = window.state().diagram.stats();
         let changed = changed_pixels(&first, &repainted);
-        writeln!(report, "{kind:<12} before {laid_out:?}\n{kind:<12} after  {after:?}, {changed} px changed").unwrap();
+        let drawn = first.rgba.chunks(4).filter(|px| px[..3] != [255, 255, 255]).count();
+        writeln!(
+            report,
+            "{kind:<12} before {laid_out:?}\n{kind:<12} after  {after:?}, {changed} px changed of {drawn} drawn"
+        )
+        .unwrap();
         assert_eq!(
             after,
             rune_pele::ViewStats { paints: laid_out.paints + 1, ..laid_out },
             "{kind}: a palette change paints once more and lays out and measures nothing"
         );
-        assert!(changed > 5_000, "{kind}: the drawing changed colour: {changed} pixels");
+        assert!(2 * changed > drawn, "{kind}: most of the drawing changed colour: {changed} of {drawn} pixels");
     }
     print!("{report}");
     write_report("theme-change.txt", &report);
@@ -463,9 +516,9 @@ fn what_is_not_drawn_natively_is_drawn_by_rune_mermaid_and_says_why() {
 
     // Every type of Pele 1.13.0 is ported, so no source falls back as `NotPorted`.
     // A type pele-core draws stays with rune-mermaid until the view lowers its Scene.
-    let sequence = include_str!("../../../tests/fixtures/sequence.mmd");
-    let closed = Fallback::NotLowered(Unsupported::Kind(pele_core::DiagramKind::Sequence));
-    assert_eq!(fell_back("sequence", sequence), (RenderStatus::RuneMermaid, Some(closed), None));
+    let sankey = include_str!("../../../tests/fixtures/rune/closed.mmd");
+    let closed = Fallback::NotLowered(Unsupported::Kind(pele_core::DiagramKind::Sankey));
+    assert_eq!(fell_back("sankey", sankey), (RenderStatus::RuneMermaid, Some(closed), None));
 
     // A line through text is a declaration the Scene's walk does not read.
     let struck = include_str!("../../../tests/fixtures/rune/unlowered.mmd");
@@ -539,6 +592,128 @@ fn a_link_tells_the_app_and_a_tooltip_shows_where_the_pointer_rests() {
     write_report("interaction.txt", &report);
     assert_eq!(shown.map(|(text, _)| text).as_deref(), Some("Fetch the sources"));
     assert_eq!(elsewhere, None);
+}
+
+/// What the pointer can do on one opened type's fixture.
+struct Interaction {
+    kind: &'static str,
+    /// Each link's address and the browsing context it asks for, in paint order.
+    links: &'static [(&'static str, Option<&'static str>)],
+    tooltips: &'static [&'static str],
+}
+
+/// The fixtures of the opened types whose Scenes have links or tooltips.
+const INTERACTIONS: [Interaction; 5] = [
+    Interaction { kind: "gantt", links: &[("https://example.com/implement", None)], tooltips: &[] },
+    Interaction {
+        kind: "c4",
+        links: &[("https://example.com/checkout", None)],
+        tooltips: &["Card details go over TLS"],
+    },
+    Interaction { kind: "kanban", links: &[("https://example.com/browse/DOC-12", Some("_blank"))], tooltips: &[] },
+    Interaction { kind: "treemap", links: &[], tooltips: &["Marketing and outreach to new customers"] },
+    Interaction { kind: "journey", links: &[], tooltips: &["Me", "Cat"] },
+];
+
+#[test]
+fn the_links_of_each_opened_type_tell_the_app_and_its_tooltips_show_where_the_pointer_rests() {
+    let capturer = Capturer::new();
+    let mut report = String::new();
+    for Interaction { kind, links, tooltips } in INTERACTIONS {
+        let options = ViewOptions::new(VIEWPORT.0).palette(Palette::pele());
+        let mut window = window(&capturer, one(kind), options, VIEWPORT, 1.0);
+        window.capture();
+        assert_eq!(window.state().diagram.status(), RenderStatus::Pele, "{kind} is drawn natively");
+        let elements = window.runtime().elements();
+        let centre = |rect: [f32; 4]| (rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
+
+        let pressable: Vec<_> = elements.iter().filter(|element| element.role == "link").collect();
+        let labels: Vec<Option<&str>> = pressable.iter().map(|link| link.label.as_deref()).collect();
+        let hrefs: Vec<Option<&str>> = links.iter().map(|(href, _)| Some(*href)).collect();
+        assert_eq!(labels, hrefs, "{kind}: one pressable element per link");
+        for (link, (href, target)) in pressable.iter().zip(links) {
+            let before = window.state().followed.len();
+            let (x, y) = centre(link.rect);
+            window.press(x, y);
+            let followed = &window.state().followed[before..];
+            assert_eq!(followed.len(), 1, "{kind}: one press, one event: {followed:?}");
+            assert_eq!((followed[0].href.as_str(), followed[0].target), (*href, *target), "{kind}");
+            writeln!(report, "{kind:<8} press at ({x}, {y}) told the app {:?}", followed[0]).unwrap();
+        }
+
+        let helps: std::collections::BTreeSet<&str> =
+            elements.iter().filter_map(|element| element.help.as_deref()).collect();
+        assert_eq!(helps, tooltips.iter().copied().collect(), "{kind}: the tooltips the groups carry");
+        for tooltip in tooltips {
+            let holder =
+                elements.iter().find(|element| element.help.as_deref() == Some(*tooltip)).expect("found above");
+            let (x, y) = centre(holder.rect);
+            window.rest(x, y, 2.0);
+            let shown = window.runtime().help_tooltip().map(|(text, _)| text.to_owned());
+            writeln!(report, "{kind:<8} rest at ({x}, {y}) showed {shown:?}").unwrap();
+            assert_eq!(shown.as_deref(), Some(*tooltip), "{kind}: the tooltip shows where the pointer rests");
+        }
+    }
+    print!("{report}");
+    write_report("interaction-opened.txt", &report);
+}
+
+/// The x of a gantt chart's today marker, its line in the accent 2 wide, and the left edge and
+/// width of the bar of the fixture's task `design`.
+fn today_and_design(scene: &pele_core::Scene) -> (Option<f64>, [f64; 2]) {
+    use pele_core::scene::{Geometry, Paint, PaintVisit, PathCommand, Role};
+    let (mut today, mut design) = (None, None);
+    for visit in scene.paint() {
+        let PaintVisit::Draw(draw) = visit else { continue };
+        let marker = draw.style.stroke.as_ref().is_some_and(|s| s.paint == Paint::Role(Role::Accent) && s.width == 2.0);
+        match &draw.geometry {
+            Geometry::Path(commands) if marker => {
+                if let Some(PathCommand::Move(at)) = commands.first() {
+                    today = Some(draw.origin.x + at.x);
+                }
+            }
+            Geometry::Rect { origin, size, .. } if draw.key.to_string() == "node:design/shape" => {
+                design = Some([draw.origin.x + origin.x, size.width]);
+            }
+            _ => {}
+        }
+    }
+    (today, design.expect("the fixture's design bar"))
+}
+
+#[test]
+fn a_gantt_chart_lays_out_again_for_another_now_and_not_for_the_same_one() {
+    let capturer = Capturer::new();
+    // Noon UTC on 8 and on 14 January 2026, inside the fixture's chart.
+    let (eighth, fourteenth) = (1_767_873_600_000.0, 1_768_392_000_000.0);
+    let options = |now: f64| ViewOptions::new(VIEWPORT.0).palette(Palette::pele()).now(now);
+    let mut window = window(&capturer, one("gantt"), options(eighth), VIEWPORT, 1.0);
+    let before = window.capture();
+    let scene = window.state().diagram.scene().expect("a native scene");
+    let (today, [left, width]) = today_and_design(&scene);
+    // The design bar runs the five days from 5 January, so noon on the 8th is 3.5 of them in.
+    // Pele writes hundredths, so the marker and the bar are each within 0.005 of where they are.
+    let expected = left + 3.5 * width / 5.0;
+    assert!((today.expect("a marker on the 8th") - expected).abs() < 0.02, "{today:?} against {expected}");
+    assert_eq!(window.state().diagram.stats().layouts, 1);
+
+    window.update(|viewer| viewer.options = options(eighth));
+    let again = window.capture();
+    assert_eq!(window.state().diagram.stats().layouts, 1, "the same now lays nothing out");
+    assert_eq!(changed_pixels(&before, &again), 0);
+
+    window.update(|viewer| viewer.options = options(fourteenth));
+    let after = window.capture();
+    let scene = window.state().diagram.scene().expect("a native scene");
+    let (moved, _) = today_and_design(&scene);
+    let expected = left + 9.5 * width / 5.0;
+    assert!((moved.expect("a marker on the 14th") - expected).abs() < 0.02, "{moved:?} against {expected}");
+    assert_eq!(window.state().diagram.stats().layouts, 2, "another now lays the chart out once more");
+    assert!(changed_pixels(&before, &after) > 0, "the marker moved on screen");
+    let report =
+        format!("now 8 Jan noon: marker at {today:?}; again: 1 layout; 14 Jan noon: marker at {moved:?}, 2 layouts\n");
+    print!("{report}");
+    write_report("gantt-now.txt", &report);
 }
 
 #[test]

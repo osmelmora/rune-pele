@@ -8,7 +8,7 @@ This directory is the maintained source for verifying what users of rune-pele ca
 - `.agents/skills/verify-rune-pele/scripts/doctor.sh` prints `doctor: ok`.
 - `target/debug/pele` is built from the working tree under test (`mise exec -- cargo build -p pele-cli`).
 - `target/debug/examples/pie` and `target/debug/examples/diagram` are built from the same tree (`mise exec -- cargo build -p rune-pele --example pie --example diagram`).
-- The fixtures `tests/fixtures/pie-pets.mmd` and `tests/fixtures/flow.mmd` (ported types: a pie and a flowchart) and `tests/fixtures/sequence.mmd` (a ported type the Rune view does not draw natively yet) are unchanged. Every type of Pele 1.13.0 is ported, so there is no not-ported fixture.
+- The fixtures `tests/fixtures/pie-pets.mmd` and `tests/fixtures/flow.mmd` (ported types: a pie and a flowchart) and `tests/fixtures/rune/closed.mmd` (an xychart, a ported type the Rune view does not draw natively yet) are unchanged. Every type of Pele 1.13.0 is ported, so there is no not-ported fixture.
 - Each run picks a fresh `<run-id>` and writes only under `out/verify/<run-id>/`.
 
 ## Driving conventions
