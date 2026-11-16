@@ -640,6 +640,64 @@ fn the_links_of_each_opened_type_tell_the_app_and_its_tooltips_show_where_the_po
     write_report("interaction-opened.txt", &report);
 }
 
+/// The x of a gantt chart's today marker, its line in the accent 2 wide, and the left edge and
+/// width of the bar of the fixture's task `design`.
+fn today_and_design(scene: &pele_core::Scene) -> (Option<f64>, [f64; 2]) {
+    use pele_core::scene::{Geometry, Paint, PaintVisit, PathCommand, Role};
+    let (mut today, mut design) = (None, None);
+    for visit in scene.paint() {
+        let PaintVisit::Draw(draw) = visit else { continue };
+        let marker = draw.style.stroke.as_ref().is_some_and(|s| s.paint == Paint::Role(Role::Accent) && s.width == 2.0);
+        match &draw.geometry {
+            Geometry::Path(commands) if marker => {
+                if let Some(PathCommand::Move(at)) = commands.first() {
+                    today = Some(draw.origin.x + at.x);
+                }
+            }
+            Geometry::Rect { origin, size, .. } if draw.key.to_string() == "node:design/shape" => {
+                design = Some([draw.origin.x + origin.x, size.width]);
+            }
+            _ => {}
+        }
+    }
+    (today, design.expect("the fixture's design bar"))
+}
+
+#[test]
+fn a_gantt_chart_lays_out_again_for_another_now_and_not_for_the_same_one() {
+    let capturer = Capturer::new();
+    // Noon UTC on 8 and on 14 January 2026, inside the fixture's chart.
+    let (eighth, fourteenth) = (1_767_873_600_000.0, 1_768_392_000_000.0);
+    let options = |now: f64| ViewOptions::new(VIEWPORT.0).palette(Palette::pele()).now(now);
+    let mut window = window(&capturer, one("gantt"), options(eighth), VIEWPORT, 1.0);
+    let before = window.capture();
+    let scene = window.state().diagram.scene().expect("a native scene");
+    let (today, [left, width]) = today_and_design(&scene);
+    // The design bar runs the five days from 5 January, so noon on the 8th is 3.5 of them in.
+    // Pele writes hundredths, so the marker and the bar are each within 0.005 of where they are.
+    let expected = left + 3.5 * width / 5.0;
+    assert!((today.expect("a marker on the 8th") - expected).abs() < 0.02, "{today:?} against {expected}");
+    assert_eq!(window.state().diagram.stats().layouts, 1);
+
+    window.update(|viewer| viewer.options = options(eighth));
+    let again = window.capture();
+    assert_eq!(window.state().diagram.stats().layouts, 1, "the same now lays nothing out");
+    assert_eq!(changed_pixels(&before, &again), 0);
+
+    window.update(|viewer| viewer.options = options(fourteenth));
+    let after = window.capture();
+    let scene = window.state().diagram.scene().expect("a native scene");
+    let (moved, _) = today_and_design(&scene);
+    let expected = left + 9.5 * width / 5.0;
+    assert!((moved.expect("a marker on the 14th") - expected).abs() < 0.02, "{moved:?} against {expected}");
+    assert_eq!(window.state().diagram.stats().layouts, 2, "another now lays the chart out once more");
+    assert!(changed_pixels(&before, &after) > 0, "the marker moved on screen");
+    let report =
+        format!("now 8 Jan noon: marker at {today:?}; again: 1 layout; 14 Jan noon: marker at {moved:?}, 2 layouts\n");
+    print!("{report}");
+    write_report("gantt-now.txt", &report);
+}
+
 #[test]
 fn a_casing_lets_the_pointer_through_and_a_view_without_a_handler_has_no_links() {
     fn inert_view(s: &Viewer, cx: &mut Cx<Viewer>) -> El {

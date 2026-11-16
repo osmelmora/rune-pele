@@ -159,6 +159,17 @@ impl ViewOptions {
         self.layout.id_prefix = Some(prefix.into());
         self
     }
+
+    /// The time a gantt chart marks as today, in milliseconds since 1970, Pele's `now`. Without
+    /// it, the chart takes the system clock when the view lays it out, and keeps that time until
+    /// the view lays it out again for another reason: the marker does not move with the clock. A
+    /// different `now` lays the diagram out again, and the same one does not. A time that is not
+    /// finite is the system clock.
+    pub fn now(mut self, milliseconds: f64) -> Self {
+        // A NaN in the layout's key would equal no layout, so every view would lay out again.
+        self.layout.now = milliseconds.is_finite().then_some(milliseconds);
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
