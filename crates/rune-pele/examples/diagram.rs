@@ -1,21 +1,22 @@
-//! Any Mermaid source drawn by rune-pele: natively where its type is drawn from the Scene, and
-//! by rune-mermaid otherwise. The line above the diagram says which, and names the last link
+//! Any Mermaid source drawn by rune-pele, fitted to its window: natively where its type is drawn
+//! from the Scene, and by rune-mermaid otherwise. The line above the diagram says which, the
+//! width a native diagram is laid out at and the zoom it is shown at, and names the last link
 //! pressed.
 //!
-//! `cargo run -p rune-pele --example diagram -- tests/fixtures/flow.mmd` opens the window.
-//! Add `--snap out.png` to render it headless, with `--theme light` or `--theme dark` and
-//! `--size 900x700`.
+//! `cargo run -p rune-pele --example diagram -- tests/fixtures/rune/across.mmd` opens the window;
+//! narrow it to watch the diagram turn, then shrink, then scroll sideways. Add `--snap out.png`
+//! to render it headless, with `--theme light` or `--theme dark` and `--size 900x700`.
 //!
 //! `--stream` types the file in, three characters a frame at 60 frames a second, as a model
 //! streaming it would. While what has arrived does not draw, the view keeps the last drawing
-//! that did: dimmed, with the error over its bottom edge, as Pele's `mount` shows it, or as it
-//! was with `--kept-unchanged`. The stream runs on the app's clock, so `--snap` with
-//! `--at <seconds>` draws the same frame every time.
+//! that did, fitted to the window as it would be drawn now: dimmed, with the error over its
+//! bottom edge, as Pele's `mount` shows it, or as it was with `--kept-unchanged`. The stream
+//! runs on the app's clock, so `--snap` with `--at <seconds>` draws the same frame every time.
 
 use std::time::Duration;
 
 use rune::tok::{self, type_};
-use rune::{AppSpec, Cx, El, Tx, col, text};
+use rune::{AppSpec, Cx, El, ScrollSpec, Tx, col, text};
 use rune_pele::{Diagram, Event, Fallback, FontCatalog, KeptLook, RenderStatus, ViewOptions};
 
 const SIZE: (f32, f32) = (900.0, 700.0);
@@ -76,17 +77,23 @@ fn on_event(state: &mut State, event: Event, _: &mut Tx) {
 
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = tok::theme(cx.system_dark());
-    let options = ViewOptions::new(SIZE.0 - 40.0).kept_look(s.look);
+    let options = ViewOptions::fit().kept_look(s.look);
     let drawn = s.diagram.view_with(cx, &s.source[..s.arrived], options, on_event);
+    let size = match (s.diagram.scene(), s.diagram.zoom()) {
+        (Some(scene), Some(zoom)) => {
+            format!(", laid out {:.0} points wide, shown at {:.0}%", scene.size().width, zoom * 100.0)
+        }
+        _ => String::new(),
+    };
     let by = match s.diagram.status() {
-        RenderStatus::Pele => "Drawn by rune-pele".to_owned(),
+        RenderStatus::Pele => format!("Drawn by rune-pele{size}"),
         RenderStatus::RuneMermaid => match s.diagram.fallback() {
             Some(Fallback::NotLowered(why)) => format!("Drawn by rune-mermaid: {why}"),
             _ => "Drawn by rune-mermaid: the type is not ported".to_owned(),
         },
         RenderStatus::Kept => {
             let error = s.diagram.error().map(|error| error.to_string()).unwrap_or_default();
-            format!("The last drawing that drew, kept: {}", error.lines().next().unwrap_or_default())
+            format!("The last drawing that drew, kept{size}: {}", error.lines().next().unwrap_or_default())
         }
         RenderStatus::Unrendered => "Not drawn".to_owned(),
     };
@@ -101,8 +108,16 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
         by
     };
     let diagram = drawn.unwrap_or_else(|error| text(error.to_string()).color(t.text));
-    let status = text(by).key("status").font(type_::BODY).color(t.text_secondary).truncate();
-    col().w_full().h_full().fill(t.bg).padding(20.0).gap(12.0).child(status).child(diagram)
+    let status = text(by).key("status").font(type_::BODY).color(t.text_secondary).wrap();
+    col()
+        .w_full()
+        .h_full()
+        .fill(t.bg)
+        .padding(20.0)
+        .gap(12.0)
+        .scroll(ScrollSpec { stick_bottom: false })
+        .child(status)
+        .child(diagram)
 }
 
 fn main() {

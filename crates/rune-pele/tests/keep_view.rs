@@ -394,10 +394,16 @@ fn a_palette_or_dark_mode_change_repaints_the_kept_drawing_without_laying_out() 
     by_mermaid.capture();
     by_mermaid.update(|viewer| viewer.source = broken(&mermaid));
     let light = by_mermaid.capture();
+    // The source is laid out once, on its first frame, before its lowering refuses it.
+    let laid_out = by_mermaid.state().diagram.stats().layouts;
     by_mermaid.set_dark(true);
     let dark = by_mermaid.capture();
     assert_eq!(by_mermaid.state().diagram.status(), RenderStatus::Kept);
-    assert_eq!(by_mermaid.state().diagram.stats().layouts, 0, "rune-pele lays out nothing for rune-mermaid's drawing");
+    assert_eq!(
+        by_mermaid.state().diagram.stats().layouts,
+        laid_out,
+        "rune-pele lays out nothing for rune-mermaid's drawing in dark mode"
+    );
     writeln!(
         report,
         "kept rune-mermaid drawing, dark: {} px changed of {} drawn",

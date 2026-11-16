@@ -116,6 +116,34 @@ pub fn rasterise(svg: &str, scale: f32) -> Pixels {
     Pixels { width, height, rgba: pixmap.take() }
 }
 
+/// [`rasterise`] with each pixel the mean of `times` by `times` of resvg's pixels at `times` the
+/// scale. resvg takes a pixel's coverage in quarters of it across, so that at a scale that puts
+/// an upright edge between quarters it is up to an eighth of a pixel off; the mean takes it to
+/// a `4 * times`-th. resvg blends in sRGB as it is stored, so the mean is still a blend by the
+/// area covered.
+pub fn rasterise_fine(svg: &str, scale: f32, times: u32) -> Pixels {
+    let fine = rasterise(svg, scale * times as f32);
+    let (width, height) = (fine.width.div_ceil(times), fine.height.div_ceil(times));
+    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let mut sum = [0u32; 4];
+            let mut count = 0;
+            for fy in y * times..((y + 1) * times).min(fine.height) {
+                for fx in x * times..((x + 1) * times).min(fine.width) {
+                    let px = fine.at(fx, fy);
+                    for channel in 0..4 {
+                        sum[channel] += u32::from(px[channel]);
+                    }
+                    count += 1;
+                }
+            }
+            rgba.extend(sum.map(|total| ((total + count / 2) / count) as u8));
+        }
+    }
+    Pixels { width, height, rgba }
+}
+
 /// The images in a row, `gap` pixels apart, on white.
 pub fn in_a_row(images: &[&Pixels], gap: u32) -> Pixels {
     let width = images.iter().map(|image| image.width).sum::<u32>() + gap * (images.len() as u32 - 1);
@@ -199,6 +227,60 @@ pub fn text_boxes(scene: &Scene) -> Vec<[f64; 4]> {
     boxes
 }
 
+// What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
+// in resvg. Every other pixel is compared with the pixels within one of it in the other
+// drawing, so that an edge half a pixel apart is no difference. The three limits were set
+// before any source was compared, from what Pele draws rather than from what the comparison
+// found.
+
+/// The largest patch of pixels one drawing has and the other has nothing like, in square points.
+/// The smallest things Pele draws are a 1 point stroke and an arrowhead of about 30 square
+/// points. A missing or misplaced one leaves a patch of 5 or more, and a wrong dash gap one of 4.
+pub const LARGEST_PATCH: f64 = 3.0;
+
+/// Such pixels in every 10,000 compared. Patches too small to count one by one still add up:
+/// a dashed edge drawn solid, or the other way round, is some 50 pixels of a 100,000 pixel
+/// drawing.
+pub const MOST_UNEXPLAINED: f64 = 5.0;
+
+/// The error in levels of 255 at the 99.9th percentile of the pixels that are flat in both
+/// drawings: fills and the page. The closest two fills of Pele's are 12 levels apart, a fill at
+/// half opacity is 6 from the page, and two renderers round one colour to within a level or two.
+pub const FLAT_ERROR: u8 = 4;
+
+// At one device pixel a point, a 1 point stroke is one pixel wide, and what a renderer does
+// with a pixel the stroke half covers is most of what it draws. Rune takes a stroke's coverage
+// from the distance to its centre line and resvg from the area covered, which on a slanted
+// hairline differ by up to a tenth of full coverage: 20 levels of a dark edge, all along it.
+// So the first two limits are held at 2x, where they pass, and at 1x the sources over them
+// are counted and listed. This limit, set on finding that, is what a 1x drawing is held to
+// instead, with the flat colours.
+
+/// The largest patch a 1x drawing may have, in pixels: under the smallest arrowhead, so that
+/// nothing Pele draws can be missing or out of place.
+pub const LARGEST_PATCH_1X: usize = 30;
+
+/// The limits `apart` is over, each as a few words, for drawings at `scale` device pixels a
+/// point. `sharp` are the first two limits, of the drawings pixel for pixel. Under 2 pixels a
+/// point the 1x rules apply: the sharp limits are listed and not held, and the patch limit is
+/// [`LARGEST_PATCH_1X`].
+pub fn over(apart: &Apart, scale: f64) -> (Vec<String>, Vec<String>) {
+    let (mut sharp, mut other) = (Vec::new(), Vec::new());
+    if apart.largest_blob as f64 > LARGEST_PATCH * scale * scale {
+        sharp.push(format!("a patch of {} px", apart.largest_blob));
+    }
+    if apart.share() > MOST_UNEXPLAINED {
+        sharp.push(format!("{:.1} unexplained px in 10,000", apart.share()));
+    }
+    if apart.flat_error > FLAT_ERROR {
+        other.push(format!("flat colours {} levels apart", apart.flat_error));
+    }
+    if scale < 2.0 && apart.largest_blob > LARGEST_PATCH_1X {
+        other.push(format!("a patch of {} px at 1x", apart.largest_blob));
+    }
+    (sharp, other)
+}
+
 /// How far two drawings of one diagram are apart, over the pixels that are not text.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Apart {
@@ -246,7 +328,20 @@ fn around(image: &Pixels, x: u32, y: u32) -> ([i16; 3], [i16; 3]) {
 /// Compares `ours` with `theirs` outside `text` (boxes in points, at `scale` pixels a point).
 /// Also answers the unexplained pixels, for a picture of where the drawings differ.
 pub fn compare(ours: &Pixels, theirs: &Pixels, text: &[[f64; 4]], scale: f64) -> (Apart, Vec<(u32, u32)>) {
-    let (width, height) = (ours.width.min(theirs.width), ours.height.min(theirs.height));
+    compare_with_any(ours, &[theirs], text, scale)
+}
+
+/// [`compare`] with several drawings of Pele's, each as right as the others: a pixel is
+/// unexplained only where none of them explains it. The flat colours are compared with the first.
+pub fn compare_with_any(
+    ours: &Pixels,
+    references: &[&Pixels],
+    text: &[[f64; 4]],
+    scale: f64,
+) -> (Apart, Vec<(u32, u32)>) {
+    let theirs = references[0];
+    let width = references.iter().map(|other| other.width).fold(ours.width, u32::min);
+    let height = references.iter().map(|other| other.height).fold(ours.height, u32::min);
     let mut masked = vec![false; (width * height) as usize];
     for [left, top, right, bottom] in text {
         let span = |from: f64, to: f64, most: u32| {
@@ -272,7 +367,11 @@ pub fn compare(ours: &Pixels, theirs: &Pixels, text: &[[f64; 4]], scale: f64) ->
             let within = |px: [u8; 4], low: [i16; 3], high: [i16; 3]| {
                 (0..3).all(|c| (low[c] - NEAR..=high[c] + NEAR).contains(&i16::from(px[c])))
             };
-            if !within(a, b_low, b_high) || !within(b, a_low, a_high) {
+            let explains = |other: &Pixels| {
+                let (b, (b_low, b_high)) = (other.at(x, y), around(other, x, y));
+                within(a, b_low, b_high) && within(b, a_low, a_high)
+            };
+            if !references.iter().any(|other| explains(other)) {
                 unexplained[(y * width + x) as usize] = true;
                 apart.unexplained += 1;
             }

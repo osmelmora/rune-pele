@@ -101,6 +101,11 @@ impl Affine {
         Affine { e: dx, f: dy, ..Affine::IDENTITY }
     }
 
+    /// `factor` times as large, about the origin.
+    pub fn scale(factor: f64) -> Affine {
+        Affine { a: factor, d: factor, ..Affine::IDENTITY }
+    }
+
     /// SVG's `rotate(degrees, cx, cy)`: clockwise on screen, about `centre`.
     pub fn rotate_about(degrees: f64, [cx, cy]: Point) -> Affine {
         let (sin, cos) = degrees.to_radians().sin_cos();
@@ -130,6 +135,11 @@ impl Affine {
 
     pub fn is_translation(&self) -> bool {
         (self.a, self.b, self.c, self.d) == (1.0, 0.0, 0.0, 1.0)
+    }
+
+    /// Whether the map only moves and scales alike both ways, so that an upright box stays one.
+    pub fn is_upright(&self) -> bool {
+        self.b == 0.0 && self.c == 0.0 && self.a == self.d && self.a > 0.0
     }
 }
 

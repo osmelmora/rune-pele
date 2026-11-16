@@ -17,9 +17,9 @@ restore() {
   touch "$1"
 }
 
-# break <name> <file> <test filter> <from> <to> [test binary, lowering unless given]
+# break <name> <file> <test filter> <from> <to> [test binary, `lowering` unless given]
 break_one() {
-  name=$1 file=$src/$2 filter=$3 from=$4 to=$5 test=${6:-lowering}
+  name=$1 file=$src/$2 filter=$3 from=$4 to=$5 binary=${6:-lowering}
   cp "$file" "$file.unbroken"
   FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
   if [ $? -ne 0 ]; then
@@ -28,7 +28,7 @@ break_one() {
     failed=1
     return
   fi
-  if cargo test -q --release -p rune-pele --test "$test" "$filter" > "$logs/$name.log" 2>&1; then
+  if cargo test -q --release -p rune-pele --test "$binary" "$filter" > "$logs/$name.log" 2>&1; then
     echo "break $name: tests still PASS with it; $filter does not catch it"
     failed=1
   else
@@ -97,9 +97,41 @@ break_one kept-error-below-the-drawing kept.rs the_dimmed_look_fades \
   '.pin(Some(0.0), Some(0.0), Some(0.0), None)' \
   keep_view
 break_one kept-rune-mermaid-dark-unchanged lib.rs a_palette_or_dark_mode \
-  'if drawing.dark == dark {' \
+  'if drawing.dark == dark && drawing.max_width == max_width {' \
   'if true {' \
   keep_view
+break_one zoom-geometry-unzoomed lower.rs a_link_and_a_tooltip_at_half_size \
+  'let mut open = vec![Open { to_drawing: Affine::scale(zoom), element: None, children: Vec::new() }];' \
+  'let mut open = vec![Open { to_drawing: Affine::IDENTITY, element: None, children: Vec::new() }];' \
+  fit_view
+break_one zoom-box-unzoomed lower.rs a_link_and_a_tooltip_at_half_size \
+  'size.map(|side| side * zoom), radius * zoom,' \
+  'size, radius * zoom,' \
+  fit_view
+break_one zoom-stroke-unzoomed lower.rs a_stroke_is_zoomed \
+  'width: stroke.width * zoom,' \
+  'width: stroke.width,' \
+  fit_view
+break_one zoom-text-unzoomed lower.rs text_at_each_zoom \
+  'TextStyle { size: style.size * zoom as f32,' \
+  'TextStyle { size: style.size,' \
+  fit_view
+break_one fit-enlarges fit.rs a_fitted_view \
+  '(room / width).min(1.0).max(least.min(1.0))' \
+  '(room / width).max(least.min(1.0))' \
+  fit_view
+break_one fit-under-the-smallest-text fit.rs a_fitted_view \
+  '(room / width).min(1.0).max(least.min(1.0))' \
+  '(room / width).min(1.0)' \
+  fit_view
+break_one fit-never-narrower lib.rs a_fitted_view \
+  'let laid = if self.narrows(source, options, scale, &natural) {' \
+  'let laid = if false && self.narrows(source, options, scale, &natural) {' \
+  fit_view
+break_one fit-at-every-width lib.rs a_resize \
+  'max_width: Some(fit::step_below(room)),' \
+  'max_width: Some(room),' \
+  fit_view
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
