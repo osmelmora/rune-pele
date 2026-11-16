@@ -158,6 +158,15 @@ impl ResolvedPaints {
     }
 }
 
+/// Whose colour a series is drawn in where the source's theme config sets one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ThemeSeries {
+    /// The source's, as Pele's SVG declares it over the page's.
+    Source,
+    /// The palette's, as though the source set none.
+    Palette,
+}
+
 impl Scene {
     /// The Scene's paints as colours. A series colour the source sets wins over `palette`'s, and
     /// `dark` picks the branch of one written with `light-dark()`. Text on a series is in
@@ -166,8 +175,15 @@ impl Scene {
     /// holds for every series, so labels stay readable in any palette. Nothing here measures or
     /// lays out.
     pub fn resolve_paints(&self, palette: &Palette, dark: bool) -> ResolvedPaints {
+        self.resolve_paints_with(palette, dark, ThemeSeries::Source)
+    }
+
+    /// [`Scene::resolve_paints`], with `theme` saying whose colour a series the source's theme
+    /// config sets is drawn in. Text on it contrasts with that colour either way.
+    pub fn resolve_paints_with(&self, palette: &Palette, dark: bool, theme: ThemeSeries) -> ResolvedPaints {
         let mut series = palette.series;
-        for (index, colour) in self.document.palette.slots() {
+        let themed = self.document.palette.slots().filter(|_| theme == ThemeSeries::Source);
+        for (index, colour) in themed {
             if let Some(colour) = css_colour(&colour.spelling, dark) {
                 series[index] = colour;
             }

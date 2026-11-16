@@ -29,7 +29,7 @@ use crate::text::{Anchor, BaselinePoint, Baselines, style as text_style};
 
 /// The kinds whose Scenes are drawn here. A kind pele-core ports joins the list once its Scenes
 /// have been drawn side by side with Pele's.
-pub const NATIVE: [DiagramKind; 11] = [
+pub const NATIVE: [DiagramKind; 14] = [
     DiagramKind::Pie,
     DiagramKind::Flowchart,
     DiagramKind::Class,
@@ -41,6 +41,9 @@ pub const NATIVE: [DiagramKind; 11] = [
     DiagramKind::Agentflow,
     DiagramKind::Architecture,
     DiagramKind::TreeView,
+    DiagramKind::GitGraph,
+    DiagramKind::Radar,
+    DiagramKind::Timeline,
 ];
 
 /// Why a Scene is not drawn here.

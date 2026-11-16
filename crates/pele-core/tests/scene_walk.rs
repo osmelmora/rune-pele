@@ -3,7 +3,7 @@
 
 use pele_core::scene::{
     AnchorKind, EntityKind, Facet, FragmentDetail, Geometry, LineJoin, Paint, PaintVisit, Palette, PathCommand, Point,
-    Rgba, Role, SeriesSlot,
+    Rgba, Role, SeriesSlot, ThemeSeries,
 };
 use pele_core::{Font, LayoutOptions, NativeInputs, ParseOptions, TextMeasure, TextMeasurer, TextRef, prepare};
 use std::f64::consts::TAU;
@@ -220,4 +220,19 @@ fn a_series_colour_the_source_sets_wins_over_the_palette() {
     let dark = scene.scene().resolve_paints(&Palette::pele(), true);
     assert_eq!(light.get(slot).map(Rgba::to_srgb8), Some([255, 0, 0, 255]));
     assert_eq!(dark.get(slot).map(Rgba::to_srgb8), Some([0, 0, 128, 255]));
+}
+
+#[test]
+fn a_palette_that_wins_over_the_source_s_theme_draws_its_own_series_and_ink_to_match() {
+    let source = "%%{init: {\"themeVariables\": {\"pie1\": \"#ffffff\"}}}%%\npie\n\"a\" : 1";
+    let scene = pele_core::parity_scene(source).expect("draws");
+    let (series, ink) = (Paint::Series(SeriesSlot::new(0)), Paint::OnSeries(SeriesSlot::new(0)));
+    let resolve = |theme| scene.scene().resolve_paints_with(&Palette::pele(), false, theme);
+    let (source_wins, palette_wins) = (resolve(ThemeSeries::Source), resolve(ThemeSeries::Palette));
+    let srgb = |paints: &pele_core::scene::ResolvedPaints, paint| paints.get(paint).map(Rgba::to_srgb8);
+    assert_eq!(srgb(&source_wins, series), Some([255, 255, 255, 255]), "the source's white");
+    assert_eq!(srgb(&source_wins, ink), Some([0x1f, 0x1f, 0x1f, 255]), "dark text on it");
+    assert_eq!(srgb(&palette_wins, series), Some([0x4c, 0x78, 0xa8, 255]), "the palette's blue");
+    assert_eq!(srgb(&palette_wins, ink), Some([255, 255, 255, 255]), "white text on that");
+    assert_eq!(source_wins, scene.scene().resolve_paints(&Palette::pele(), false), "the source wins by default");
 }

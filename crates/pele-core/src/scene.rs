@@ -21,7 +21,7 @@ mod walk;
 pub use glyph::IconGlyph;
 
 pub(crate) use palette::PELE_SERIES;
-pub use palette::{Palette, ResolvedPaints, Rgba};
+pub use palette::{Palette, ResolvedPaints, Rgba, ThemeSeries};
 pub(crate) use style::{AuthorClasses, ResolvedStyle, Style, ink_on, paints, px, resolve_style};
 pub use walk::{
     BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, ImageFit, LinkRef, PaintStyle, PaintVisit,

@@ -16,7 +16,7 @@ use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-graph";
-const TYPES: [&str; 10] = [
+const TYPES: [&str; 13] = [
     "flowchart",
     "class",
     "state",
@@ -27,6 +27,9 @@ const TYPES: [&str; 10] = [
     "agentflow",
     "architecture",
     "treeview",
+    "git",
+    "radar",
+    "timeline",
 ];
 
 // What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
@@ -284,7 +287,7 @@ fn every_corpus_source_of_the_graph_types_draws_as_pele_draws_it_at_1x_and_2x() 
 
 /// One source of each opened type, and an edit of it that changes a value and keeps what it
 /// names: `tests/fixtures/rune/<type>.mmd`.
-const FIXTURES: [(&str, &str, [&str; 2]); 10] = [
+const FIXTURES: [(&str, &str, [&str; 2]); 13] = [
     ("flowchart", include_str!("../../../tests/fixtures/rune/flowchart.mmd"), ["Checkout", "Clone the repository"]),
     ("class", include_str!("../../../tests/fixtures/rune/class.mmd"), ["float radius", "float diameter"]),
     ("state", include_str!("../../../tests/fixtures/rune/state.mmd"), ["Keeps the last error", "Remembers why"]),
@@ -295,6 +298,9 @@ const FIXTURES: [(&str, &str, [&str; 2]); 10] = [
     ("agentflow", include_str!("../../../tests/fixtures/rune/agentflow.mmd"), ["Gather sources", "Collect sources"]),
     ("architecture", include_str!("../../../tests/fixtures/rune/architecture.mmd"), ["Primary store", "Main store"]),
     ("treeview", include_str!("../../../tests/fixtures/rune/treeview.mmd"), ["entry point", "where it starts"]),
+    ("git", include_str!("../../../tests/fixtures/rune/git.mmd"), ["v1.0", "v1.1"]),
+    ("radar", include_str!("../../../tests/fixtures/rune/radar.mmd"), ["{4, 3, 2, 5, 3}", "{4, 3, 3, 5, 3}"]),
+    ("timeline", include_str!("../../../tests/fixtures/rune/timeline.mmd"), ["Public beta", "Open beta"]),
 ];
 
 const VIEWPORT: (f32, f32) = (720.0, 900.0);

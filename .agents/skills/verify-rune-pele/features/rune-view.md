@@ -15,6 +15,7 @@ A Rune app calls `rune_pele::Diagram::view` with Mermaid source and gets the dia
 - `rune-census` counts what the Scenes of the graph types ask an interpreter to draw, over the corpus and every harvested source.
 - `rune-perf` times layout, lowering and painting for the largest harvested source of each type and for stress cases.
 - `rune-scene` checks the Scene's read model the Rune view is built on: paint order, keys, inherited style and palette resolution.
+- `rune-theme` checks the series colours a source sets in its theme config, at a pixel of git's main branch label: the source's in `Palette::pele()`, and the palette's own in any other. It also checks how the side-by-side reads those colours from Pele's SVG, and a git commit's tooltip.
 
 ## How to get to it (user POV)
 
@@ -53,12 +54,14 @@ Preconditions:
 - **Break the lowerings.** Run `$C $R rune-break crates/rune-pele/break-lowering.sh`. Exit 0. Stdout has seven lines starting `break <name>: <test> fails, as it should:`, each followed by the failed assertion. `git status --short crates/rune-pele/src` prints nothing afterwards: every break is undone.
 - **Census.** Run `$C $R rune-census cargo run -q --release -p rune-pele --example census`. Exit 0. Stdout is a table with a column per graph type and a row per feature, such as `stroke dash [3.0, 4.0]`, `group turned -90 degrees` and `source with a style the walk does not read`.
 - **Performance.** Run `$C $R rune-perf env RUNE_PELE_OUT=$PWD/out/verify/$R/rune-perf cargo test -q --release -p rune-pele --test graph_view -- --nocapture --ignored how_long`. Exit 0. Stdout has a line per type and per stress case with `layout`, `lower` and `paint` times, the same after a palette change, and the counts of keyed elements, shape ops and Rune elements.
-- **Scene read model.** Run `$C $R rune-scene cargo test -q -p pele-core --test scene_walk`. Exit 0 and `9 passed`.
+- **Scene read model.** Run `$C $R rune-scene cargo test -q -p pele-core --test scene_walk`. Exit 0 and `10 passed`.
+- **Source theme colours.** Run `$C $R rune-theme cargo test -q -p rune-pele --test theme_view -- --nocapture --test-threads=1`. Exit 0 and `3 passed`. Stdout has `main label in Pele's palette [255, 0, 0, 255], an app's palette [0, 170, 85, 255], the window's theme [76, 120, 168, 255]`, each channel within a level. It also has `tooltip on init: Some("Start the project"); on docs, which has no message: None`.
 
 ## Gotchas
 
 - Text on a series colour contrasts with that colour in the Rune view, by Pele's own luminance rule. Pele's SVG does so only where the source sets the series colour, so its `17%` on orange is white. That difference is intended. It is not a parity failure; parity is the SVG writer's, under `parity.md`. `DIVERGENCES.md` lists every such difference.
 - resvg has no CSS variables, and reads neither the root's `font` shorthand nor a corner radius in a `style`. The side-by-side resolves each `var()` as a page with no CSS of its own would, sets the root's `font-size` from that shorthand, and moves `rx` from a `style` to the attribute. A raw `resvg` of Pele's SVG draws black shapes with square corners and a 12px title.
+- A source's theme config can set its series colours (`git0`, `cScale0`, `pie1`, `xyChart.plotColorPalette`). Pele declares them on the SVG's root as `--pele-series-N`, and the side-by-side reads a variable the root declares as a page does, not its fallback. The Rune view draws them only in `Palette::pele()`. Any other palette wins over them, as `DIVERGENCES.md` says, so such a source in another palette differs from Pele's SVG by design.
 - The side-by-side needs Arial or a metric-compatible face: Arial on macOS or Windows, or Liberation Sans on Linux. `RUNE_PELE_RESVG_FONT=<face.ttf>` names another face, such as the Inter Rune draws with.
 - Without `RUNE_PELE_OUT`, the pie test writes to `out/verify/pie-rune/`, the graph tests and the lowering test to `out/verify/rune-graph/`, and the spike tests to `out/verify/rune-spike/`.
 - An app's view lays out with Inter's widths, so a node is as wide as its Inter label. The graph side-by-side lays out with Pele's own metrics instead (`ViewOptions::pele_metrics`), so that every shape is where Pele's SVG has it, and leaves text out of the comparison. Text drawn in Inter then does not fit its Arial-sized box exactly. Never judge label fit from a side-by-side image.

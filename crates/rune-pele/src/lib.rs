@@ -32,7 +32,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use pele_core::scene::Rgba;
+use pele_core::scene::{Rgba, ThemeSeries};
 use pele_core::{LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
 use rune::{Color, Cx, El, Tx, memo, tok};
 
@@ -56,6 +56,8 @@ pub enum Event {
 #[derive(Clone, Debug, PartialEq, Hash)]
 pub struct Palette {
     core: pele_core::scene::Palette,
+    /// Whose colour a series the source's theme config sets is drawn in.
+    theme: ThemeSeries,
 }
 
 fn rgba(colour: Color) -> Rgba {
@@ -63,9 +65,11 @@ fn rgba(colour: Color) -> Rgba {
 }
 
 impl Palette {
-    /// Pele's own colours, as its SVG falls back to them.
+    /// Pele's own colours, as its SVG falls back to them. A series colour the source sets in its
+    /// theme config wins over them, as in Pele. Any other palette, even one made from this one
+    /// with [`Palette::with`], wins over the source's.
     pub fn pele() -> Self {
-        Palette { core: pele_core::scene::Palette::pele() }
+        Palette { core: pele_core::scene::Palette::pele(), theme: ThemeSeries::Source }
     }
 
     /// The roles in a Rune theme's colours, and Pele's series. Nodes are filled as cards are,
@@ -90,12 +94,12 @@ impl Palette {
     }
 
     pub fn with(self, role: Role, colour: Color) -> Self {
-        Palette { core: self.core.with(role, rgba(colour)) }
+        Palette { core: self.core.with(role, rgba(colour)), theme: ThemeSeries::Palette }
     }
 
     /// Sets the colour of the series at `position`, counted from 0. Positions wrap after eight.
     pub fn with_series(self, position: usize, colour: Color) -> Self {
-        Palette { core: self.core.with_series(position, rgba(colour)) }
+        Palette { core: self.core.with_series(position, rgba(colour)), theme: ThemeSeries::Palette }
     }
 
     pub fn core(&self) -> &pele_core::scene::Palette {
@@ -326,7 +330,7 @@ impl Diagram {
             Err(why) => return self.rune_mermaid(source, env.system_dark, &options, why),
         };
         let palette = options.palette.unwrap_or_else(|| Palette::from_tokens(&tok::theme(env.system_dark)));
-        let paints = layout.scene.resolve_paints(palette.core(), env.system_dark);
+        let paints = layout.scene.resolve_paints_with(palette.core(), env.system_dark, palette.theme);
         {
             let mut session = self.session.borrow_mut();
             session.status = Some(RenderStatus::Pele);
