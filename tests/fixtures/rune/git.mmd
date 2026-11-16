@@ -1,0 +1,14 @@
+gitGraph
+    commit id: "init" msg: "Start the project"
+    branch develop
+    checkout develop
+    commit id: "api" msg: "Add the API" tag: "v0.1"
+    commit id: "tests" type: HIGHLIGHT
+    checkout main
+    commit id: "docs" type: REVERSE
+    merge develop id: "release" tag: "v1.0"
+    branch hotfix
+    checkout hotfix
+    commit id: "patch" msg: "Fix the crash on start"
+    checkout main
+    cherry-pick id: "patch"
