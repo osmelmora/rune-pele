@@ -102,8 +102,10 @@ fn a_git_commit_with_a_message_shows_it_where_the_pointer_rests() {
     let mut window = window(&capturer, THEMED_GIT, ViewOptions::natural().palette(Palette::pele()));
     window.capture();
     let elements = window.runtime().elements();
-    let helps: Vec<&str> = elements.iter().filter_map(|element| element.help.as_deref()).collect();
-    assert_eq!(helps, ["Start the project"], "the one commit with a message carries it");
+    // A shape that holds a tooltip is found in a row of boxes along it, each carrying the text.
+    let helps: std::collections::BTreeSet<&str> =
+        elements.iter().filter_map(|element| element.help.as_deref()).collect();
+    assert_eq!(helps, ["Start the project"].into(), "the one commit with a message carries it");
     let commit = elements.iter().find(|element| element.help.is_some()).expect("found above").rect;
     let docs = rect_of(&window, "node:docs/shape");
 
