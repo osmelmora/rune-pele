@@ -17,25 +17,30 @@
 //! [`lower::NATIVE`] lists the diagram types drawn this way. Any other type, and any source whose
 //! Scene asks for something the lowering does not draw, is drawn by Rune's own rune-mermaid.
 //!
-//! Layout is cached by source, layout options, device scale and Rune's font epoch, and painting
-//! is a `memo` keyed by the layout and the resolved colours. So a palette or dark-mode change
-//! repaints without parsing, laying out or measuring anything.
+//! Layout is cached by source, layout options, device scale and Rune's font epoch, lowering by
+//! layout and zoom, and painting is a `memo` keyed by the lowered drawing and the resolved
+//! colours. So a palette or dark-mode change repaints without parsing, laying out or measuring
+//! anything, and a zoom lowers again without laying out.
+//!
+//! [`ViewOptions::fit`] fits a diagram to the width its view has, which it reads from Rune's
+//! layout.
 
 pub mod bands;
 pub mod capture;
 pub mod fill;
+mod fit;
 pub mod geometry;
 pub mod lower;
 pub mod stroke;
 pub mod text;
 
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use pele_core::scene::{Rgba, ThemeSeries};
-use pele_core::{LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
-use rune::{Color, Cx, El, Tx, memo, tok};
+use pele_core::{DiagramKind, LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
+use rune::{Color, Cx, El, Tx, el, memo, tok};
 
 /// Where a link in a diagram leads.
 pub use pele_core::scene::LinkRef as Link;
@@ -114,7 +119,21 @@ pub struct ViewOptions {
     layout: LayoutOptions,
     palette: Option<Palette>,
     metrics: Metrics,
+    /// How many times its laid-out size the diagram is drawn, after any fit.
+    zoom: f32,
+    fit: Option<Fit>,
 }
+
+/// How a view fits the width it has: see [`ViewOptions::fit`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Fit {
+    /// The least size plain text is drawn at, in points.
+    smallest_text: f32,
+}
+
+/// The least size a fitted view draws plain text at, in points, unless the app sets another: a
+/// little over two thirds of Pele's 16.
+const SMALLEST_TEXT: f32 = 11.0;
 
 /// What a layout measures its text with.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -133,7 +152,7 @@ impl ViewOptions {
     /// A view at most `width` points wide. A diagram that can draw itself narrower does.
     pub fn new(width: f32) -> Self {
         let layout = LayoutOptions { max_width: Some(f64::from(width)), ..Self::natural().layout };
-        ViewOptions { layout, palette: None, metrics: Metrics::Drawn }
+        ViewOptions { layout, ..Self::natural() }
     }
 
     /// A view as wide as the diagram lays itself out.
@@ -143,7 +162,39 @@ impl ViewOptions {
         // ids to share, so it lays out under Pele's own default prefix, which also seeds a
         // cynefin's boundaries as Pele does without one.
         let layout = LayoutOptions { id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()), ..LayoutOptions::default() };
-        ViewOptions { layout, palette: None, metrics: Metrics::Drawn }
+        ViewOptions { layout, palette: None, metrics: Metrics::Drawn, zoom: 1.0, fit: None }
+    }
+
+    /// A view as wide as its parent, which fits the diagram to that width. A diagram that fits
+    /// is drawn at its own size. One that does not, and draws itself narrower when it has less
+    /// room, is laid out again for the width, as Pele's `mount` does. What is still too wide is
+    /// drawn smaller, but never with plain text under [`ViewOptions::smallest_text`]: at that
+    /// size the view scrolls sideways instead. A fit never draws a diagram larger than its size.
+    ///
+    /// The width is the view's own from Rune's last layout, and a change of it runs the app's
+    /// view again. The diagram is laid out again only when the width crosses one of the steps
+    /// a twelfth of an octave apart, at which it is then laid out, so that dragging a window's
+    /// edge zooms between steps. Before Rune has laid the view out, it draws the diagram at its
+    /// own size; the same commit runs the view again with the width before anything is shown.
+    pub fn fit() -> Self {
+        ViewOptions { fit: Some(Fit { smallest_text: SMALLEST_TEXT }), ..Self::natural() }
+    }
+
+    /// The least size, in points, a fitted view draws plain text at: 11 unless set. It makes
+    /// the view's least zoom this over the plain text size, or 1 where that is less.
+    pub fn smallest_text(mut self, points: f32) -> Self {
+        if let Some(fit) = &mut self.fit {
+            fit.smallest_text = points;
+        }
+        self
+    }
+
+    /// Draws the diagram `zoom` times the size it is laid out at, after any fit: its shapes, its
+    /// text and the boxes its links and tooltips are found in. 1 unless set. A zoom lowers the
+    /// laid-out diagram again, and lays nothing out.
+    pub fn zoom(mut self, zoom: f32) -> Self {
+        self.zoom = zoom;
+        self
     }
 
     /// Lays the diagram out with Pele's own text metrics instead of the fonts it is drawn in,
@@ -242,6 +293,8 @@ pub struct ViewStats {
     pub measurements: u64,
     /// Times the elements were built from a layout and colours.
     pub paints: u64,
+    /// Times a layout was lowered to shapes and placed text, once for each zoom it is drawn at.
+    pub lowerings: u64,
 }
 
 /// How long the last layout and the last paint took, for profiling.
@@ -267,10 +320,21 @@ struct LayoutKey {
 
 struct Layout {
     key: LayoutKey,
-    /// Names this layout in the paint memo's version.
+    /// Names this layout among its lowerings.
     id: u64,
+    kind: DiagramKind,
     scene: Rc<Scene>,
-    drawing: Drawing,
+    /// Whether the diagram draws itself narrower for less room, once a fit has asked.
+    narrows: OnceCell<bool>,
+}
+
+/// A layout lowered at one zoom, or why it is not drawn natively.
+struct Lowered {
+    layout: u64,
+    zoom: f32,
+    /// Names this drawing in the paint memo's version.
+    id: u64,
+    drawing: Result<Drawing, Unsupported>,
 }
 
 /// The measurer for one device scale, kept while the scale holds.
@@ -285,6 +349,7 @@ const KEPT: usize = 4;
 #[derive(Default)]
 struct Session {
     layouts: Vec<Rc<Layout>>,
+    lowered: Vec<Rc<Lowered>>,
     /// The inputs last found not to draw natively, so that a view of them does not parse and
     /// lay out again only to find the same.
     refused: Option<(LayoutKey, Fallback)>,
@@ -295,6 +360,7 @@ struct Session {
     next_id: u64,
     status: Option<RenderStatus>,
     last_scene: Option<Rc<Scene>>,
+    last_drawing: Option<Rc<Lowered>>,
     stats: ViewStats,
     times: ViewTimes,
 }
@@ -347,9 +413,25 @@ impl Diagram {
         if !positive(options.layout.typography.normal.size) {
             return Err(ViewError::Option("font size"));
         }
-        let layout = match self.layout(source, &options, env.scale)? {
-            Ok(layout) => layout,
-            Err(why) => return self.rune_mermaid(source, env.system_dark, &options, why),
+        if !positive(f64::from(options.zoom)) {
+            return Err(ViewError::Option("zoom"));
+        }
+        if !options.fit.is_none_or(|fit| positive(f64::from(fit.smallest_text))) {
+            return Err(ViewError::Option("smallest text size"));
+        }
+        // The width a fitted view has, as Rune last laid it out: none before its first layout.
+        let room = options.fit.and_then(|_| cx.layout_with(&self.frame_key(), |rect| rect[2]));
+        let (layout, zoom) = match self.sized(source, &options, env.scale, room)? {
+            Ok(sized) => sized,
+            Err(why) => return self.rune_mermaid(source, env.system_dark, &options, room, why),
+        };
+        let lowered = self.lowered(&layout, env.scale, zoom);
+        let drawing = match &lowered.drawing {
+            Ok(drawing) => drawing,
+            Err(why) => {
+                let why = Fallback::NotLowered(why.clone());
+                return self.rune_mermaid(source, env.system_dark, &options, room, why);
+            }
         };
         let palette = options.palette.unwrap_or_else(|| Palette::from_tokens(&tok::theme(env.system_dark)));
         let paints = layout.scene.resolve_paints_with(palette.core(), env.system_dark, palette.theme);
@@ -358,17 +440,107 @@ impl Diagram {
             session.status = Some(RenderStatus::Pele);
             session.fallback = None;
             session.last_scene = Some(layout.scene.clone());
+            session.last_drawing = Some(lowered.clone());
         }
         // The handler is part of what is painted, so another one paints again.
         let handler = on_event.map(|handler| handler as usize);
-        Ok(memo(self.id.as_str(), (layout.id, &paints, handler), || {
+        let painted = memo(self.id.as_str(), (lowered.id, &paints, handler), || {
             let started = Instant::now();
-            let painted = layout.drawing.el(&paints, on_event).key(self.id.as_str());
+            let painted = drawing.el(&paints, on_event).key(self.id.as_str());
             let mut session = self.session.borrow_mut();
             session.stats.paints += 1;
             session.times.paint = started.elapsed();
             painted
-        }))
+        });
+        Ok(self.framed(options.fit, painted))
+    }
+
+    /// The key of a fitted view's frame, whose width it fits.
+    fn frame_key(&self) -> String {
+        format!("{}~fit", self.id)
+    }
+
+    /// A fitted view's drawing in its frame: as wide as its parent, and scrolling sideways where
+    /// the drawing is wider.
+    fn framed(&self, fit: Option<Fit>, drawn: El) -> El {
+        match fit {
+            Some(_) => el().key(self.frame_key()).w_full().scroll_x().child(drawn),
+            None => drawn,
+        }
+    }
+
+    /// The layout a view draws and the zoom it draws it at, or why it is not drawn natively.
+    /// A fitted view with `room` follows the steps [`ViewOptions::fit`] gives, in order.
+    fn sized(
+        &self,
+        source: &str,
+        options: &ViewOptions,
+        scale: f32,
+        room: Option<f32>,
+    ) -> Result<Result<(Rc<Layout>, f32), Fallback>, ViewError> {
+        let natural = match self.layout(source, &options.layout, options.metrics, scale)? {
+            Ok(layout) => layout,
+            Err(why) => return Ok(Err(why)),
+        };
+        let room = room.map(f64::from).filter(|room| room.is_finite() && *room > 0.0);
+        let (Some(fit), Some(room)) = (options.fit, room) else {
+            return Ok(Ok((natural, options.zoom)));
+        };
+        if natural.scene.size().width <= room {
+            return Ok(Ok((natural, options.zoom)));
+        }
+        let laid = if self.narrows(source, options, scale, &natural) {
+            let at = LayoutOptions { max_width: Some(fit::step_below(room)), ..options.layout.clone() };
+            match self.layout(source, &at, options.metrics, scale)? {
+                Ok(layout) => layout,
+                Err(why) => return Ok(Err(why)),
+            }
+        } else {
+            natural
+        };
+        let least = f64::from(fit.smallest_text) / options.layout.typography.normal.size;
+        let zoom = fit::zoom_into(room, laid.scene.size().width, least) as f32;
+        Ok(Ok((laid, zoom * options.zoom)))
+    }
+
+    /// Whether the diagram of `natural` draws itself narrower when it has less room, as Pele's
+    /// `mount` asks: laid out for a width of 1, it differs from its own layout.
+    fn narrows(&self, source: &str, options: &ViewOptions, scale: f32, natural: &Layout) -> bool {
+        if let Some(&narrows) = natural.narrows.get() {
+            return narrows;
+        }
+        let squeezed = LayoutOptions { max_width: Some(1.0), ..options.layout.clone() };
+        let narrows = match self.layout(source, &squeezed, options.metrics, scale) {
+            Ok(Ok(probe)) => {
+                probe.scene.size() != natural.scene.size() || !probe.scene.paint().eq(natural.scene.paint())
+            }
+            // A diagram that cannot be laid out with no room is drawn as it lays itself out.
+            _ => false,
+        };
+        *natural.narrows.get_or_init(|| narrows)
+    }
+
+    /// `layout` lowered at `zoom`, from the cache or lowered now.
+    fn lowered(&self, layout: &Layout, scale: f32, zoom: f32) -> Rc<Lowered> {
+        let mut session = self.session.borrow_mut();
+        if let Some(at) = session.lowered.iter().position(|lowered| lowered.layout == layout.id && lowered.zoom == zoom)
+        {
+            let lowered = session.lowered.remove(at);
+            session.lowered.push(lowered.clone());
+            return lowered;
+        }
+        let started = Instant::now();
+        let measure = session.measure(&self.fonts, scale);
+        let drawing = Drawing::zoomed(layout.kind, &layout.scene, &mut measure.baselines(), scale, zoom);
+        session.times.lower = started.elapsed();
+        session.stats.lowerings += 1;
+        session.next_id += 1;
+        let lowered = Rc::new(Lowered { layout: layout.id, zoom, id: session.next_id, drawing });
+        if session.lowered.len() == KEPT {
+            session.lowered.remove(0);
+        }
+        session.lowered.push(lowered.clone());
+        lowered
     }
 
     /// Why the last view was drawn by rune-mermaid, where it was.
@@ -383,8 +555,12 @@ impl Diagram {
     /// What the last native view asks of Rune.
     pub fn census(&self) -> Option<lower::Census> {
         let session = self.session.borrow();
-        let scene = session.last_scene.as_ref()?;
-        session.layouts.iter().find(|layout| Rc::ptr_eq(&layout.scene, scene)).map(|layout| layout.drawing.census())
+        session.last_drawing.as_ref()?.drawing.as_ref().ok().map(Drawing::census)
+    }
+
+    /// The zoom the last native view was drawn at: 1 at the size the diagram is laid out at.
+    pub fn zoom(&self) -> Option<f32> {
+        self.session.borrow().last_drawing.as_ref().map(|lowered| lowered.zoom)
     }
 
     pub fn status(&self) -> RenderStatus {
@@ -407,12 +583,11 @@ impl Diagram {
     fn layout(
         &self,
         source: &str,
-        options: &ViewOptions,
+        options: &LayoutOptions,
+        metrics: Metrics,
         scale: f32,
     ) -> Result<Result<Rc<Layout>, Fallback>, ViewError> {
         let font_epoch = rune::text::font_epoch();
-        let metrics = options.metrics;
-        let options = &options.layout;
         let key = LayoutKey { source: source.to_owned(), options: options.clone(), metrics, scale, font_epoch };
         let mut session = self.session.borrow_mut();
         if let Some(at) = session.layouts.iter().position(|layout| layout.key == key) {
@@ -423,15 +598,9 @@ impl Diagram {
         if let Some((_, why)) = session.refused.as_ref().filter(|(refused, _)| *refused == key) {
             return Ok(Err(why.clone()));
         }
-        if session.measure.as_ref().is_none_or(|m| m.scale != scale) {
-            let before = session.measure.take().map_or(0, |m| m.measure.baselines().shaped());
-            session.shaped_before += before;
-            session.measure = Some(Measure { scale, measure: RuneMeasure::new(self.fonts.baselines(scale)) });
-        }
-        let measure = &session.measure.as_ref().expect("made above").measure;
+        let measure = session.measure(&self.fonts, scale);
         let started = Instant::now();
-        let mut laid_out = started;
-        let lowered = match pele_core::prepare(source, ParseOptions::default()) {
+        let laid_out = match pele_core::prepare(source, ParseOptions::default()) {
             Err(RenderError::NotPorted) => Err(Fallback::NotPorted),
             Err(error) => return Err(ViewError::Core(error)),
             // No Scene is laid out for a kind that is not drawn from one.
@@ -444,25 +613,21 @@ impl Diagram {
                     Metrics::Pele => pele_core::parity_scene_with(source, ParseOptions::default(), options)
                         .map(|parity| parity.scene().clone()),
                 };
-                let scene = scene.map_err(ViewError::Core)?;
-                laid_out = Instant::now();
-                Drawing::new(prepared.kind(), &scene, &mut measure.baselines(), scale)
-                    .map(|drawing| (scene, drawing))
-                    .map_err(Fallback::NotLowered)
+                Ok((prepared.kind(), scene.map_err(ViewError::Core)?))
             }
         };
-        let (scene, drawing) = match lowered {
-            Ok(lowered) => lowered,
+        let (kind, scene) = match laid_out {
+            Ok(laid_out) => laid_out,
             Err(why) => {
                 session.refused = Some((key, why.clone()));
                 return Ok(Err(why));
             }
         };
-        session.times.layout = laid_out - started;
-        session.times.lower = laid_out.elapsed();
+        session.times.layout = started.elapsed();
         session.stats.layouts += 1;
         session.next_id += 1;
-        let layout = Rc::new(Layout { key, id: session.next_id, scene: Rc::new(scene), drawing });
+        let layout =
+            Rc::new(Layout { key, id: session.next_id, kind, scene: Rc::new(scene), narrows: OnceCell::new() });
         if session.layouts.len() == KEPT {
             session.layouts.remove(0);
         }
@@ -470,10 +635,19 @@ impl Diagram {
         Ok(Ok(layout))
     }
 
-    fn rune_mermaid(&self, source: &str, dark: bool, options: &ViewOptions, why: Fallback) -> Result<El, ViewError> {
+    /// `source` drawn by rune-mermaid, for `why` it is not drawn natively, at most as wide as
+    /// the view's width or a fitted view's `room`.
+    fn rune_mermaid(
+        &self,
+        source: &str,
+        dark: bool,
+        options: &ViewOptions,
+        room: Option<f32>,
+        why: Fallback,
+    ) -> Result<El, ViewError> {
         let mut style = rune_mermaid::DiagramStyle::neutral(dark);
-        if let Some(width) = options.layout.max_width {
-            style.max_width = width as f32;
+        if let Some(width) = options.layout.max_width.map(|width| width as f32).or(room) {
+            style.max_width = width;
         }
         let drawn = rune_mermaid::render(source, &style).ok_or(match &why {
             Fallback::NotPorted => ViewError::NoFallback,
@@ -483,6 +657,19 @@ impl Diagram {
         session.status = Some(RenderStatus::RuneMermaid);
         session.fallback = Some(why);
         session.last_scene = None;
-        Ok(drawn.key(self.id.as_str()))
+        session.last_drawing = None;
+        Ok(self.framed(options.fit, drawn.key(self.id.as_str())))
+    }
+}
+
+impl Session {
+    /// The measurer for `scale`, made anew when the scale changes.
+    fn measure(&mut self, fonts: &FontCatalog, scale: f32) -> &RuneMeasure {
+        if self.measure.as_ref().is_none_or(|m| m.scale != scale) {
+            let before = self.measure.take().map_or(0, |m| m.measure.baselines().shaped());
+            self.shaped_before += before;
+            self.measure = Some(Measure { scale, measure: RuneMeasure::new(fonts.baselines(scale)) });
+        }
+        &self.measure.as_ref().expect("made above").measure
     }
 }
