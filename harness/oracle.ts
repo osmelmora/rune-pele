@@ -428,6 +428,12 @@ import { sankeyOps } from './sankey.ts';
 Object.assign(ops, sankeyOps);
 import { packetOps } from './packet.ts';
 Object.assign(ops, packetOps);
+import { kanbanOps } from './kanban.ts';
+Object.assign(ops, kanbanOps);
+import { mindmapOps } from './mindmap.ts';
+Object.assign(ops, mindmapOps);
+import { ishikawaOps } from './ishikawa.ts';
+Object.assign(ops, ishikawaOps);
 const out: string[] = [];
 for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
   const [op, ...args] = line.split('\t');

@@ -230,7 +230,11 @@ diagram_catalog! {
             (14, "flowchart-v2", starts(&["graph", "flowchart"])),
         ],
     },
-    Mindmap => { name: "mindmap", detectors: [(1, "mindmap", starts(&["mindmap"]))] },
+    Mindmap => {
+        name: "mindmap",
+        port: { diagram: diagrams::mindmap::Mindmap, section: "mindmap", palette: PaletteRule::Slots("cScale", 1) },
+        detectors: [(1, "mindmap", starts(&["mindmap"]))],
+    },
     Architecture => {
         name: "architecture",
         port: { diagram: diagrams::architecture::Architecture, section: "architecture", palette: PaletteRule::None },
@@ -246,7 +250,11 @@ diagram_catalog! {
         port: { diagram: diagrams::c4::C4, section: "c4", palette: PaletteRule::None },
         detectors: [(4, "c4", starts(&["C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment"]))],
     },
-    Kanban => { name: "kanban", detectors: [(5, "kanban", starts(&["kanban"]))] },
+    Kanban => {
+        name: "kanban",
+        port: { diagram: diagrams::kanban::Kanban, section: "kanban", palette: PaletteRule::None },
+        detectors: [(5, "kanban", starts(&["kanban"]))],
+    },
     Class => {
         name: "class",
         port: { diagram: diagrams::class::Class, section: "class", palette: PaletteRule::None },
@@ -339,9 +347,11 @@ diagram_catalog! {
         port: { diagram: diagrams::radar::Radar, section: "radar", palette: PaletteRule::Slots("cScale", 0) },
         detectors: [(26, "radar", starts(&["radar-beta"]))],
     },
-    Ishikawa => { name: "ishikawa", detectors: [
-        (27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary)),
-    ] },
+    Ishikawa => {
+        name: "ishikawa",
+        port: { diagram: diagrams::ishikawa::Ishikawa, section: "ishikawa", palette: PaletteRule::None },
+        detectors: [(27, "ishikawa", starts(&["ishikawa-beta", "ishikawa"]).caseless().then(End::WordBoundary))],
+    },
     Treemap => { name: "treemap", detectors: [(28, "treemap", starts(&["treemap"]))] },
     Railroad => {
         name: "railroad",
