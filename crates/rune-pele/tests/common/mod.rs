@@ -40,9 +40,11 @@ fn root_declaration(svg: &str, name: &str) -> Option<String> {
 }
 
 /// Pele's SVG as a page without CSS of its own reads it, in the attributes resvg reads. resvg
-/// has no CSS variables, so each `var()` becomes the root's private alias or else the public
-/// variable's fallback. It does not read the root's `font` shorthand, so that size becomes the
-/// root's `font-size`, nor a corner radius in a `style`, so that becomes the element's `rx`.
+/// has no CSS variables, so each `var()` becomes the root's own declaration of the variable,
+/// which every element inherits, or else the variable's fallback. The root declares Pele's
+/// private aliases, and the series colours a source sets in its theme. resvg does not read the
+/// root's `font` shorthand, so that size becomes the root's `font-size`, nor a corner radius in
+/// a `style`, so that becomes the element's `rx`.
 pub fn as_a_page_reads(svg: &str) -> String {
     let font = root_declaration(svg, "font").expect("the root sets a font");
     let size = font.split("px").next().expect("a size in px");
@@ -50,10 +52,8 @@ pub fn as_a_page_reads(svg: &str) -> String {
     while let Some(at) = out.find("var(") {
         let end = at + out[at..].find(')').expect("a closed var()");
         let inner = &out[at + 4..end];
-        let value = match inner.split_once(',') {
-            Some((_, fallback)) => fallback.to_owned(),
-            None => root_declaration(svg, inner).unwrap_or_default(),
-        };
+        let (name, fallback) = inner.split_once(',').unwrap_or((inner, ""));
+        let value = root_declaration(svg, name).unwrap_or_else(|| fallback.to_owned());
         out.replace_range(at..=end, &value);
     }
     let mut tags: Vec<String> = out.split('<').map(str::to_owned).collect();
