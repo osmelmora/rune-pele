@@ -16,7 +16,32 @@ use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-graph";
-const TYPES: [&str; 8] = ["flowchart", "class", "state", "er", "requirement", "usecase", "swimlane", "agentflow"];
+const TYPES: [&str; 24] = [
+    "flowchart",
+    "class",
+    "state",
+    "er",
+    "requirement",
+    "usecase",
+    "swimlane",
+    "agentflow",
+    "sequence",
+    "gantt",
+    "block",
+    "c4",
+    "railroad",
+    "info",
+    "cynefin",
+    "wardley",
+    "venn",
+    "packet",
+    "eventmodeling",
+    "treemap",
+    "mindmap",
+    "journey",
+    "kanban",
+    "ishikawa",
+];
 
 // What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
 // in resvg. Every other pixel is compared with the pixels within one of it in the other
@@ -273,7 +298,7 @@ fn every_corpus_source_of_the_graph_types_draws_as_pele_draws_it_at_1x_and_2x() 
 
 /// One source of each opened type, and an edit of it that changes a value and keeps what it
 /// names: `tests/fixtures/rune/<type>.mmd`.
-const FIXTURES: [(&str, &str, [&str; 2]); 8] = [
+const FIXTURES: [(&str, &str, [&str; 2]); 24] = [
     ("flowchart", include_str!("../../../tests/fixtures/rune/flowchart.mmd"), ["Checkout", "Clone the repository"]),
     ("class", include_str!("../../../tests/fixtures/rune/class.mmd"), ["float radius", "float diameter"]),
     ("state", include_str!("../../../tests/fixtures/rune/state.mmd"), ["Keeps the last error", "Remembers why"]),
@@ -282,6 +307,26 @@ const FIXTURES: [(&str, &str, [&str; 2]); 8] = [
     ("usecase", include_str!("../../../tests/fixtures/rune/usecase.mmd"), ["Browse the catalogue", "Look around"]),
     ("swimlane", include_str!("../../../tests/fixtures/rune/swimlane.mmd"), ["[Pack]", "[Wrap it up]"]),
     ("agentflow", include_str!("../../../tests/fixtures/rune/agentflow.mmd"), ["Gather sources", "Collect sources"]),
+    ("sequence", include_str!("../../../tests/fixtures/rune/sequence.mmd"), ["Place the order", "Send the order"]),
+    ("gantt", include_str!("../../../tests/fixtures/rune/gantt.mmd"), ["Implement", "Write code"]),
+    ("block", include_str!("../../../tests/fixtures/rune/block.mmd"), ["(\"Store\")", "(\"Data store\")"]),
+    ("c4", include_str!("../../../tests/fixtures/rune/c4.mmd"), ["Takes payments", "Takes card payments"]),
+    ("railroad", include_str!("../../../tests/fixtures/rune/railroad.mmd"), ["\"Numbers\"", "\"Whole numbers\""]),
+    ("info", include_str!("../../../tests/fixtures/rune/info.mmd"), [" showInfo", ""]),
+    ("cynefin", include_str!("../../../tests/fixtures/rune/cynefin.mmd"), ["Incident Response", "Incident Handling"]),
+    ("wardley", include_str!("../../../tests/fixtures/rune/wardley.mmd"), ["[0.43, 0.35]", "[0.45, 0.35]"]),
+    ("venn", include_str!("../../../tests/fixtures/rune/venn.mmd"), ["A good feature", "A great feature"]),
+    ("packet", include_str!("../../../tests/fixtures/rune/packet.mmd"), ["UDP Packet", "UDP Datagram"]),
+    (
+        "eventmodeling",
+        include_str!("../../../tests/fixtures/rune/eventmodeling.mmd"),
+        ["description: string", "description: text"],
+    ),
+    ("treemap", include_str!("../../../tests/fixtures/rune/treemap.mmd"), ["120", "121"]),
+    ("mindmap", include_str!("../../../tests/fixtures/rune/mindmap.mmd"), ["Ship it", "Ship the release"]),
+    ("journey", include_str!("../../../tests/fixtures/rune/journey.mmd"), ["Make tea: 5", "Make tea: 3"]),
+    ("kanban", include_str!("../../../tests/fixtures/rune/kanban.mmd"), ["Write the docs", "Write the guide"]),
+    ("ishikawa", include_str!("../../../tests/fixtures/rune/ishikawa.mmd"), ["as of March", "as of April"]),
 ];
 
 const VIEWPORT: (f32, f32) = (720.0, 900.0);
@@ -317,13 +362,26 @@ fn drawn_keys(scene: &pele_core::Scene) -> Vec<String> {
     keys
 }
 
-/// A palette that differs from Pele's in every role the graph types draw in.
+/// A palette that differs from Pele's in every role and series the opened types draw in.
 fn other_palette() -> Palette {
     let srgb = |r: f32, g: f32, b: f32| {
         let [r, g, b] = [r, g, b].map(rune::color::srgb_decode);
         Color { r, g, b, a: 1.0 }
     };
-    Palette::pele()
+    let series = [
+        srgb(0.85, 0.37, 0.65),
+        srgb(0.40, 0.76, 0.65),
+        srgb(0.99, 0.55, 0.38),
+        srgb(0.55, 0.63, 0.80),
+        srgb(0.65, 0.85, 0.33),
+        srgb(1.00, 0.85, 0.18),
+        srgb(0.90, 0.77, 0.58),
+        srgb(0.70, 0.70, 0.70),
+    ];
+    let palette =
+        series.into_iter().enumerate().fold(Palette::pele(), |palette, (at, colour)| palette.with_series(at, colour));
+    palette
+        .with(rune_pele::Role::Accent, srgb(0.95, 0.60, 0.20))
         .with(rune_pele::Role::Background, srgb(0.10, 0.11, 0.13))
         .with(rune_pele::Role::Foreground, srgb(0.93, 0.93, 0.95))
         .with(rune_pele::Role::Line, srgb(0.80, 0.82, 0.88))
@@ -400,13 +458,18 @@ fn a_palette_change_repaints_every_opened_type_without_laying_out_or_measuring()
         common::save_in(RUN, &repainted, &format!("native/{kind}.other-palette@2x.png"));
         let after = window.state().diagram.stats();
         let changed = changed_pixels(&first, &repainted);
-        writeln!(report, "{kind:<12} before {laid_out:?}\n{kind:<12} after  {after:?}, {changed} px changed").unwrap();
+        let drawn = first.rgba.chunks(4).filter(|px| px[..3] != [255, 255, 255]).count();
+        writeln!(
+            report,
+            "{kind:<12} before {laid_out:?}\n{kind:<12} after  {after:?}, {changed} px changed of {drawn} drawn"
+        )
+        .unwrap();
         assert_eq!(
             after,
             rune_pele::ViewStats { paints: laid_out.paints + 1, ..laid_out },
             "{kind}: a palette change paints once more and lays out and measures nothing"
         );
-        assert!(changed > 5_000, "{kind}: the drawing changed colour: {changed} pixels");
+        assert!(2 * changed > drawn, "{kind}: most of the drawing changed colour: {changed} of {drawn} pixels");
     }
     print!("{report}");
     write_report("theme-change.txt", &report);

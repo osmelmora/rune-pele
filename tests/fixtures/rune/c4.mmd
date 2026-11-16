@@ -1,0 +1,9 @@
+C4Context
+  title Payments
+  Person(customer, "Customer", "Pays for orders")
+  System_Boundary(shop, "Shop") {
+    System(checkout, "Checkout", "Takes payments", $link="https://example.com/checkout")
+  }
+  System_Ext(bank, "Bank", "Settles cards")
+  Rel(customer, checkout, "Pays", "HTTPS", "Card details go over TLS")
+  Rel(checkout, bank, "Charges", "ISO 8583")

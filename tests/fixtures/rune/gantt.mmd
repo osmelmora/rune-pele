@@ -1,0 +1,11 @@
+gantt
+    title Release plan
+    dateFormat YYYY-MM-DD
+    excludes weekends
+    section Build
+        Design      :done, design, 2026-01-05, 5d
+        Implement   :active, impl, after design, 10d
+    section Ship
+        Review      :crit, review, after impl, 3d
+        Release     :milestone, release, after review, 0d
+    click impl href "https://example.com/implement"
