@@ -179,6 +179,21 @@ pub struct PaintStyle {
     pub stroke: Option<StrokeStyle>,
     /// How opaque the drawing is as a whole: its fill and stroke composited, then faded.
     pub opacity: f64,
+    /// A gradient the fill runs along. `fill` is then the colour drawn where the gradient
+    /// cannot be.
+    pub gradient: Option<LinearGradient>,
+}
+
+/// A fill that runs from one paint to another along a line, in the coordinates of the geometry
+/// it fills. Before `from` the fill is the first paint, and past `to` the second. Where the two
+/// points are one, it is the second throughout, as SVG paints a gradient with no length.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LinearGradient {
+    pub from: Point,
+    pub to: Point,
+    /// The paints at `from` and at `to`. Between them each sRGB channel and the alpha step
+    /// evenly, as SVG steps between two stops.
+    pub stops: [Paint; 2],
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -397,7 +412,7 @@ impl Inherited {
             dash: self.dash.clone(),
             opacity: self.stroke_opacity,
         });
-        PaintStyle { fill: self.fill, fill_opacity: self.fill_opacity, stroke, opacity }
+        PaintStyle { fill: self.fill, fill_opacity: self.fill_opacity, stroke, opacity, gradient: None }
     }
 
     /// The font of a run with emphasis `style`. `own` is the part of that emphasis the run
@@ -583,12 +598,14 @@ impl Scene {
                     untouchable: false,
                 }));
             }
-            out.push(PaintVisit::Draw(Draw {
-                key,
-                origin: inherited.origin,
-                geometry,
-                style: inherited.style(opacity),
-            }));
+            // Pele's gradients run level, from one x to another: `y1` and `y2` are left at 0.
+            let gradient = node.properties.gradient.map(|id| {
+                let gradient = self.gradient(id);
+                let at = |x: Number| Point { x: x.effective(), y: 0.0 };
+                LinearGradient { from: at(gradient.x[0]), to: at(gradient.x[1]), stops: gradient.stops }
+            });
+            let style = PaintStyle { gradient, ..inherited.style(opacity) };
+            out.push(PaintVisit::Draw(Draw { key, origin: inherited.origin, geometry, style }));
             if tooltip.is_some() {
                 out.push(PaintVisit::End);
             }
