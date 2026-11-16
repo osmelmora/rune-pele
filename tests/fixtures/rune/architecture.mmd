@@ -1,0 +1,16 @@
+architecture-beta
+    group cloud(cloud)[Cloud]
+    group data(database)[Data] in cloud
+
+    service gateway(internet)[Gateway]
+    service web(server)[Web server] in cloud
+    service db(database)[Primary store] in data
+    service backups(disk)[Backups] in data
+    service lambda(logos:aws-lambda)[Jobs] in cloud
+    junction fork in cloud
+
+    gateway:R --> L:web
+    web:B -- T:fork
+    fork:L -- R:lambda
+    fork:B --> T:db
+    db:R -[copies]-> L:backups

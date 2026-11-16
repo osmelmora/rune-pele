@@ -16,7 +16,18 @@ use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-graph";
-const TYPES: [&str; 8] = ["flowchart", "class", "state", "er", "requirement", "usecase", "swimlane", "agentflow"];
+const TYPES: [&str; 10] = [
+    "flowchart",
+    "class",
+    "state",
+    "er",
+    "requirement",
+    "usecase",
+    "swimlane",
+    "agentflow",
+    "architecture",
+    "treeview",
+];
 
 // What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
 // in resvg. Every other pixel is compared with the pixels within one of it in the other
@@ -273,7 +284,7 @@ fn every_corpus_source_of_the_graph_types_draws_as_pele_draws_it_at_1x_and_2x() 
 
 /// One source of each opened type, and an edit of it that changes a value and keeps what it
 /// names: `tests/fixtures/rune/<type>.mmd`.
-const FIXTURES: [(&str, &str, [&str; 2]); 8] = [
+const FIXTURES: [(&str, &str, [&str; 2]); 10] = [
     ("flowchart", include_str!("../../../tests/fixtures/rune/flowchart.mmd"), ["Checkout", "Clone the repository"]),
     ("class", include_str!("../../../tests/fixtures/rune/class.mmd"), ["float radius", "float diameter"]),
     ("state", include_str!("../../../tests/fixtures/rune/state.mmd"), ["Keeps the last error", "Remembers why"]),
@@ -282,6 +293,8 @@ const FIXTURES: [(&str, &str, [&str; 2]); 8] = [
     ("usecase", include_str!("../../../tests/fixtures/rune/usecase.mmd"), ["Browse the catalogue", "Look around"]),
     ("swimlane", include_str!("../../../tests/fixtures/rune/swimlane.mmd"), ["[Pack]", "[Wrap it up]"]),
     ("agentflow", include_str!("../../../tests/fixtures/rune/agentflow.mmd"), ["Gather sources", "Collect sources"]),
+    ("architecture", include_str!("../../../tests/fixtures/rune/architecture.mmd"), ["Primary store", "Main store"]),
+    ("treeview", include_str!("../../../tests/fixtures/rune/treeview.mmd"), ["entry point", "where it starts"]),
 ];
 
 const VIEWPORT: (f32, f32) = (720.0, 900.0);
@@ -296,7 +309,7 @@ fn element_keys(window: &Window<'_, Viewer>) -> Vec<String> {
 }
 
 /// The keys of the drawings of `scene` that paint something: a shape with a fill or a stroke, a
-/// run of text with ink or an outline.
+/// run of text with ink or an outline, an icon's built-in glyph.
 fn drawn_keys(scene: &pele_core::Scene) -> Vec<String> {
     use pele_core::scene::{Geometry, Paint, PaintVisit};
     let mut keys: Vec<String> = scene
@@ -307,10 +320,15 @@ fn drawn_keys(scene: &pele_core::Scene) -> Vec<String> {
         })
         .filter(|draw| match &draw.geometry {
             Geometry::Text(run) => !run.text.is_empty(),
-            Geometry::Icon { .. } | Geometry::Image { .. } => false,
+            Geometry::Icon { glyph, .. } => glyph.is_some(),
+            Geometry::Image { .. } => false,
             _ => true,
         })
-        .filter(|draw| draw.style.fill != Paint::None || draw.style.stroke.is_some())
+        .filter(|draw| {
+            matches!(draw.geometry, Geometry::Icon { .. })
+                || draw.style.fill != Paint::None
+                || draw.style.stroke.is_some()
+        })
         .map(|draw| draw.key.to_string())
         .collect();
     keys.sort();

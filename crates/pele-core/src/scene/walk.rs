@@ -512,6 +512,130 @@ impl PathProgram {
     }
 }
 
+/// The side of the square grid a built-in glyph is drawn on: the icon box's `viewBox`.
+const GLYPH_GRID: f64 = 24.0;
+
+/// How wide a glyph's outline is stroked, in the grid's units.
+const GLYPH_STROKE: f64 = 1.5;
+
+impl IconGlyph {
+    /// The glyph as Pele's SVG draws it in an icon's box at `origin`, `size` across: its
+    /// outline in the box's coordinates, with the grid fitted to the box as the box's `viewBox`
+    /// fits it, and the stroke it is drawn with. The box strokes with round caps and joins and
+    /// fills nothing, and the glyph's own `stroke` and `stroke-width` win over the box's.
+    pub fn drawn_in(self, origin: Point, size: Size) -> (Vec<PathCommand>, StrokeStyle) {
+        // `preserveAspectRatio`'s default: the whole grid, as large as fits, centred.
+        let scale = (size.width / GLYPH_GRID).min(size.height / GLYPH_GRID);
+        let left = origin.x + (size.width - GLYPH_GRID * scale) / 2.0;
+        let top = origin.y + (size.height - GLYPH_GRID * scale) / 2.0;
+        let fit = |p: Point| Point { x: left + p.x * scale, y: top + p.y * scale };
+        let outline = glyph_program(self.path_data())
+            .commands()
+            .into_iter()
+            .map(|command| match command {
+                PathCommand::Move(to) => PathCommand::Move(fit(to)),
+                PathCommand::Line(to) => PathCommand::Line(fit(to)),
+                PathCommand::Quad { control, end } => PathCommand::Quad { control: fit(control), end: fit(end) },
+                PathCommand::Cubic { first, second, end } => {
+                    PathCommand::Cubic { first: fit(first), second: fit(second), end: fit(end) }
+                }
+                PathCommand::Arc { rx, ry, large, sweep, end } => {
+                    PathCommand::Arc { rx: rx * scale, ry: ry * scale, large, sweep, end: fit(end) }
+                }
+                PathCommand::Close => PathCommand::Close,
+            })
+            .collect();
+        let stroke = StrokeStyle {
+            paint: glyph_paint(self.stroke()),
+            width: GLYPH_STROKE * scale,
+            join: LineJoin::Round,
+            cap: LineCap::Round,
+            dash: Vec::new(),
+            opacity: 1.0,
+        };
+        (outline, stroke)
+    }
+}
+
+/// The role whose colour the SVG writer spells `spelled`.
+fn glyph_paint(spelled: &str) -> Paint {
+    const ROLES: [Role; 11] = [
+        Role::Background,
+        Role::Foreground,
+        Role::Border,
+        Role::OnLight,
+        Role::OnDark,
+        Role::Line,
+        Role::Surface,
+        Role::SurfaceAlt,
+        Role::Muted,
+        Role::Accent,
+        Role::Critical,
+    ];
+    let role = ROLES.into_iter().find(|&role| crate::svg::role(role) == spelled);
+    Paint::Role(role.expect("a glyph is stroked in the colour of a role"))
+}
+
+/// A glyph's outline as Pele spells it: each command letter, then its numbers, which SVG reads
+/// as that command again for each further set.
+fn glyph_program(data: &str) -> PathProgram {
+    let mut steps = Vec::new();
+    let mut rest = data;
+    while let Some(letter) = rest.chars().next() {
+        rest = &rest[letter.len_utf8()..];
+        let mut numbers = Vec::new();
+        while let Some((number, after)) = glyph_number(rest.trim_start_matches([' ', ','])) {
+            numbers.push(Number::raw(number));
+            rest = after;
+        }
+        rest = rest.trim_start_matches([' ', ',']);
+        if letter.eq_ignore_ascii_case(&'z') {
+            steps.push(PathStep::Close);
+            continue;
+        }
+        let arity = match letter.to_ascii_lowercase() {
+            'h' | 'v' => 1,
+            'm' | 'l' => 2,
+            'a' => 7,
+            _ => panic!("a glyph's outline is spelled in M, L, H, V, A and Z: {data}"),
+        };
+        for (index, n) in numbers.chunks_exact(arity).enumerate() {
+            let flag = |n: Number| n.effective() != 0.0;
+            steps.push(match letter {
+                'M' if index == 0 => PathStep::Move([n[0], n[1]]),
+                'M' | 'L' => PathStep::Line([n[0], n[1]]),
+                'l' => PathStep::LineBy([n[0], n[1]]),
+                'H' => PathStep::Horizontal(n[0]),
+                'h' => PathStep::HorizontalBy(n[0]),
+                'V' => PathStep::Vertical(n[0]),
+                'v' => PathStep::VerticalBy(n[0]),
+                'A' => PathStep::Arc { radii: [n[0], n[1]], large: flag(n[3]), sweep: flag(n[4]), end: [n[5], n[6]] },
+                'a' => PathStep::ArcBy { radii: [n[0], n[1]], large: flag(n[3]), sweep: flag(n[4]), end: [n[5], n[6]] },
+                _ => panic!("a glyph's outline moves only to absolute points: {data}"),
+            });
+        }
+    }
+    PathProgram { steps }
+}
+
+/// The number at the start of `text`, and what follows it: a sign, digits and one point.
+fn glyph_number(text: &str) -> Option<(f64, &str)> {
+    let bytes = text.as_bytes();
+    let mut end = usize::from(matches!(bytes.first(), Some(b'-' | b'+')));
+    let mut point = false;
+    while let Some(&byte) = bytes.get(end) {
+        match byte {
+            b'0'..=b'9' => end += 1,
+            b'.' if !point => {
+                point = true;
+                end += 1;
+            }
+            _ => break,
+        }
+    }
+    Some((text[..end].parse().ok()?, &text[end..]))
+}
+
 /// How many shapes and how many labels each part has drawn so far, so that each drawing of a
 /// part has a key of its own. A part's later labels, such as a class's members or a table's
 /// cells, are counted by label rather than by line, so a label that wraps differently leaves the
