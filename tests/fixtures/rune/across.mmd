@@ -1,0 +1,7 @@
+flowchart LR
+    A[Write the change] --> B{Tests pass?}
+    B -->|yes| C[Open a pull request]
+    B -->|no| D[Fix what failed]
+    D --> B
+    C --> E[Review] --> F[Merge] --> G[Publish the release notes]
+    click C "https://example.com/pulls" "Where pull requests wait"

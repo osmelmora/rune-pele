@@ -8,7 +8,8 @@ use std::cell::RefCell;
 use std::fmt::Write as _;
 
 use common::{
-    Apart, around_pixel, as_a_page_reads, compare, in_a_row, magnified, marked, out_dir_for, rasterise, text_boxes,
+    FLAT_ERROR, LARGEST_PATCH, LARGEST_PATCH_1X, MOST_UNEXPLAINED, around_pixel, as_a_page_reads, compare, in_a_row,
+    magnified, marked, out_dir_for, over, rasterise, text_boxes,
 };
 use pele_oracle::PeleRender;
 use rune::{Color, Cx, El, Env, el};
@@ -50,39 +51,6 @@ const TYPES: [&str; 32] = [
     "ishikawa",
     "sankey",
 ];
-
-// What counts as drawing a source as Pele does. Text is left out: it is Inter here and Arial
-// in resvg. Every other pixel is compared with the pixels within one of it in the other
-// drawing, so that an edge half a pixel apart is no difference. The three limits were set
-// before any source was compared, from what Pele draws rather than from what the comparison
-// found.
-
-/// The largest patch of pixels one drawing has and the other has nothing like, in square points.
-/// The smallest things Pele draws are a 1 point stroke and an arrowhead of about 30 square
-/// points. A missing or misplaced one leaves a patch of 5 or more, and a wrong dash gap one of 4.
-const LARGEST_PATCH: f64 = 3.0;
-
-/// Such pixels in every 10,000 compared. Patches too small to count one by one still add up:
-/// a dashed edge drawn solid, or the other way round, is some 50 pixels of a 100,000 pixel
-/// drawing.
-const MOST_UNEXPLAINED: f64 = 5.0;
-
-/// The error in levels of 255 at the 99.9th percentile of the pixels that are flat in both
-/// drawings: fills and the page. The closest two fills of Pele's are 12 levels apart, a fill at
-/// half opacity is 6 from the page, and two renderers round one colour to within a level or two.
-const FLAT_ERROR: u8 = 4;
-
-// At one device pixel a point, a 1 point stroke is one pixel wide, and what a renderer does
-// with a pixel the stroke half covers is most of what it draws. Rune takes a stroke's coverage
-// from the distance to its centre line and resvg from the area covered, which on a slanted
-// hairline differ by up to a tenth of full coverage: 20 levels of a dark edge, all along it.
-// So the first two limits are held at 2x, where they pass, and at 1x the sources over them
-// are counted and listed. This limit, set on finding that, is what a 1x drawing is held to
-// instead, with the flat colours.
-
-/// The largest patch a 1x drawing may have, in pixels: under the smallest arrowhead, so that
-/// nothing Pele draws can be missing or out of place.
-const LARGEST_PATCH_1X: usize = 30;
 
 struct Viewer {
     diagram: Diagram,
@@ -152,25 +120,6 @@ fn corpus(kind: &str) -> Vec<String> {
 fn write_report(name: &str, text: &str) {
     std::fs::create_dir_all(out_dir_for(RUN)).unwrap();
     std::fs::write(out_dir_for(RUN).join(name), text).unwrap();
-}
-
-/// The limits `apart` is over, each as a few words. `sharp` are the first two limits, of the
-/// drawings pixel for pixel.
-fn over(apart: &Apart, scale: f64) -> (Vec<String>, Vec<String>) {
-    let (mut sharp, mut other) = (Vec::new(), Vec::new());
-    if apart.largest_blob as f64 > LARGEST_PATCH * scale * scale {
-        sharp.push(format!("a patch of {} px", apart.largest_blob));
-    }
-    if apart.share() > MOST_UNEXPLAINED {
-        sharp.push(format!("{:.1} unexplained px in 10,000", apart.share()));
-    }
-    if apart.flat_error > FLAT_ERROR {
-        other.push(format!("flat colours {} levels apart", apart.flat_error));
-    }
-    if scale == 1.0 && apart.largest_blob > LARGEST_PATCH_1X {
-        other.push(format!("a patch of {} px at 1x", apart.largest_blob));
-    }
-    (sharp, other)
 }
 
 #[test]
