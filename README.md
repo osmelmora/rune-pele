@@ -11,7 +11,7 @@ The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own 
 | `crates/pele-core` | Rune-free core: the input boundary, the diagram catalog, text measurement, the Scene, the SVG writer and the ported types. `layout` and `graph` hold what the types that draw nodes and edges share. `js` holds the JavaScript number rules every Pele coordinate goes through. |
 | `crates/pele-oracle` | Asks Pele, built from source, what it would output. Tests and the CLI use it. |
 | `crates/pele-cli` | The `pele` binary: `pele render` and `pele parity`. |
-| `crates/rune-pele` | The Rune adapter, and the only crate that depends on Rune. `Diagram::view` draws a Scene as native Rune elements for 25 of the 33 types, the ones `lower::NATIVE` lists, and hands any other type to Rune's own `rune-mermaid`. `examples/diagram.rs` opens any Mermaid file this way, and `examples/pie.rs` shows a palette switch. |
+| `crates/rune-pele` | The Rune adapter, and the only crate that depends on Rune. `Diagram::view` draws a Scene as native Rune elements for 32 of the 33 types, the ones `lower::NATIVE` lists, and hands any other type to Rune's own `rune-mermaid`. `examples/diagram.rs` opens any Mermaid file this way, and `examples/pie.rs` shows a palette switch. |
 | `harness/` | `oracle.ts`, bundled by esbuild into `harness/dist/oracle.mjs` and run by the pinned Node. |
 | `vendor/pele` | Pele's source at `scripts/pele-pin.txt`. Gitignored, and fetched by `mise run setup`. |
 | `tests/fixtures` | Sources for the CLI recipes, and one folder per ported type with the sources harvested from Pele's tests by `scripts/harvest-<type>.mjs`. |
