@@ -261,6 +261,143 @@ fn a_hole_shows_what_is_behind_and_its_slit_does_not_show() {
     }
 }
 
+/// A band between two S curves, as a sankey link is: `thick` from one curve down to the other.
+fn band(from: Point, to: Point, thick: f64) -> (Vec<Segment>, String) {
+    let middle = (from[0] + to[0]) / 2.0;
+    let (low_from, low_to) = (from[1] + thick, to[1] + thick);
+    let program = vec![
+        Segment::Move(from),
+        Segment::Cubic(Cubic { c1: [middle, from[1]], c2: [middle, to[1]], to }),
+        Segment::Line([to[0], low_to]),
+        Segment::Cubic(Cubic { c1: [middle, low_to], c2: [middle, low_from], to: [from[0], low_from] }),
+        Segment::Close,
+    ];
+    let d = format!(
+        "M{},{}C{middle},{} {middle},{} {},{}L{},{low_to}C{middle},{low_to} {middle},{low_from} {},{low_from}Z",
+        from[0], from[1], from[1], to[1], to[0], to[1], to[0], from[0]
+    );
+    (program, d)
+}
+
+/// The upper curve of a [`band`] at `t`, from 0 at its start to 1 at its end.
+fn along_band(from: Point, to: Point, t: f64) -> Point {
+    let (u, middle) = (1.0 - t, (from[0] + to[0]) / 2.0);
+    [
+        from[0] * u * u * u + 3.0 * middle * u * t + to[0] * t * t * t,
+        from[1] + (to[1] - from[1]) * (3.0 - 2.0 * t) * t * t,
+    ]
+}
+
+#[test]
+fn a_fill_with_corners_in_a_line_is_filled_once_and_nowhere_else() {
+    // Each curve is its own mirror image about its middle, so the points it is cut at either
+    // side of the middle lie in one line with it: three corners of the fill with no turn.
+    let (from, to, thick) = ([11.16, 67.92], [189.29, 36.968], 7.1);
+    let (program, d) = band(from, to, thick);
+    let body = format!("<path d=\"{d}\" fill=\"{BLUE}\" fill-opacity=\"0.4\" stroke=\"{INK}\"/>");
+    let once = over_white(BLUE, 0.4);
+    let border = look(1.0, Cap::Butt, Join::Miter, &[]);
+    for scale in [1.0, 2.0] {
+        let link = figure(&program, true, Some(&border), scale).el(Some(faded(BLUE, 0.4)), Some(colour(INK)));
+        let ours = draw(link.into_iter().collect(), scale);
+        let px = |x: f64, y: f64| ours.at((x * f64::from(scale)) as u32, (y * f64::from(scale)) as u32);
+        for t in [0.1, 0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.9] {
+            let [x, top] = along_band(from, to, t);
+            let (inside, above, below) = (px(x, top + thick / 2.0), px(x, top - 3.0), px(x, top + thick + 3.0));
+            assert!(near(inside, once, 2), "{scale}x: the band at {x} is filled once: {inside:?} for {once:?}");
+            assert!(near(above, [255; 3], 1), "{scale}x: above the band at {x} is the page: {above:?}");
+            assert!(near(below, [255; 3], 1), "{scale}x: below the band at {x} is the page: {below:?}");
+        }
+        // At 1x the slanted hairline round the band is Rune's own, as the corpus lists.
+        if scale == 2.0 {
+            as_resvg_draws("corners-in-a-line", &ours, &body, scale);
+        }
+    }
+}
+
+#[test]
+fn a_curved_edge_with_no_stroke_over_it_is_soft_all_along_and_where_the_curve_is() {
+    let scale = 2.0;
+    // A long shallow link: its upper edge crosses a row of pixels every thirty or so.
+    let (from, to, thick) = ([10.0, 60.3], [190.0, 52.1], 6.0);
+    let (program, d) = band(from, to, thick);
+    let ours = draw(figure(&program, true, None, scale).el(Some(faded(BLUE, 0.4)), None).into_iter().collect(), scale);
+    // The pixel the edge passes through is covered from the edge down: by as much as the
+    // edge lies above the pixel's lower side. That holds only if the flattened edge is within a
+    // tenth of a pixel of the curve, and soft. Rune draws a pixel hard where a point the curve
+    // was cut at lies in it, so one here and there is left out of the count.
+    let ink = 255.0 - f64::from(over_white(BLUE, 0.4)[0]);
+    let hard = (1..200).filter(|&step| {
+        let [x, y] = along_band(from, to, f64::from(step) / 200.0).map(|c| c * 2.0);
+        let covered = y.floor() + 1.0 - y;
+        let drawn = (255.0 - f64::from(ours.at(x as u32, y as u32)[0])) / ink;
+        (drawn - covered).abs() > 0.15
+    });
+    let hard = hard.count();
+    println!("soft-edge@2x: {hard} of 199 pixels along the edge are not covered as the edge covers them");
+    assert!(hard <= 4, "{hard} of 199 pixels along the edge are drawn hard");
+    let body = format!("<path d=\"{d}\" fill=\"{BLUE}\" fill-opacity=\"0.4\"/>");
+    as_resvg_draws("soft-edge", &ours, &body, scale);
+}
+
+#[test]
+fn a_fill_along_a_gradient_steps_from_one_colour_to_the_other_between_its_ends() {
+    use rune_pele::lower::Unsupported;
+    let scale = 2.0;
+    // A link from 10 to 190 whose gradient starts at 40 and ends at 160: blue, to orange at
+    // half opacity.
+    let (from, to, thick) = ([10.0, 70.0], [190.0, 40.0], 24.0);
+    let (program, d) = band(from, to, thick);
+    let ends = [colour(BLUE), faded(ORANGE, 0.5)];
+    let link = |axis: [f64; 2]| {
+        let figure = Figure::along(&Outline::lower(&program), axis, None, scale).expect("a level gradient");
+        draw(figure.expect("a link").el_along(ends, None).into_iter().collect(), scale)
+    };
+    // What SVG paints `along` the gradient, over white: each channel and the alpha step evenly.
+    let over_page = |along: f64| {
+        let alpha = 1.0 - 0.5 * along;
+        let channel =
+            |c: usize| f64::from(levels(BLUE)[c]) + (f64::from(levels(ORANGE)[c]) - f64::from(levels(BLUE)[c])) * along;
+        [0, 1, 2].map(|c| (255.0 + (channel(c) - 255.0) * alpha).round() as u8)
+    };
+    let ours = link([40.0, 160.0]);
+    let turned = link([160.0, 40.0]);
+    let mut before: Option<[u8; 4]> = None;
+    for column in 24..376 {
+        // The middle of the pixel column, and the link's middle line there.
+        let x = (f64::from(column) + 0.5) / 2.0;
+        let t = (0..=2000)
+            .map(|i| f64::from(i) / 2000.0)
+            .min_by(|a, b| (along_band(from, to, *a)[0] - x).abs().total_cmp(&(along_band(from, to, *b)[0] - x).abs()));
+        let y = along_band(from, to, t.expect("a place on the curve"))[1] + thick / 2.0;
+        let along = ((x - 40.0) / 120.0).clamp(0.0, 1.0);
+        let (drawn, back) = (ours.at(column, (y * 2.0) as u32), turned.at(column, (y * 2.0) as u32));
+        assert!(near(drawn, over_page(along), 3), "at {x}, {along:.2} along: {drawn:?} for {:?}", over_page(along));
+        assert!(
+            near(back, over_page(1.0 - along), 3),
+            "the other way at {x}: {back:?} for {:?}",
+            over_page(1.0 - along)
+        );
+        // One band meets the next with no seam: no pixel is lighter or darker than both beside it.
+        assert!(before.is_none_or(|before| near(drawn, [before[0], before[1], before[2]], 3)), "a seam at {x}");
+        before = Some(drawn);
+    }
+    assert_eq!(over_page(0.0), levels(BLUE), "before its start the gradient is its first colour");
+
+    let body = format!(
+        "<linearGradient id=\"g\" gradientUnits=\"userSpaceOnUse\" x1=\"40\" x2=\"160\">\
+         <stop offset=\"0\" stop-color=\"{BLUE}\"/><stop offset=\"1\" stop-color=\"{ORANGE}\" stop-opacity=\"0.5\"/>\
+         </linearGradient><path d=\"{d}\" fill=\"url(#g)\"/>"
+    );
+    as_resvg_draws("gradient", &ours, &body, scale);
+
+    // A shape with a hole is not cut into bands, and says so.
+    let donut: Vec<Segment> =
+        circle([50.0, 60.0], 40.0, true).into_iter().chain(circle([50.0, 60.0], 20.0, false)).collect();
+    let holed = Figure::along(&Outline::lower(&donut), [10.0, 90.0], None, scale);
+    assert!(matches!(holed, Err(Unsupported::Gradient)), "a hole in a gradient");
+}
+
 #[test]
 fn a_translucent_stroke_is_one_colour_through_its_joints() {
     let scale = 2.0;

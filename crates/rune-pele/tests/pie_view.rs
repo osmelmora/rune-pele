@@ -17,7 +17,7 @@ use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewError, ViewOpti
 const RUN: &str = "pie-rune";
 const PETS: &str = include_str!("../../../tests/fixtures/pie-pets.mmd");
 /// A type pele-core draws and the Rune view does not lower yet.
-const NOT_LOWERED: &str = include_str!("../../../tests/fixtures/rune/closed.mmd");
+const NOT_LOWERED: &str = include_str!("../../../tests/fixtures/rune/unlowered.mmd");
 const VIEWPORT: (f32, f32) = (480.0, 400.0);
 
 struct Viewer {
@@ -406,15 +406,18 @@ fn keys_follow_what_is_drawn_not_the_id_prefix_or_the_values() {
 }
 
 #[test]
-fn only_a_type_the_view_does_not_lower_falls_back_to_rune_mermaid() {
+fn only_a_source_the_view_does_not_lower_falls_back_to_rune_mermaid() {
     let capturer = Capturer::new();
-    // Every type of Pele 1.13.0 is ported, so a fallback is now for a Scene the view does not lower.
+    // Every type of Pele 1.13.0 is ported and lowered, so a fallback is for a Scene with something
+    // the lowering refuses: here a line through text, which the walk does not read.
     let mut unlowered = window(&capturer, NOT_LOWERED, Palette::pele(), 1.0);
     unlowered.capture();
     assert_eq!(*unlowered.state().error.borrow(), None);
     assert_eq!(unlowered.state().diagram.status(), RenderStatus::RuneMermaid);
-    let closed = rune_pele::Fallback::NotLowered(rune_pele::lower::Unsupported::Kind(pele_core::DiagramKind::Sankey));
-    assert_eq!(unlowered.state().diagram.fallback(), Some(closed));
+    let unread = rune_pele::Fallback::NotLowered(rune_pele::lower::Unsupported::Style(
+        "text-decoration:line-through".to_owned(),
+    ));
+    assert_eq!(unlowered.state().diagram.fallback(), Some(unread));
 
     let mut bad = window(&capturer, "pie\n \"a\" 1", Palette::pele(), 1.0);
     bad.capture();

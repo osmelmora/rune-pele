@@ -24,8 +24,8 @@ pub(crate) use palette::PELE_SERIES;
 pub use palette::{Palette, ResolvedPaints, Rgba, ThemeSeries};
 pub(crate) use style::{AuthorClasses, ResolvedStyle, Style, ink_on, paints, px, resolve_style};
 pub use walk::{
-    BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, ImageFit, LinkRef, PaintStyle, PaintVisit,
-    PartKey, PathCommand, Rotation, StrokeStyle,
+    BaselineRun, Draw, FragmentDetail, FragmentKey, Geometry, Group, ImageFit, LinearGradient, LinkRef, PaintStyle,
+    PaintVisit, PartKey, PathCommand, Rotation, StrokeStyle,
 };
 
 /// Whether XML can't hold `c`, so that Pele drops it from text: C0 controls but tab, line feed and

@@ -21,6 +21,7 @@
 //! is a `memo` keyed by the layout and the resolved colours. So a palette or dark-mode change
 //! repaints without parsing, laying out or measuring anything.
 
+pub mod bands;
 pub mod capture;
 pub mod fill;
 pub mod geometry;

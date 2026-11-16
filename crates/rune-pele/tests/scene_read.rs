@@ -104,3 +104,40 @@ fn a_tooltip_is_on_the_group_pele_writes_it_in() {
         .collect();
     assert_eq!(tips, [(Some("Waiting for work".to_owned()), false)], "the address is not one a link may have");
 }
+
+#[test]
+fn a_gradient_is_on_the_shape_it_fills_from_one_paint_to_the_other() {
+    use pele_core::scene::{Draw, LinearGradient, Paint, Point, SeriesSlot};
+    use pele_core::{LayoutOptions, ParseOptions};
+    let source = include_str!("../../../tests/fixtures/rune/sankey.mmd");
+    let links = |options: LayoutOptions| -> Vec<Draw> {
+        let scene = pele_core::parity_scene_with(source, ParseOptions::default(), &options).expect("a sankey");
+        let draws = scene.scene().paint().filter_map(|visit| match visit {
+            PaintVisit::Draw(draw) => Some(draw),
+            _ => None,
+        });
+        draws.filter(|draw| draw.key.to_string().starts_with("edge:")).collect()
+    };
+    // Pele runs a link's fill along a gradient only where the drawing has an id prefix to name
+    // the gradient by. Without one a link is in its source's colour.
+    let plain = links(LayoutOptions::default());
+    assert_eq!(plain.len(), 6);
+    assert!(plain.iter().all(|link| link.style.gradient.is_none()));
+
+    let graded = links(LayoutOptions { id_prefix: Some("view".to_owned()), ..LayoutOptions::default() });
+    let gas = graded.iter().find(|link| link.key.to_string() == "edge:Gas~Power~link/shape").expect("the link");
+    let Geometry::Path(commands) = &gas.geometry else { panic!("a link is a path") };
+    let xs = commands.iter().filter_map(|command| match command {
+        pele_core::scene::PathCommand::Move(p) | pele_core::scene::PathCommand::Line(p) => Some(p.x),
+        _ => None,
+    });
+    let xs: Vec<f64> = xs.collect();
+    // Nodes are numbered as the source first names them: Coal, Power, Gas. The gradient runs
+    // from Gas's colour where the link leaves it to Power's where the link arrives, level.
+    let at = |x: f64| Point { x, y: 0.0 };
+    let stops = [Paint::Series(SeriesSlot::new(2)), Paint::Series(SeriesSlot::new(1))];
+    assert_eq!(gas.style.gradient, Some(LinearGradient { from: at(xs[0]), to: at(xs[1]), stops }));
+    assert_eq!(gas.style.fill, stops[0], "the fill is what is drawn where the gradient cannot be");
+    assert!(xs[0] < xs[1]);
+    assert!(graded.iter().all(|link| link.style.gradient.is_some()), "every link has its own");
+}

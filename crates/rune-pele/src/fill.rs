@@ -6,6 +6,10 @@
 //! antialiased edges do not show as a seam. A contour that crosses itself, as an hourglass does,
 //! is cut at its crossings into loops that do not. Two contours that cross each other are
 //! refused: what they fill depends on where they cross, which nothing here works out.
+//!
+//! No polygon keeps a corner that lies in a line with the corners either side of it. Rune cuts
+//! a polygon into triangles, and three corners in a line can come out as a triangle with no
+//! area, which it paints as half the box around the three.
 
 use crate::geometry::{Point, Polyline};
 
@@ -87,6 +91,41 @@ fn untangle(ring: Vec<Point>, loops: &mut Vec<Vec<Point>>) -> Result<(), Crossin
     untangle(behind, loops)
 }
 
+/// How far a point may lie from a line and count as on it, for a sliver `gap` wide either side
+/// of its slit: far more than the rounding of a point in Rune's 32 bits, and far less than
+/// anything seen.
+fn hair(gap: f64) -> f64 {
+    gap / 100.0
+}
+
+/// `ring` without the corners that lie within `hair` of the line through the corners either
+/// side of them: those along a straight side, and those in the middle of an S curve, which is
+/// its own mirror image there. A run of such corners goes only while every one of them stays
+/// within `hair` of the line that replaces them, so a gentle curve keeps its shape.
+pub(crate) fn without_flat_corners(ring: &[Point], hair: f64) -> Vec<Point> {
+    let n = ring.len();
+    let off_line = |p: Point, a: Point, b: Point| {
+        let length = (b[0] - a[0]).hypot(b[1] - a[1]);
+        if length == 0.0 { f64::INFINITY } else { cross(a, b, p).abs() / length }
+    };
+    // The walk starts from the sharpest corner, which stays.
+    let turn = |i: usize| off_line(ring[i], ring[(i + n - 1) % n], ring[(i + 1) % n]);
+    let Some(start) = (0..n).max_by(|&a, &b| turn(a).total_cmp(&turn(b))) else { return Vec::new() };
+    let mut kept = vec![start];
+    let mut left_out: Vec<usize> = Vec::new();
+    for i in (1..n).map(|step| (start + step) % n) {
+        let (before, after) = (ring[kept[kept.len() - 1]], ring[(i + 1) % n]);
+        if left_out.iter().chain([&i]).all(|&corner| off_line(ring[corner], before, after) <= hair) {
+            left_out.push(i);
+        } else {
+            kept.push(i);
+            left_out.clear();
+        }
+    }
+    kept.sort_unstable();
+    kept.into_iter().map(|i| ring[i]).collect()
+}
+
 /// A point of `ring` that no loop cut from the same contour shares: the middle of its longest
 /// edge. The loops meet only at their corners.
 fn own_point(ring: &[Point]) -> Point {
@@ -155,7 +194,7 @@ fn join(outer: &[Point], hole: &[Point], gap: f64) -> Option<(Vec<Point>, Vec<Po
     if onward[1] == to[1] {
         return None;
     }
-    let hair = gap / 100.0;
+    let hair = hair(gap);
     let side = if onward[1] > to[1] { hair } else { -hair };
     let share = (hair / (onward[1] - to[1]).abs()).min(0.5);
     let back = [to[0] + (onward[0] - to[0]) * share, to[1] + (onward[1] - to[1]) * share];
@@ -179,6 +218,7 @@ pub fn fill(lines: &[Polyline], gap: f64) -> Result<Fills, Crossing> {
     for line in lines.iter().filter(|line| line.points.len() >= 3) {
         untangle(line.points.clone(), &mut loops)?;
     }
+    let loops: Vec<Vec<Point>> = loops.iter().map(|ring| without_flat_corners(ring, hair(gap))).collect();
     let rings: Vec<&[Point]> = loops.iter().map(Vec::as_slice).filter(|ring| signed_area(ring) != 0.0).collect();
     if rings.len() <= 1 {
         return Ok(Fills { polygons: rings.iter().map(|ring| ring.to_vec()).collect(), overlaps: false });
@@ -266,6 +306,41 @@ mod tests {
         let line = Polyline::straight(&[[0.0, 0.0], [5.0, 5.0]], false);
         let flat = ring(&[[0.0, 0.0], [5.0, 0.0], [10.0, 0.0]]);
         assert_eq!(fill(&[line, flat], 0.5), Ok(Fills::default()));
+    }
+
+    #[test]
+    fn a_corner_in_a_line_with_those_either_side_of_it_is_left_out() {
+        // A square with a point along its top, and one a thousandth off its right side.
+        let ring_of = |points: &[Point]| fill(&[ring(points)], 0.5).expect("no crossing").polygons;
+        let dotted = [[0.0, 0.0], [4.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
+        assert_eq!(ring_of(&dotted), [square(0.0, 0.0, 10.0)]);
+        let nearly = [[0.0, 0.0], [10.0, 0.0], [10.001, 5.0], [10.0, 10.0], [0.0, 10.0]];
+        assert_eq!(ring_of(&nearly), [square(0.0, 0.0, 10.0)]);
+        // The first and the last point are corners between the others as any is.
+        let ends = [[5.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0], [2.0, 0.0]];
+        assert_eq!(ring_of(&ends), [vec![[10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]]]);
+        // A corner that turns by more than a hair stays: a hundredth of the gap is 0.005.
+        let bent = [[0.0, 0.0], [10.0, 0.0], [10.01, 5.0], [10.0, 10.0], [0.0, 10.0]];
+        assert_eq!(ring_of(&bent), [bent.to_vec()]);
+    }
+
+    #[test]
+    fn a_gentle_curve_keeps_its_shape_though_each_of_its_corners_is_nearly_flat() {
+        // An arc that rises 0.4 over 40, cut so fine that each corner is a thousandth off the
+        // line through the two beside it.
+        let arc = (0..=40).map(f64::from).map(|x| [x, 0.001 * (x - 20.0) * (x - 20.0)]);
+        let dish: Vec<Point> = arc.chain([[40.0, -10.0], [0.0, -10.0]]).collect();
+        let [thinned] = &fill(&[ring(&dish)], 0.5).expect("no crossing").polygons[..] else { panic!("one polygon") };
+        assert!(thinned.len() < dish.len() / 2, "most corners go: {} of {}", thinned.len(), dish.len());
+        let from_edge = |p: Point, [a, b]: [Point; 2]| {
+            let (along, length) = ([b[0] - a[0], b[1] - a[1]], (b[0] - a[0]).hypot(b[1] - a[1]));
+            let t = (((p[0] - a[0]) * along[0] + (p[1] - a[1]) * along[1]) / (length * length)).clamp(0.0, 1.0);
+            (p[0] - a[0] - t * along[0]).hypot(p[1] - a[1] - t * along[1])
+        };
+        for corner in &dish {
+            let nearest = edges(thinned).map(|edge| from_edge(*corner, edge)).fold(f64::MAX, f64::min);
+            assert!(nearest <= 0.005 + 1e-9, "the outline stays within a hair of {corner:?}: {nearest}");
+        }
     }
 
     #[test]
