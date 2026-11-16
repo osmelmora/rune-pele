@@ -132,6 +132,22 @@ break_one fit-at-every-width lib.rs a_resize \
   'max_width: Some(fit::step_below(room)),' \
   'max_width: Some(room),' \
   fit_view
+break_one kept-drawn-unfitted lib.rs a_kept_drawing_follows \
+  'self.draw_source(env, &natural.key.source, &options, room, on_event).ok()' \
+  'self.draw_source(env, &natural.key.source, &options, None, on_event).ok()' \
+  kept_fit
+break_one kept-outside-the-frame lib.rs a_kept_drawing_follows \
+  'Ok(self.framed(options.fit, shown))' \
+  'Ok(shown)' \
+  kept_fit
+break_one frame-inside-the-dimmed-look lib.rs a_kept_drawing_follows \
+  'let shown = options.kept.el(drawing, &self.id,' \
+  'let shown = options.kept.el(self.framed(options.fit, drawing), &self.id,' \
+  kept_fit
+break_one kept-layouts-not-held lib.rs sources_that_lay_out_and_then_fail \
+  'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)) {' \
+  'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)).filter(|_| false) {' \
+  kept_fit
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
