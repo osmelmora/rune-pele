@@ -20,11 +20,16 @@
 //! Layout is cached by source, layout options, device scale and Rune's font epoch, and painting
 //! is a `memo` keyed by the layout and the resolved colours. So a palette or dark-mode change
 //! repaints without parsing, laying out or measuring anything.
+//!
+//! While a source fails after one that drew, as a source still streaming in does, the view
+//! shows the last drawing that drew, in the [`KeptLook`] its options name, and
+//! [`Diagram::error`] says why.
 
 pub mod bands;
 pub mod capture;
 pub mod fill;
 pub mod geometry;
+mod kept;
 pub mod lower;
 pub mod stroke;
 pub mod text;
@@ -37,6 +42,7 @@ use pele_core::scene::{Rgba, ThemeSeries};
 use pele_core::{LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
 use rune::{Color, Cx, El, Tx, memo, tok};
 
+pub use kept::KeptLook;
 /// Where a link in a diagram leads.
 pub use pele_core::scene::LinkRef as Link;
 pub use pele_core::scene::Role;
@@ -114,6 +120,7 @@ pub struct ViewOptions {
     layout: LayoutOptions,
     palette: Option<Palette>,
     metrics: Metrics,
+    kept: KeptLook,
 }
 
 /// What a layout measures its text with.
@@ -133,7 +140,7 @@ impl ViewOptions {
     /// A view at most `width` points wide. A diagram that can draw itself narrower does.
     pub fn new(width: f32) -> Self {
         let layout = LayoutOptions { max_width: Some(f64::from(width)), ..Self::natural().layout };
-        ViewOptions { layout, palette: None, metrics: Metrics::Drawn }
+        ViewOptions { layout, ..Self::natural() }
     }
 
     /// A view as wide as the diagram lays itself out.
@@ -143,7 +150,7 @@ impl ViewOptions {
         // ids to share, so it lays out under Pele's own default prefix, which also seeds a
         // cynefin's boundaries as Pele does without one.
         let layout = LayoutOptions { id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()), ..LayoutOptions::default() };
-        ViewOptions { layout, palette: None, metrics: Metrics::Drawn }
+        ViewOptions { layout, palette: None, metrics: Metrics::Drawn, kept: KeptLook::default() }
     }
 
     /// Lays the diagram out with Pele's own text metrics instead of the fonts it is drawn in,
@@ -185,6 +192,13 @@ impl ViewOptions {
         self.layout.now = milliseconds.is_finite().then_some(milliseconds);
         self
     }
+
+    /// How the view shows the last drawing that drew while the source fails:
+    /// [`KeptLook::DimmedWithError`], as Pele's `mount` does, unless set.
+    pub fn kept_look(mut self, look: KeptLook) -> Self {
+        self.kept = look;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -216,12 +230,17 @@ impl std::error::Error for ViewError {}
 /// Who drew the last view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RenderStatus {
+    /// Nothing: the view was an error, or there has been none.
     Unrendered,
     /// rune-pele, from pele-core's Scene.
     Pele,
     /// Rune's own rune-mermaid, for a source that is not drawn natively. [`Diagram::fallback`]
     /// says why.
     RuneMermaid,
+    /// The source failed, and the view showed the last drawing that drew, in the options'
+    /// [`KeptLook`]. [`Diagram::error`] says why the source failed. [`Diagram::fallback`] and
+    /// [`Diagram::scene`] are those of the drawing shown.
+    Kept,
 }
 
 /// Why the last view was left to rune-mermaid.
@@ -282,21 +301,59 @@ struct Measure {
 /// Layouts kept for sources and options a view may go back to.
 const KEPT: usize = 4;
 
+/// A drawing a view drew, kept to show again while a later source fails.
+#[derive(Clone)]
+enum Drawn {
+    /// rune-pele's own, by its layout, which the cache may drop while the drawing is kept.
+    Pele(Rc<Layout>),
+    RuneMermaid(Rc<MermaidDrawing>),
+}
+
+/// What rune-mermaid drew, and what it drew it from.
+struct MermaidDrawing {
+    source: String,
+    max_width: Option<f32>,
+    why: Fallback,
+    /// Whether `el` is in dark mode's colours.
+    dark: bool,
+    el: El,
+}
+
+/// What the last view did.
+enum Outcome {
+    /// Its source drew.
+    Drew,
+    /// Its source failed, and the last drawing that drew was shown.
+    Kept(ViewError),
+    /// It drew nothing.
+    Failed(ViewError),
+}
+
 #[derive(Default)]
 struct Session {
     layouts: Vec<Rc<Layout>>,
     /// The inputs last found not to draw natively, so that a view of them does not parse and
     /// lay out again only to find the same.
     refused: Option<(LayoutKey, Fallback)>,
-    fallback: Option<Fallback>,
     measure: Option<Measure>,
     /// Runs shaped by measurers since dropped.
     shaped_before: u64,
     next_id: u64,
-    status: Option<RenderStatus>,
-    last_scene: Option<Rc<Scene>>,
+    /// The last drawing a view drew.
+    drawn: Option<Drawn>,
+    outcome: Option<Outcome>,
     stats: ViewStats,
     times: ViewTimes,
+}
+
+impl Session {
+    /// The drawing the last view showed, whether its source drew it or it was kept.
+    fn shown(&self) -> Option<&Drawn> {
+        match self.outcome {
+            Some(Outcome::Drew | Outcome::Kept(_)) => self.drawn.as_ref(),
+            Some(Outcome::Failed(_)) | None => None,
+        }
+    }
 }
 
 /// One diagram on screen. Make one per diagram instance and keep it across views: it holds the
@@ -315,7 +372,8 @@ impl Diagram {
     }
 
     /// `source` drawn as native elements for this window, with its links inert. A source that
-    /// is not drawn natively is drawn by rune-mermaid; any other failure is an error.
+    /// is not drawn natively is drawn by rune-mermaid. A source that fails after one that drew
+    /// shows that drawing, as [`ViewOptions::kept_look`] says. Any other failure is an error.
     pub fn view<S: 'static>(&self, cx: &mut Cx<S>, source: &str, options: ViewOptions) -> Result<El, ViewError> {
         self.draw(cx, source, options, None)
     }
@@ -339,6 +397,42 @@ impl Diagram {
         options: ViewOptions,
         on_event: Option<Handler<S>>,
     ) -> Result<El, ViewError> {
+        let error = match self.draw_source(cx, source, &options, on_event) {
+            Ok(drawn) => {
+                self.session.borrow_mut().outcome = Some(Outcome::Drew);
+                return Ok(drawn);
+            }
+            Err(error) => error,
+        };
+        let kept = match error {
+            ViewError::Option(_) => None,
+            _ => self.session.borrow().drawn.clone(),
+        };
+        let Some(kept) = kept else {
+            self.session.borrow_mut().outcome = Some(Outcome::Failed(error.clone()));
+            return Err(error);
+        };
+        let env = cx.env();
+        let palette = options.palette.clone().unwrap_or_else(|| Palette::from_tokens(&tok::theme(env.system_dark)));
+        let drawing = match &kept {
+            Drawn::Pele(layout) => self.paint(layout, &palette, env.system_dark, on_event),
+            Drawn::RuneMermaid(drawing) => self.redraw(drawing, env.system_dark),
+        };
+        let critical = lower::colour(palette.core().role(Role::Critical));
+        let font_size = options.layout.typography.normal.size as f32;
+        let shown = options.kept.el(drawing, &self.id, &error.to_string(), font_size, critical);
+        self.session.borrow_mut().outcome = Some(Outcome::Kept(error));
+        Ok(shown)
+    }
+
+    /// `source` drawn, natively or by rune-mermaid.
+    fn draw_source<S: 'static>(
+        &self,
+        cx: &mut Cx<S>,
+        source: &str,
+        options: &ViewOptions,
+        on_event: Option<Handler<S>>,
+    ) -> Result<El, ViewError> {
         let env = cx.env();
         let positive = |value: f64| value.is_finite() && value > 0.0;
         if !options.layout.max_width.is_none_or(positive) {
@@ -347,53 +441,76 @@ impl Diagram {
         if !positive(options.layout.typography.normal.size) {
             return Err(ViewError::Option("font size"));
         }
-        let layout = match self.layout(source, &options, env.scale)? {
+        let layout = match self.layout(source, options, env.scale)? {
             Ok(layout) => layout,
-            Err(why) => return self.rune_mermaid(source, env.system_dark, &options, why),
+            Err(why) => return self.rune_mermaid(source, env.system_dark, options, why),
         };
-        let palette = options.palette.unwrap_or_else(|| Palette::from_tokens(&tok::theme(env.system_dark)));
-        let paints = layout.scene.resolve_paints_with(palette.core(), env.system_dark, palette.theme);
-        {
-            let mut session = self.session.borrow_mut();
-            session.status = Some(RenderStatus::Pele);
-            session.fallback = None;
-            session.last_scene = Some(layout.scene.clone());
-        }
+        let palette = options.palette.clone().unwrap_or_else(|| Palette::from_tokens(&tok::theme(env.system_dark)));
+        self.session.borrow_mut().drawn = Some(Drawn::Pele(layout.clone()));
+        Ok(self.paint(&layout, &palette, env.system_dark, on_event))
+    }
+
+    /// `layout`'s drawing in `palette`, painted again only when the colours or the handler change.
+    fn paint<S: 'static>(&self, layout: &Layout, palette: &Palette, dark: bool, on_event: Option<Handler<S>>) -> El {
+        let paints = layout.scene.resolve_paints_with(palette.core(), dark, palette.theme);
         // The handler is part of what is painted, so another one paints again.
         let handler = on_event.map(|handler| handler as usize);
-        Ok(memo(self.id.as_str(), (layout.id, &paints, handler), || {
+        memo(self.id.as_str(), (layout.id, &paints, handler), || {
             let started = Instant::now();
             let painted = layout.drawing.el(&paints, on_event).key(self.id.as_str());
             let mut session = self.session.borrow_mut();
             session.stats.paints += 1;
             session.times.paint = started.elapsed();
             painted
-        }))
+        })
     }
 
-    /// Why the last view was drawn by rune-mermaid, where it was.
+    /// Why the drawing the last view showed was left to rune-mermaid, where it was.
     pub fn fallback(&self) -> Option<Fallback> {
-        self.session.borrow().fallback.clone()
+        match self.session.borrow().shown() {
+            Some(Drawn::RuneMermaid(drawing)) => Some(drawing.why.clone()),
+            Some(Drawn::Pele(_)) | None => None,
+        }
+    }
+
+    /// Why the last view's source drew nothing, or why its options were refused. After a view
+    /// that drew, `None`. While the view keeps an earlier drawing ([`RenderStatus::Kept`]), why
+    /// the source fails.
+    pub fn error(&self) -> Option<ViewError> {
+        match &self.session.borrow().outcome {
+            Some(Outcome::Kept(error) | Outcome::Failed(error)) => Some(error.clone()),
+            Some(Outcome::Drew) | None => None,
+        }
     }
 
     pub fn times(&self) -> ViewTimes {
         self.session.borrow().times
     }
 
-    /// What the last native view asks of Rune.
+    /// What the drawing the last view showed asks of Rune, where rune-pele drew it.
     pub fn census(&self) -> Option<lower::Census> {
-        let session = self.session.borrow();
-        let scene = session.last_scene.as_ref()?;
-        session.layouts.iter().find(|layout| Rc::ptr_eq(&layout.scene, scene)).map(|layout| layout.drawing.census())
+        match self.session.borrow().shown() {
+            Some(Drawn::Pele(layout)) => Some(layout.drawing.census()),
+            Some(Drawn::RuneMermaid(_)) | None => None,
+        }
     }
 
     pub fn status(&self) -> RenderStatus {
-        self.session.borrow().status.unwrap_or(RenderStatus::Unrendered)
+        let session = self.session.borrow();
+        match (&session.outcome, &session.drawn) {
+            (Some(Outcome::Drew), Some(Drawn::Pele(_))) => RenderStatus::Pele,
+            (Some(Outcome::Drew), Some(Drawn::RuneMermaid(_))) => RenderStatus::RuneMermaid,
+            (Some(Outcome::Kept(_)), _) => RenderStatus::Kept,
+            (Some(Outcome::Failed(_)) | None, _) | (Some(Outcome::Drew), None) => RenderStatus::Unrendered,
+        }
     }
 
-    /// The Scene behind the last view rune-pele drew itself.
+    /// The Scene behind the drawing the last view showed, where rune-pele drew it.
     pub fn scene(&self) -> Option<Rc<Scene>> {
-        self.session.borrow().last_scene.clone()
+        match self.session.borrow().shown() {
+            Some(Drawn::Pele(layout)) => Some(layout.scene.clone()),
+            Some(Drawn::RuneMermaid(_)) | None => None,
+        }
     }
 
     pub fn stats(&self) -> ViewStats {
@@ -471,18 +588,41 @@ impl Diagram {
     }
 
     fn rune_mermaid(&self, source: &str, dark: bool, options: &ViewOptions, why: Fallback) -> Result<El, ViewError> {
-        let mut style = rune_mermaid::DiagramStyle::neutral(dark);
-        if let Some(width) = options.layout.max_width {
-            style.max_width = width as f32;
-        }
-        let drawn = rune_mermaid::render(source, &style).ok_or(match &why {
+        let max_width = options.layout.max_width.map(|width| width as f32);
+        let drawn = self.by_rune_mermaid(source, dark, max_width).ok_or(match &why {
             Fallback::NotPorted => ViewError::NoFallback,
             Fallback::NotLowered(unsupported) => ViewError::Geometry(unsupported.clone()),
         })?;
-        let mut session = self.session.borrow_mut();
-        session.status = Some(RenderStatus::RuneMermaid);
-        session.fallback = Some(why);
-        session.last_scene = None;
-        Ok(drawn.key(self.id.as_str()))
+        let drawing = MermaidDrawing { source: source.to_owned(), max_width, why, dark, el: drawn.clone() };
+        self.session.borrow_mut().drawn = Some(Drawn::RuneMermaid(Rc::new(drawing)));
+        Ok(drawn)
+    }
+
+    fn by_rune_mermaid(&self, source: &str, dark: bool, max_width: Option<f32>) -> Option<El> {
+        let mut style = rune_mermaid::DiagramStyle::neutral(dark);
+        if let Some(width) = max_width {
+            style.max_width = width;
+        }
+        Some(rune_mermaid::render(source, &style)?.key(self.id.as_str()))
+    }
+
+    /// A kept rune-mermaid drawing, drawn again only for a change of dark mode: rune-mermaid
+    /// has no colours to change without drawing again.
+    fn redraw(&self, drawing: &MermaidDrawing, dark: bool) -> El {
+        if drawing.dark == dark {
+            return drawing.el.clone();
+        }
+        let Some(el) = self.by_rune_mermaid(&drawing.source, dark, drawing.max_width) else {
+            return drawing.el.clone();
+        };
+        let again = MermaidDrawing {
+            source: drawing.source.clone(),
+            why: drawing.why.clone(),
+            dark,
+            el: el.clone(),
+            ..*drawing
+        };
+        self.session.borrow_mut().drawn = Some(Drawn::RuneMermaid(Rc::new(again)));
+        el
     }
 }

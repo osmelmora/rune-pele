@@ -94,6 +94,11 @@ impl<S: 'static> Window<'_, S> {
         self.runtime.update(|state, _| change(state));
     }
 
+    /// Turns the system's dark mode on or off, as the user does, for the next capture to show.
+    pub fn set_dark(&mut self, dark: bool) {
+        self.runtime.set_system_dark(dark);
+    }
+
     pub fn state(&self) -> &S {
         &self.runtime.state
     }
