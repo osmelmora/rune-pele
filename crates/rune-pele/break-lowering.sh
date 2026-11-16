@@ -56,6 +56,15 @@ break_one group-faded-piecewise lower.rs a_group_fades \
 break_one text-turned-the-other-way lower.rs turned_text_turns \
   'element.rotate(turn.radians).origin(pivot[0], pivot[1])' \
   'element.rotate(-turn.radians).origin(pivot[0], pivot[1])'
+break_one corners-in-a-line-kept fill.rs a_fill_with_corners \
+  'off_line(ring[corner], before, after) <= hair)' \
+  'off_line(ring[corner], before, after) < 0.0)'
+break_one bare-fill-cut-coarse lower.rs a_curved_edge \
+  'let flatness = if look.is_some() { FLATNESS } else { BARE_FLATNESS };' \
+  'let flatness = FLATNESS;'
+break_one curved-fill-left-whole lower.rs a_curved_edge \
+  'if !curved(&polygon) {' \
+  'if true {'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

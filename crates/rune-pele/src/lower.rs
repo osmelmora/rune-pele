@@ -22,6 +22,7 @@ use rune::shape::LineCap;
 use rune::{Color, Cursor, El, Shadow, Shape, Span, TextStyle, Tx, canvas, el};
 
 use crate::Event;
+use crate::bands::bands;
 use crate::fill::{Crossing, fill};
 use crate::geometry::{Affine, Arc, Outline, Point, Polyline, Segment};
 use crate::stroke::{Cap, Join, StrokeLook, Strokes, stroke};
@@ -74,11 +75,26 @@ pub(crate) type Handler<S> = fn(&mut S, Event, &mut Tx);
 /// needs comes out bolder at every joint.
 const FLATNESS: f64 = 0.25;
 
+/// How far the flattened edge of a fill with no stroke may stray from the true one, in device
+/// pixels. Its edge is what shows, and two such fills that share an edge are each cut on their
+/// own, so between them lies a gap or an overlap of up to twice this. A fill's corners cost
+/// nothing where its sides meet, as a stroke's do.
+const BARE_FLATNESS: f64 = 0.05;
+
 /// The least distance worth drawing, in device pixels: see [`stroke`].
 const VISIBLE: f64 = 0.05;
 
 /// Half the width of the sliver over a hole's slit, in device pixels: see [`fill`].
 const SLIVER: f64 = 0.75;
+
+/// How wide a band of a fill with a curved edge and no stroke is, in device pixels: see
+/// [`bands`]. Rune's fan of a band is whole while the band's own cut sees all of it, which a
+/// band this narrow nearly always does.
+const BAND: f64 = 16.0;
+
+/// The least turn of a corner that Rune softens whole, in radians: 15 degrees. Beyond the
+/// line of a side that turns away by this much, the soft edge it loses is under two pixels long.
+const SHARP: f64 = 0.26;
 
 /// The copies of a text that draw its outline, set round a circle of the outline's reach.
 const HALO_COPIES: usize = 12;
@@ -362,8 +378,13 @@ impl Figure {
         scale: f32,
     ) -> Result<Option<Figure>, Crossing> {
         let scale = f64::from(scale);
-        let lines: Vec<Polyline> = outline.flatten(FLATNESS / scale);
-        let fills = if filled { fill(&lines, SLIVER / scale)? } else { Default::default() };
+        let flatness = if look.is_some() { FLATNESS } else { BARE_FLATNESS };
+        let lines: Vec<Polyline> = outline.flatten(flatness / scale);
+        let mut fills = if filled { fill(&lines, SLIVER / scale)? } else { Default::default() };
+        // A fill with a hole is one polygon through a slit a hair wide, which is left whole.
+        if look.is_none() && !fills.overlaps {
+            fills.polygons = fills.polygons.into_iter().flat_map(|polygon| in_bands(polygon, scale)).collect();
+        }
         let strokes = look.map(|look| stroke(&lines, look, VISIBLE / scale)).unwrap_or_default();
         let width = look.map_or(0.0, |look| look.width);
         let Some([low, high]) = extent(&fills.polygons, &strokes, width / 2.0) else { return Ok(None) };
@@ -711,6 +732,39 @@ fn look(stroke: &StrokeStyle) -> StrokeLook {
         cap: if stroke.cap == SceneCap::Round { Cap::Round } else { Cap::Butt },
         join: if stroke.join == LineJoin::Round { Join::Round } else { Join::Miter },
         dash: stroke.dash.clone(),
+    }
+}
+
+/// Whether a corner of `polygon` turns by less than [`SHARP`]: a point of a flattened curve.
+fn curved(polygon: &[Point]) -> bool {
+    let n = polygon.len();
+    (0..n).any(|i| {
+        let (a, b, c) = (polygon[i], polygon[(i + 1) % n], polygon[(i + 2) % n]);
+        let (to, on) = ([b[0] - a[0], b[1] - a[1]], [c[0] - b[0], c[1] - b[1]]);
+        (to[0] * on[1] - to[1] * on[0]).atan2(to[0] * on[0] + to[1] * on[1]).abs() < SHARP
+    })
+}
+
+/// The device pixel columns `step` pixels apart that stand inside `polygon`, as x in its own
+/// units, or the one nearest its middle where it is narrower than that.
+fn columns(polygon: &[Point], step: f64, scale: f64) -> Vec<f64> {
+    let ends = |pick: fn(f64, f64) -> f64, from: f64| polygon.iter().map(|p| p[0] * scale).fold(from, pick);
+    let (least, most) = (ends(f64::min, f64::MAX), ends(f64::max, f64::MIN));
+    let first = (least / step).floor() + 1.0;
+    let count = ((most / step).ceil() - first).max(0.0) as usize;
+    let within: Vec<f64> = (0..count).map(|i| (first + i as f64) * step / scale).collect();
+    let middle = ((least + most) / 2.0).round();
+    if within.is_empty() && least < middle && middle < most { vec![middle / scale] } else { within }
+}
+
+/// A polygon with a curved edge as the bands Rune softens right, and any other as it is.
+fn in_bands(polygon: Vec<Point>, scale: f64) -> Vec<Vec<Point>> {
+    if !curved(&polygon) {
+        return vec![polygon];
+    }
+    match bands(&polygon, &columns(&polygon, BAND, scale)) {
+        Some(bands) => bands.into_iter().map(|band| band.outline).collect(),
+        None => vec![polygon],
     }
 }
 
