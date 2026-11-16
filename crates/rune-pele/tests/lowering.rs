@@ -6,7 +6,7 @@ mod common;
 
 use std::f64::consts::PI;
 
-use common::{Apart, compare, in_a_row, marked, rasterise};
+use common::{Apart, around_pixel, compare, in_a_row, marked, rasterise};
 use rune::color::hex;
 use rune::{Color, Cx, El, Env, TextStyle, el};
 use rune_pele::capture::{Capturer, Pixels};
@@ -591,4 +591,122 @@ fn a_group_fades_as_a_whole_where_its_drawings_overlap() {
     let (apart, differ) = compare(&ours, &theirs, &common::text_boxes(&scene), f64::from(scale));
     common::save_in(RUN, &in_a_row(&[&ours, &theirs, &marked(&ours, &differ)], 8), "lowering/group-opacity@2x.png");
     assert!(apart.largest_blob <= 12 && apart.share() <= 5.0 && apart.flat_error <= 4, "against Pele's own: {apart:?}");
+}
+
+/// Every glyph Pele draws itself: architecture's five icons, 24 points across, and treeview's
+/// folder and file, 16 points across.
+const GLYPHS: [(&str, &str); 2] = [
+    (
+        "architecture",
+        "architecture-beta\n    service db(database)[DB]\n    service web(server)[Web]\n    service disk(disk)[Disk]\n    \
+         service net(internet)[Net]\n    service sky(cloud)[Sky]",
+    ),
+    ("treeview", "---\nconfig:\n  treeView:\n    showIcons: true\n---\ntreeView-beta\n    src/\n        index.js"),
+];
+
+struct Glyphs {
+    diagram: Diagram,
+    source: &'static str,
+    size: (f32, f32),
+}
+
+fn glyphs_view(s: &Glyphs, cx: &mut Cx<Glyphs>) -> El {
+    let options = ViewOptions::natural().pele_metrics().palette(Palette::pele());
+    let drawn = s.diagram.view(cx, s.source, options).expect("the glyphs draw");
+    el().size(s.size.0, s.size.1).fill(Color::WHITE).child(drawn)
+}
+
+/// Each icon box of `scene` that holds a glyph: the glyph, and the box's corner and side in the
+/// drawing.
+fn glyph_boxes(scene: &pele_core::Scene) -> Vec<(pele_core::scene::IconGlyph, Point, f64)> {
+    use pele_core::scene::{Geometry, PaintVisit};
+    scene
+        .paint()
+        .filter_map(|visit| match visit {
+            PaintVisit::Draw(draw) => match draw.geometry {
+                Geometry::Icon { origin, size, glyph: Some(glyph), .. } => {
+                    Some((glyph, [draw.origin.x + origin.x, draw.origin.y + origin.y], size.width))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_built_in_glyph_is_stroked_in_its_box_as_pele_draws_it() {
+    use pele_core::scene::IconGlyph;
+    let scale = 2.0;
+    let capturer = Capturer::new();
+    let mut drawn = Vec::new();
+    for (kind, source) in GLYPHS {
+        let pele = pele_core::render(source).expect("Pele draws it");
+        let size = (pele.width.ceil() as f32, pele.height.ceil() as f32);
+        let viewer = Glyphs { diagram: Diagram::new(kind, FontCatalog::rune()), source, size };
+        let mut window = capturer.window(viewer, glyphs_view, size, Env::new(false, scale));
+        let ours = window.capture();
+        let theirs = rasterise(&common::as_a_page_reads(&pele.svg), scale);
+        let scene = window.state().diagram.scene().expect("drawn natively");
+        for (glyph, [x, y], side) in glyph_boxes(&scene) {
+            let name = format!("glyph-{glyph:?}").to_lowercase();
+            // A point of the grid, 24 across, as the glyph's box shows it, in device pixels.
+            let k = side / 24.0;
+            let at = |[gx, gy]: [f64; 2]| [(x + gx * k) * f64::from(scale), (y + gy * k) * f64::from(scale)];
+            let px = |grid: [f64; 2]| {
+                let [px, py] = at(grid);
+                ours.at(px as u32, py as u32)
+            };
+            // A point on the outline, one inside it where nothing is drawn, and one on a side
+            // that stands upright, where a row of pixels crosses the stroke square on.
+            let (ink, on, off, upright) = match glyph {
+                IconGlyph::Database => (INK, [12.0, 3.0], [12.0, 6.0], Some([4.0, 9.0])),
+                IconGlyph::Server => (INK, [7.0, 7.5], [5.0, 9.5], Some([3.0, 9.5])),
+                IconGlyph::Disk => (INK, [12.0, 10.5], [12.0, 8.5], Some([5.0, 12.0])),
+                IconGlyph::Internet => (INK, [12.0, 12.0], [7.0, 8.0], None),
+                IconGlyph::Cloud => (INK, [12.0, 18.0], [12.0, 13.0], None),
+                IconGlyph::Folder => ("#6e6e6e", [3.0, 12.0], [12.0, 13.0], Some([3.0, 12.0])),
+                IconGlyph::File => ("#6e6e6e", [5.0, 12.0], [12.0, 14.0], Some([5.0, 12.0])),
+            };
+            assert!(near(px(on), levels(ink), 3), "{name}: its outline at {on:?} is {ink}: {:?}", px(on));
+            let behind = px(off);
+            assert!(!near(behind, levels(ink), 40), "{name}: and nothing is drawn at {off:?}");
+            if let Some([gx, gy]) = upright {
+                // How much of each pixel along the row the stroke covers, summed: its width.
+                let ([from, row], [to, _]) = (at([gx - 2.0, gy]), at([gx + 2.0, gy]));
+                let shade = |x: u32| {
+                    let level = f64::from(ours.at(x, row as u32)[0]);
+                    ((f64::from(behind[0]) - level) / (f64::from(behind[0]) - f64::from(levels(ink)[0])))
+                        .clamp(0.0, 1.0)
+                };
+                let width: f64 = (from as u32..to as u32).map(shade).sum();
+                let want = 1.5 * k * f64::from(scale);
+                println!("{name}@{scale}x: stroked {width:.2} px wide, for {want} px");
+                assert!((width - want).abs() < 0.25, "{name}: stroked {want} px wide, 1.5 of 24: {width:.2} px");
+            }
+            let centre = ((x + side / 2.0) * f64::from(scale)) as u32;
+            let middle = ((y + side / 2.0) * f64::from(scale)) as u32;
+            let reach = ((side / 2.0 + 1.0) * f64::from(scale)) as u32;
+            let (ours, theirs) =
+                (around_pixel(&ours, (centre, middle), reach), around_pixel(&theirs, (centre, middle), reach));
+            let (apart, differ) = compare(&ours, &theirs, &[], f64::from(scale));
+            common::save_in(
+                RUN,
+                &in_a_row(&[&ours, &theirs, &marked(&ours, &differ)], 8),
+                &format!("lowering/{name}@{scale}x.png"),
+            );
+            println!(
+                "{name}@{scale}x: patch {} px, {:.2} unexplained in 10,000, flat {} levels",
+                apart.largest_blob,
+                apart.share(),
+                apart.flat_error
+            );
+            assert!(apart.largest_blob as f32 <= 3.0 * scale * scale, "{name}: a patch of {} px", apart.largest_blob);
+            assert!(apart.share() <= 5.0, "{name}: {:.1} unexplained px in 10,000", apart.share());
+            assert!(apart.flat_error <= 4, "{name}: flat colours {} levels apart", apart.flat_error);
+            drawn.push(glyph);
+        }
+    }
+    let every = [IconGlyph::Database, IconGlyph::Server, IconGlyph::Disk, IconGlyph::Internet, IconGlyph::Cloud];
+    assert!(every.iter().chain(&[IconGlyph::Folder, IconGlyph::File]).all(|glyph| drawn.contains(glyph)), "{drawn:?}");
 }

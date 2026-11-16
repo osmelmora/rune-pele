@@ -14,8 +14,8 @@
 use std::f32::consts::TAU;
 
 use pele_core::scene::{
-    AnchorKind, Draw, Geometry, Group, LineCap as SceneCap, LineJoin, LinkRef, Paint, PaintVisit, PathCommand,
-    ResolvedPaints, Rgba, StrokeStyle,
+    AnchorKind, Draw, Geometry, Group, LineCap as SceneCap, LineJoin, LinkRef, Paint, PaintStyle, PaintVisit,
+    PathCommand, ResolvedPaints, Rgba, StrokeStyle,
 };
 use pele_core::{DiagramKind, Scene};
 use rune::shape::LineCap;
@@ -29,7 +29,7 @@ use crate::text::{Anchor, BaselinePoint, Baselines, style as text_style};
 
 /// The kinds whose Scenes are drawn here. A kind pele-core ports joins the list once its Scenes
 /// have been drawn side by side with Pele's.
-pub const NATIVE: [DiagramKind; 9] = [
+pub const NATIVE: [DiagramKind; 11] = [
     DiagramKind::Pie,
     DiagramKind::Flowchart,
     DiagramKind::Class,
@@ -39,6 +39,8 @@ pub const NATIVE: [DiagramKind; 9] = [
     DiagramKind::Usecase,
     DiagramKind::Swimlane,
     DiagramKind::Agentflow,
+    DiagramKind::Architecture,
+    DiagramKind::TreeView,
 ];
 
 /// Why a Scene is not drawn here.
@@ -730,6 +732,13 @@ fn lower_draw(
     baselines: &mut Baselines,
     scale: f64,
 ) -> Result<Option<Item>, Unsupported> {
+    // A built-in glyph is the path Pele's SVG draws in the icon's box, faded with the box.
+    if let Geometry::Icon { origin, size, glyph: Some(glyph), .. } = draw.geometry {
+        let (outline, stroke) = glyph.drawn_in(origin, size);
+        let style =
+            PaintStyle { fill: Paint::None, fill_opacity: 1.0, stroke: Some(stroke), opacity: draw.style.opacity };
+        return lower_draw(Draw { geometry: Geometry::Path(outline), style, ..draw }, to_drawing, baselines, scale);
+    }
     let key = draw.key.to_string();
     let style = draw.style;
     // The corner, size and corner radius of a rectangle or circle, which is a box where it
@@ -748,8 +757,8 @@ fn lower_draw(
         Geometry::Ellipse { centre, radii } => ellipse(point(centre), [radii.width, radii.height]),
         Geometry::Polygon(points) => polygon(&points.into_iter().map(point).collect::<Vec<_>>()),
         Geometry::Image { .. } => return Err(Unsupported::Image),
-        // The box of an icon the host draws by name. Pele's SVG leaves it empty for its host,
-        // and no host fills it here yet.
+        // The box of an icon with no built-in glyph, which the host draws by name. Pele's SVG
+        // leaves it empty for its host, and no host fills it here yet.
         Geometry::Icon { .. } => return Ok(None),
         Geometry::Text(run) => {
             if run.text.is_empty() {

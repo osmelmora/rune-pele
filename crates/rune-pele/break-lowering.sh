@@ -56,6 +56,9 @@ break_one group-faded-piecewise lower.rs a_group_fades \
 break_one text-turned-the-other-way lower.rs turned_text_turns \
   'element.rotate(turn.radians).origin(pivot[0], pivot[1])' \
   'element.rotate(-turn.radians).origin(pivot[0], pivot[1])'
+break_one glyph-stroke-unfitted ../../pele-core/src/scene/walk.rs a_built_in_glyph \
+  'width: GLYPH_STROKE * scale,' \
+  'width: GLYPH_STROKE,'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
