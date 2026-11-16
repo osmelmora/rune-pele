@@ -16,7 +16,7 @@ use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-graph";
-const TYPES: [&str; 30] = [
+const TYPES: [&str; 31] = [
     "flowchart",
     "class",
     "state",
@@ -35,6 +35,7 @@ const TYPES: [&str; 30] = [
     "sequence",
     "gantt",
     "block",
+    "c4",
     "railroad",
     "info",
     "cynefin",
