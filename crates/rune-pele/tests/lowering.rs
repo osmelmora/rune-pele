@@ -960,3 +960,40 @@ fn a_built_in_glyph_is_stroked_in_its_box_as_pele_draws_it() {
     let every = [IconGlyph::Database, IconGlyph::Server, IconGlyph::Disk, IconGlyph::Internet, IconGlyph::Cloud];
     assert!(every.iter().chain(&[IconGlyph::Folder, IconGlyph::File]).all(|glyph| drawn.contains(glyph)), "{drawn:?}");
 }
+
+struct Sankey {
+    diagram: Diagram,
+    options: ViewOptions,
+}
+
+const SANKEY: &str = "sankey\n\nCoal,Power,25\nGas,Power,18\nPower,Homes,22\n";
+
+fn sankey_view(s: &Sankey, cx: &mut Cx<Sankey>) -> El {
+    let view = s.diagram.view(cx, SANKEY, s.options.clone()).expect("a sankey");
+    el().size(SIZE.0, SIZE.1).fill(Color::WHITE).child(view)
+}
+
+#[test]
+fn a_sankey_fills_its_links_along_gradients_unless_its_prefix_could_not_name_one() {
+    use pele_core::scene::PaintVisit;
+    let capturer = Capturer::new();
+    // Pele draws gradients only under an id prefix of letters, digits, `_` and `-`. A view lays
+    // out under `pele` when the app gives none, as Pele's `mount` always gives one.
+    let cases = [
+        ("no prefix, natural width", ViewOptions::natural(), true),
+        ("no prefix, a width to fit", ViewOptions::new(SIZE.0), true),
+        ("the app's prefix", ViewOptions::natural().id_prefix("app-1"), true),
+        ("a prefix Pele could not name an id with", ViewOptions::natural().id_prefix("two words"), false),
+    ];
+    for (case, options, graded) in cases {
+        let viewer = Sankey { diagram: Diagram::new("sankey", FontCatalog::rune()), options };
+        let mut window = capturer.window(viewer, sankey_view, SIZE, Env::new(false, 1.0));
+        window.capture();
+        let scene = window.state().diagram.scene().expect("a native scene");
+        let gradients = scene
+            .paint()
+            .filter(|visit| matches!(visit, PaintVisit::Draw(draw) if draw.style.gradient.is_some()))
+            .count();
+        assert_eq!(gradients > 0, graded, "{case}: {gradients} links along a gradient");
+    }
+}

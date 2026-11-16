@@ -136,6 +136,15 @@ fn as_pele() -> ViewOptions {
     ViewOptions::natural().pele_metrics().palette(Palette::pele())
 }
 
+/// Pele's SVG of each source under the id prefix a view lays out under, `pele`, as Pele's
+/// `mount` draws in a page under one of its own. Without one, Pele draws a sankey's links in one
+/// colour each.
+fn as_pele_draws(sources: &[String]) -> Vec<PeleRender> {
+    let cases: Vec<(String, String)> =
+        sources.iter().map(|source| (source.clone(), "{\"idPrefix\":\"pele\"}".to_owned())).collect();
+    pele_oracle::render_all_with(&cases)
+}
+
 fn corpus(kind: &str) -> Vec<String> {
     pele_oracle::corpus().into_iter().filter(|(name, _)| name == kind).flat_map(|(_, sources)| sources).collect()
 }
@@ -184,7 +193,7 @@ fn every_corpus_source_of_the_graph_types_draws_as_pele_draws_it_at_1x_and_2x() 
     let mut hairlines = Vec::new();
     for kind in TYPES {
         let sources = corpus(kind);
-        let pele = pele_oracle::render_all(&sources);
+        let pele = as_pele_draws(&sources);
         let (mut drawn, mut fell_back, mut sharp_at_1x) = (0, 0, 0);
         let mut worst: [(f64, String); 5] = std::array::from_fn(|_| (0.0, "-".to_owned()));
         for (index, (source, pele)) in sources.iter().zip(&pele).enumerate() {
@@ -727,22 +736,20 @@ fn a_gantt_chart_lays_out_again_for_another_now_and_not_for_the_same_one() {
     debug_assertions,
     ignore = "18 drawings compared pixel by pixel take a minute unoptimised: run with --release"
 )]
-fn every_sankey_source_with_an_id_prefix_fills_its_links_along_gradients_as_pele_does() {
+fn every_sankey_source_fills_its_links_along_gradients_as_pele_does_in_a_page() {
     let capturer = Capturer::new();
     let mut sources = corpus("sankey");
     sources.push(one("sankey").to_owned());
-    let cases: Vec<(String, String)> =
-        sources.iter().map(|source| (source.clone(), "{\"idPrefix\":\"view\"}".to_owned())).collect();
     let mut report = String::from("source scale   compared patch  share flat  gradients  over\n");
     let mut findings = Vec::new();
-    for (index, (source, pele)) in sources.iter().zip(&pele_oracle::render_all_with(&cases)).enumerate() {
+    for (index, (source, pele)) in sources.iter().zip(&as_pele_draws(&sources)).enumerate() {
         let PeleRender::Svg { svg, width, height, .. } = pele else { panic!("Pele draws sankey {index}: {pele:?}") };
         let gradients = svg.matches("<linearGradient ").count();
         assert!(gradients > 0, "sankey {index}: Pele fills its links along gradients");
         let size = (width.ceil() as f32, height.ceil() as f32);
         let page = as_a_page_reads(svg);
         for scale in [1.0f32, 2.0] {
-            let mut window = window(&capturer, source, as_pele().id_prefix("view"), size, scale);
+            let mut window = window(&capturer, source, as_pele(), size, scale);
             let ours = window.capture();
             let diagram = &window.state().diagram;
             assert_eq!((window.state().error.borrow().clone(), diagram.fallback()), (None, None), "sankey {index}");
@@ -924,7 +931,7 @@ fn a_palette_change_recolours_a_gradient_without_laying_out_or_measuring() {
         [0, 1, 2].map(|c| (255.0 + ((f64::from(gas[c]) + f64::from(power[c])) / 2.0 - 255.0) * 0.4).round() as u8)
     };
     let close = |got: [u8; 4], want: [u8; 3]| got.iter().zip(want).all(|(g, w)| g.abs_diff(w) <= 3);
-    let options = ViewOptions::new(VIEWPORT.0).palette(Palette::pele()).id_prefix("view");
+    let options = ViewOptions::new(VIEWPORT.0).palette(Palette::pele());
     let mut window = window(&capturer, one("sankey"), options, VIEWPORT, 2.0);
     let first = window.capture();
     let scene = window.state().diagram.scene().expect("a native scene");
