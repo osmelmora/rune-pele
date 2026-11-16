@@ -29,7 +29,7 @@ use crate::text::{Anchor, BaselinePoint, Baselines, style as text_style};
 
 /// The kinds whose Scenes are drawn here. A kind pele-core ports joins the list once its Scenes
 /// have been drawn side by side with Pele's.
-pub const NATIVE: [DiagramKind; 14] = [
+pub const NATIVE: [DiagramKind; 16] = [
     DiagramKind::Pie,
     DiagramKind::Flowchart,
     DiagramKind::Class,
@@ -44,6 +44,8 @@ pub const NATIVE: [DiagramKind; 14] = [
     DiagramKind::GitGraph,
     DiagramKind::Radar,
     DiagramKind::Timeline,
+    DiagramKind::Xychart,
+    DiagramKind::QuadrantChart,
 ];
 
 /// Why a Scene is not drawn here.
@@ -238,6 +240,17 @@ fn is_element(group: &Group) -> bool {
     group.opacity != 1.0 || group.link.is_some() || group.tooltip.is_some() || group.untouchable
 }
 
+/// The map from `group`'s coordinates to those outside it: its move, then its turn. The turn's
+/// centre is outside the group, so a group that does both turns about the point it moves its
+/// drawing to, as SVG's `translate(x,y) rotate(degrees)` does.
+pub fn group_map(group: &Group) -> Affine {
+    let moved = Affine::translate([group.translate.x, group.translate.y]);
+    match group.rotate {
+        Some(turn) => Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]).then(&moved),
+        None => moved,
+    }
+}
+
 impl Drawing {
     /// Lowers `scene` in paint order, shaping its text with `baselines` at their device scale.
     pub fn new(
@@ -258,12 +271,9 @@ impl Drawing {
             match visit {
                 PaintVisit::Begin(group) => {
                     let outer = open.last().expect("the root stays open").to_drawing;
-                    let own = match group.rotate {
-                        Some(turn) => Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]),
-                        None => Affine::translate([group.translate.x, group.translate.y]),
-                    };
+                    let to_drawing = outer.then(&group_map(&group));
                     let element = is_element(&group).then_some(group);
-                    open.push(Open { to_drawing: outer.then(&own), element, children: Vec::new() });
+                    open.push(Open { to_drawing, element, children: Vec::new() });
                 }
                 PaintVisit::End => {
                     let closed = open.pop().expect("an end closes a group");

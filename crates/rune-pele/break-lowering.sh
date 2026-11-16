@@ -59,6 +59,9 @@ break_one text-turned-the-other-way lower.rs turned_text_turns \
 break_one glyph-stroke-unfitted ../../pele-core/src/scene/walk.rs a_built_in_glyph \
   'width: GLYPH_STROKE * scale,' \
   'width: GLYPH_STROKE,'
+break_one group-turned-without-its-move lower.rs a_group_that_moves_and_turns \
+  'Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]).then(&moved),' \
+  'Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]),'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

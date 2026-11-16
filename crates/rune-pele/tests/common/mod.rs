@@ -11,6 +11,7 @@ use pele_core::Scene;
 use pele_core::scene::{AnchorKind, Geometry, PaintVisit};
 use rune_pele::capture::Pixels;
 use rune_pele::geometry::Affine;
+use rune_pele::lower::group_map;
 
 pub fn out_dir_for(run: &str) -> PathBuf {
     std::env::var_os("RUNE_PELE_OUT")
@@ -172,11 +173,7 @@ pub fn text_boxes(scene: &Scene) -> Vec<[f64; 4]> {
     for visit in scene.paint() {
         match visit {
             PaintVisit::Begin(group) => {
-                let own = match group.rotate {
-                    Some(turn) => Affine::rotate_about(turn.degrees, [turn.centre.x, turn.centre.y]),
-                    None => Affine::translate([group.translate.x, group.translate.y]),
-                };
-                maps.push(maps.last().expect("the root").then(&own));
+                maps.push(maps.last().expect("the root").then(&group_map(&group)));
             }
             PaintVisit::End => {
                 maps.pop();
