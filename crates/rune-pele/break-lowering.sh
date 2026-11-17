@@ -189,6 +189,35 @@ break_one fit-turns-only-under-640 lib.rs a_fitted_flowchart_that_runs_across \
   'turn_wider_than: None,' \
   fit_text
 
+break_one zero-radius-drawn lower.rs a_point_of_radius_zero \
+  'if !draw.geometry.renders() {' \
+  'if false && !draw.geometry.renders() {' \
+  zero_radius
+break_one invalid-fill-unread ../../pele-core/src/scene/walk.rs a_colour_no_css_reads \
+  '"fill" => meaning.fill.is_some() || no_paint(written),' \
+  '"fill" => meaning.fill.is_some(),' \
+  invalid_colour
+break_one spaces-not-collapsed ../../pele-core/src/scene/walk.rs a_run_of_spaces \
+  '_ => collapsed(runs),' \
+  '_ => runs,' \
+  whitespace
+break_one figure-unnamed lower.rs the_diagram_is_named \
+  'if let Some(title) = &self.title {' \
+  'if let Some(title) = self.title.as_ref().filter(|_| false) {' \
+  accessibility
+break_one link-named-by-its-address lower.rs a_link_is_a_tab_stop \
+  '.label(link.name.as_str())' \
+  '.label(link.to.href.as_str())' \
+  accessibility
+break_one link-out-of-the-tab-order lower.rs a_link_is_a_tab_stop \
+  '.focusable(true)' \
+  '.focusable(false)' \
+  accessibility
+break_one link-deaf-to-enter lower.rs a_link_is_a_tab_stop \
+  'let follows = key.key == Key::Enter && key.mods == Mods::default();' \
+  'let follows = key.key == Key::Escape && key.mods == Mods::default();' \
+  accessibility
+
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.
 break_doc() {

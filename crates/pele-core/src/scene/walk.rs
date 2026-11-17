@@ -6,9 +6,10 @@
 //! interpreter reads a drawing's effective style and where its origin sits, and never Pele's
 //! attributes.
 
+use super::palette::no_paint;
 use super::style::{Meaning, Radius, Style};
 use super::{
-    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, IconGlyph, LineCap, LineJoin, Node,
+    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, Field, IconGlyph, LineCap, LineJoin, Node,
     NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene,
     Size, TextEmission, TextWeight, Transform,
 };
@@ -135,6 +136,21 @@ pub enum Geometry {
         /// What Pele draws in the box itself where no host draws the icon.
         glyph: Option<IconGlyph>,
     },
+}
+
+impl Geometry {
+    /// Whether SVG renders the shape at all. A rectangle with a side, a circle with a radius or
+    /// an ellipse with a radius that is not a positive number is not rendered: neither its fill
+    /// nor its stroke shows.
+    pub fn renders(&self) -> bool {
+        let positive = |length: f64| length > 0.0 && length.is_finite();
+        match self {
+            Geometry::Rect { size, .. } => positive(size.width) && positive(size.height),
+            Geometry::Circle { radius, .. } => positive(*radius),
+            Geometry::Ellipse { radii, .. } => positive(radii.width) && positive(radii.height),
+            _ => true,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -309,13 +325,14 @@ fn keyword(written: &str) -> String {
 }
 
 /// Whether the walk draws what one declaration says. `meaning` is what the node's style means
-/// where a builder read it; the rest is read here.
+/// where a builder read it; the rest is read here. A paint that is no colour at all says
+/// nothing a page draws, and the walk draws nothing of it either.
 fn reads(style: &Style, meaning: &Meaning, property: &str, written: &str) -> bool {
     let value = keyword(written);
     let nothing = matches!(value.as_str(), "0" | "0px" | "normal");
     match property {
-        "fill" => meaning.fill.is_some(),
-        "stroke" => meaning.stroke.is_some(),
+        "fill" => meaning.fill.is_some() || no_paint(written),
+        "stroke" => meaning.stroke.is_some() || no_paint(written),
         "stroke-width" => meaning.stroke_width.is_some(),
         "opacity" => meaning.opacity.is_some(),
         "fill-opacity" => meaning.fill_opacity.is_some(),
@@ -447,6 +464,12 @@ fn lead(anchor: AnchorKind, advance: f64) -> f64 {
 /// Text as it is drawn: without the characters XML cannot hold, which Pele drops.
 pub(super) fn drawable(units: &[u16]) -> String {
     char::decode_utf16(units.iter().copied()).flatten().filter(|&c| !super::xml_drops(c)).collect()
+}
+
+/// Accessible text as the SVG holds it, with its entity codes decoded, where it has any text.
+fn accessible(text: Option<&[u16]>) -> Option<String> {
+    let text = text.filter(|text| !text.is_empty())?;
+    Some(drawable(&crate::input::decode_entities(text)))
 }
 
 fn at(pair: &[Number; 2]) -> Point {
@@ -673,6 +696,18 @@ impl Scene {
         out.into_iter()
     }
 
+    /// The diagram's name for assistive technology, the source's `accTitle`, as the SVG's
+    /// `<title>` reads.
+    pub fn accessible_title(&self) -> Option<String> {
+        accessible(self.document.accessible.title.as_deref())
+    }
+
+    /// The diagram's description for assistive technology, the source's `accDescr`, as the
+    /// SVG's `<desc>` reads.
+    pub fn accessible_description(&self) -> Option<String> {
+        accessible(self.document.accessible.description.as_deref())
+    }
+
     /// The style declarations the walk does not draw, each as `property:value`: a colour only a
     /// page can read, a font family, a line through text. Where there are any, an interpreter
     /// that reads only the walk draws something other than the SVG shows.
@@ -848,7 +883,8 @@ impl Scene {
                 let part = self.part_key(node).expect("every drawing is a part of an entity");
                 let label = pieces.labels.entry((node.part.expect("a part"), part.facet)).or_insert(0);
                 let label = std::mem::replace(label, *label + 1);
-                for (line, run, baseline) in runs(text, &inherited) {
+                let preserved = node.emission.contains(&Field::PreserveSpace);
+                for (line, run, baseline) in runs(text, &inherited, preserved) {
                     let detail = match label {
                         0 => FragmentDetail::TextRun { line, run },
                         label => FragmentDetail::LaterTextRun { label, line, run },
@@ -877,8 +913,49 @@ impl Scene {
     }
 }
 
-/// The runs a text element draws, numbered by line and by place on the line.
-fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)> {
+/// The runs a text element draws, numbered by line and by place on the line, with the spaces
+/// SVG shows. `preserved` says the element is written with `xml:space="preserve"` among its
+/// attributes; Pele writes it on every text of lines it places itself, too.
+fn runs(text: &PlacedText, inherited: &Inherited, preserved: bool) -> Vec<(u32, u32, BaselineRun)> {
+    let runs = written_runs(text, inherited);
+    match text.emission {
+        TextEmission::Rich { .. } | TextEmission::Line { .. } => runs,
+        _ if preserved => runs,
+        _ => collapsed(runs),
+    }
+}
+
+/// `runs` of one text element as SVG's default `xml:space` shows them: a tab, line feed or
+/// carriage return is a space, a space after another is none, across runs too, and so is a
+/// space at either end of the element. A run left with nothing is not drawn. Only these four
+/// characters are spaces here: a no-break space is not one.
+fn collapsed(runs: Vec<(u32, u32, BaselineRun)>) -> Vec<(u32, u32, BaselineRun)> {
+    let mut after_space = true;
+    let mut out: Vec<(u32, u32, BaselineRun)> = runs
+        .into_iter()
+        .map(|(line, place, mut run)| {
+            let spaced = run.text.chars().map(|c| if matches!(c, '\t' | '\n' | '\r') { ' ' } else { c });
+            run.text = spaced
+                .filter(|&c| {
+                    let repeated = c == ' ' && after_space;
+                    after_space = c == ' ';
+                    !repeated
+                })
+                .collect();
+            (line, place, run)
+        })
+        .collect();
+    if let Some((_, _, last)) = out.iter_mut().rev().find(|(_, _, run)| !run.text.is_empty())
+        && last.text.ends_with(' ')
+    {
+        last.text.pop();
+    }
+    out.retain(|(_, _, run)| !run.text.is_empty());
+    out
+}
+
+/// The runs a text element draws, numbered by line and by place on the line, as written.
+fn written_runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)> {
     let label = &text.label;
     match &text.emission {
         TextEmission::Plain { x, y } => {
