@@ -405,6 +405,9 @@ pub(crate) struct Meaning {
     pub(crate) dash: Option<Vec<f64>>,
     pub(crate) radius: Option<Radius>,
     pub(crate) font_size: Option<f64>,
+    /// Whether each declaration, in order, says something read here. A declaration read
+    /// elsewhere, or not at all, has `false`.
+    pub(crate) read: Vec<bool>,
 }
 
 impl Style {
@@ -415,8 +418,8 @@ impl Style {
             Some(Paint::Role(role)) => role,
             _ => Role::Foreground,
         };
-        let mut meaning = Meaning::default();
-        for (Declaration { property, written }, page) in self.on_a_page() {
+        let mut meaning = Meaning { read: vec![false; self.declarations.len()], ..Meaning::default() };
+        for (index, (Declaration { property, written }, page)) in self.on_a_page().enumerate() {
             if page == Page::Drops {
                 continue;
             }
@@ -431,25 +434,34 @@ impl Style {
                 }
             };
             let share = || Some(amount(&lower, 1.0)).filter(|share| !share.is_nan());
-            match property.as_str() {
-                "fill" => meaning.fill = paint(role(properties.fill)).or(meaning.fill),
-                "stroke" => meaning.stroke = paint(role(properties.stroke)).or(meaning.stroke),
-                "stroke-width" => meaning.stroke_width = px(written).filter(|w| !w.is_nan()).or(meaning.stroke_width),
-                "opacity" => meaning.opacity = share().or(meaning.opacity),
-                "fill-opacity" => meaning.fill_opacity = share().or(meaning.fill_opacity),
-                "stroke-opacity" => meaning.stroke_opacity = share().or(meaning.stroke_opacity),
-                "stroke-dasharray" => meaning.dash = dashes(&lower).or(meaning.dash.take()),
-                "rx" if lower == "var(--_r)" => meaning.radius = Some(Radius::Theme),
-                "rx" if let Some(cap) = theme_capped(&lower) => meaning.radius = Some(Radius::ThemeAtMost(cap)),
-                "rx" => meaning.radius = px(written).filter(|r| !r.is_nan()).map(Radius::Px).or(meaning.radius),
-                "font-size" => {
-                    meaning.font_size = px(written).filter(|&size| size > 0.0 && size <= 200.0).or(meaning.font_size);
+            meaning.read[index] = match property.as_str() {
+                "fill" => set(&mut meaning.fill, paint(role(properties.fill))),
+                "stroke" => set(&mut meaning.stroke, paint(role(properties.stroke))),
+                "stroke-width" => set(&mut meaning.stroke_width, px(written).filter(|w| !w.is_nan())),
+                "opacity" => set(&mut meaning.opacity, share()),
+                "fill-opacity" => set(&mut meaning.fill_opacity, share()),
+                "stroke-opacity" => set(&mut meaning.stroke_opacity, share()),
+                "stroke-dasharray" => set(&mut meaning.dash, dashes(&lower)),
+                "rx" if lower == "var(--_r)" => set(&mut meaning.radius, Some(Radius::Theme)),
+                "rx" if let Some(cap) = theme_capped(&lower) => {
+                    set(&mut meaning.radius, Some(Radius::ThemeAtMost(cap)))
                 }
-                _ => {}
-            }
+                "rx" => set(&mut meaning.radius, px(written).filter(|r| !r.is_nan()).map(Radius::Px)),
+                "font-size" => set(&mut meaning.font_size, px(written).filter(|&size| size > 0.0 && size <= 200.0)),
+                _ => false,
+            };
         }
         meaning
     }
+}
+
+/// Puts a value read into its slot, where one was read, and says whether one was.
+fn set<T>(slot: &mut Option<T>, read: Option<T>) -> bool {
+    let found = read.is_some();
+    if found {
+        *slot = read;
+    }
+    found
 }
 
 /// The cap of `min(var(--_r),{cap}px)`, as [`Style::rounded_at_most`] writes it.
