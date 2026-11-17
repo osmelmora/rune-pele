@@ -33,5 +33,5 @@ Preconditions:
 
 - Inputs travel as IEEE-754 bit patterns in hex. A decimal literal copied from a failure line can parse to a neighbouring double. Reproduce with the bits.
 - The oracle quiets signalling NaN payloads. The round test compares NaN as a class for that reason. Do not "fix" that by comparing payloads.
-- These tests sample. The `prove-js-numerics` skill has the Kani proofs that cover every double for `round` and for `num`'s branch and digit split. `to_string`, `to_fixed`, `to_exponential` and `to_precision` are covered by sampling only.
+- These tests sample. The `prove-js-numerics` skill has the Kani proofs that cover every double for `round` and for `num`'s branch and digit split. `to_string`, `to_fixed`, and the digits and layout of `to_exponential` and `to_precision` are covered by sampling only; Kani proves only the rounding of their significant digits.
 - `sin`, `cos` and `pow` are not bit-equal to the pinned Node. Its V8 fuses multiply-adds inside its fdlibm on arm64 and calls the platform's `pow`. A result one ulp away changes a coordinate only when the true value is within an ulp of a rounding tie. `parity-harvest` in `parity.md` is the test that would show such a coordinate.

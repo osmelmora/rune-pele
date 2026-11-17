@@ -397,4 +397,56 @@ mod proofs {
     fn num_split_matches_pele_for_negative_n() {
         assert!(agrees(-short_path_magnitude()));
     }
+
+    /// The most digits treemap keeps: its precision is at most 20, and `toExponential(20)` keeps
+    /// 21. It bounds every loop below. The longest runs over the result's `count + 1` digits, 22
+    /// passes, so the unwind is 23.
+    const MOST_KEPT: usize = 21;
+
+    /// `truncated + one` in one more digit than `truncated`, by schoolbook addition from the right.
+    fn add(truncated: &[u8], one: bool) -> [u8; MOST_KEPT + 1] {
+        let mut sum = [b'0'; MOST_KEPT + 1];
+        let mut carry = one;
+        for at in (0..truncated.len()).rev() {
+            let digit = truncated[at] + u8::from(carry);
+            carry = digit > b'9';
+            sum[at + 1] = if carry { b'0' } else { digit };
+        }
+        sum[0] = if carry { b'1' } else { b'0' };
+        sum
+    }
+
+    /// For every run of 1 to 21 significant digits, every digit after them and whether anything
+    /// nonzero follows that digit, `round_significant` gives the spec's `n`: of the two numbers
+    /// with as many digits around the exact value, the nearer, and the larger on a tie.
+    #[kani::proof]
+    #[kani::unwind(23)]
+    fn significant_digits_round_to_the_nearest_and_ties_to_the_larger() {
+        let count: usize = kani::any();
+        kani::assume((1..=MOST_KEPT).contains(&count));
+        let mut kept: [u8; MOST_KEPT] = kani::any();
+        kani::assume(kept.iter().all(u8::is_ascii_digit) && kept[0] != b'0');
+        let next: u8 = kani::any();
+        kani::assume(next.is_ascii_digit());
+        let rest_nonzero: bool = kani::any();
+
+        // The distances from the exact value down to the kept digits and up to one more in their
+        // last place, in twentieths of that place. A nonzero rest adds some ε in (0, 1) to `next`,
+        // and since `next` is whole, every such ε decides as ε = 1/2 does.
+        let below = 2 * (next - b'0') + u8::from(rest_nonzero);
+        let above = 20 - below;
+        let want = add(&kept[..count], above <= below);
+
+        let carried = round_significant(&mut kept[..count], next);
+        // The result in `count + 1` digits: a carry past the first digit is a power of ten.
+        for at in 0..=count {
+            let got = match (carried, at) {
+                (true, at) if at < count => kept[at],
+                (true, _) | (false, 0) => b'0',
+                (false, at) => kept[at - 1],
+            };
+            assert!(got == want[at]);
+        }
+        assert!(kept[0] != b'0' && kept.iter().all(u8::is_ascii_digit));
+    }
 }
