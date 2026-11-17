@@ -1,14 +1,20 @@
 #!/bin/sh
 # Breaks one lowering at a time and shows that its feature test then fails.
-# usage: crates/rune-pele/break-lowering.sh   (from the workspace root, under `mise exec --`)
-# Each break is one exact edit of a source file, undone before the next. Exits 1 if a break
-# does not apply any more, or if the tests still pass with it.
+# usage: crates/rune-pele/break-lowering.sh [name...]   (from the workspace root, under `mise exec --`)
+# Each break is one exact edit of a source file, undone before the next. With names, only those
+# breaks run. Exits 1 if a break does not apply any more, or if the tests still pass with it.
 set -u
 cd "$(dirname "$0")/../.."
 src=crates/rune-pele/src
 logs=out/verify/rune-graph/break
 mkdir -p "$logs"
 failed=0
+only="$*"
+
+# Whether the break named $1 is to run.
+chosen() {
+  [ -z "$only" ] || printf ' %s ' "$only" | grep -q " $1 "
+}
 
 # Puts a file back as it was. cargo goes by modification times, and the copy kept aside is
 # older than the build of the broken file, so without the touch cargo would keep that build.
@@ -20,6 +26,7 @@ restore() {
 # break <name> <file> <test filter> <from> <to> [test binary, `lowering` unless given]
 break_one() {
   name=$1 file=$src/$2 filter=$3 from=$4 to=$5 binary=${6:-lowering}
+  chosen "$name" || return
   cp "$file" "$file.unbroken"
   FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
   if [ $? -ne 0 ]; then
@@ -222,6 +229,7 @@ break_one link-deaf-to-enter lower.rs a_link_is_a_tab_stop \
 # then refuses.
 break_doc() {
   name=$1 file=$src/$2
+  chosen "$name" || return
   cp "$file" "$file.unbroken"
   FROM=$3 TO=$4 perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
   if [ $? -ne 0 ]; then
