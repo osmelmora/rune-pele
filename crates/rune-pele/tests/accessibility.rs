@@ -3,7 +3,7 @@
 //! follows as a press does.
 
 use rune::{Color, Cx, El, Env, Key, KeyEvent, Mods, Runtime, Tx, el};
-use rune_pele::{Diagram, Event, FontCatalog, Link, Palette, ViewOptions};
+use rune_pele::{Diagram, Event, FontCatalog, KeptLook, Link, Palette, RenderStatus, ViewOptions};
 use serde_json::Value;
 
 const SOURCE: &str = "flowchart LR\n  accTitle: Deploy process\n  accDescr: Review happens before release\n  \
@@ -96,5 +96,69 @@ fn a_link_is_a_tab_stop_named_by_its_label_that_enter_follows() {
         press(&mut runtime, Key::Enter);
         let followed: Vec<&str> = runtime.state.followed.iter().map(|link| link.href.as_str()).collect();
         assert_eq!(followed, ["https://example.org/guide"], "Enter follows the focused link, once");
+    }
+}
+
+struct Fitted {
+    diagram: Diagram,
+    source: String,
+    look: KeptLook,
+}
+
+/// The box a fitted view is put in, narrower than the diagram.
+const BOX: (f32, f32) = (200.0, 300.0);
+
+fn fitted_view(app: &Fitted, cx: &mut Cx<Fitted>) -> El {
+    let options = ViewOptions::fit().kept_look(app.look).palette(Palette::pele());
+    let drawn = app.diagram.view(cx, &app.source, options).expect("the source, or the drawing kept, draws");
+    el().size(BOX.0, BOX.1).fill(Color::WHITE).child(drawn)
+}
+
+/// What a fitted view shows: who drew it, its figures and the rects of its elements keyed with
+/// the diagram's id, in the order Rune lays them out.
+fn fitted(runtime: &Runtime<Fitted>) -> (RenderStatus, Vec<Value>, Vec<[f32; 4]>) {
+    let tree = runtime.accessibility_json();
+    let figures = nodes(&tree, "figure").into_iter().cloned().collect();
+    let keyed = runtime.elements().into_iter().filter(|e| e.key.as_deref() == Some("deploy")).map(|e| e.rect).collect();
+    (runtime.state.diagram.status(), figures, keyed)
+}
+
+/// The fit's frame, the dimmed look's wrapper and the drawing are all keyed with the diagram's
+/// id. The frame comes first, so the fit reads the box's width, and only the drawing is a
+/// figure, named and described, whether the source drew or the drawing is kept in either look.
+#[test]
+fn a_fitted_view_is_one_named_figure_whether_drawn_or_kept() {
+    let unfitted = runtime(SOURCE).state.diagram.scene().expect("a native drawing").size().width;
+    assert!(unfitted > f64::from(BOX.0), "unfitted, the diagram is {unfitted} wide, wider than the box");
+    for (look, kept_keys) in [(KeptLook::DimmedWithError, 3), (KeptLook::Unchanged, 2)] {
+        let app = Fitted { diagram: Diagram::new("deploy", FontCatalog::rune()), source: SOURCE.to_owned(), look };
+        let mut runtime = Runtime::new(app, fitted_view, BOX, Env::new(false, 1.0));
+        runtime.frame(0.0);
+        runtime.frame(0.1);
+        let drew = fitted(&runtime);
+        let natural = runtime.state.diagram.scene().expect("a native drawing").size().width;
+        let zoom = runtime.state.diagram.zoom().expect("a native drawing");
+        runtime.update(|app, _| app.source = format!("{SOURCE}\n  Z -->"));
+        runtime.frame(1.0);
+        let kept = fitted(&runtime);
+        println!(
+            "{look:?}: {unfitted:.1} wide unfitted, laid out {natural:.1} wide, zoom {zoom:.4}; drew {} figure, keyed {:?}; kept {} figure, keyed {:?}",
+            drew.1.len(),
+            drew.2,
+            kept.1.len(),
+            kept.2
+        );
+        for ((status, figures, keyed), want, keys) in
+            [(drew, RenderStatus::Pele, 2), (kept, RenderStatus::Kept, kept_keys)]
+        {
+            assert_eq!(status, want, "{look:?}");
+            let [figure] = &figures[..] else { panic!("{look:?}, {want:?}: one figure, not {figures:?}") };
+            assert_eq!(figure["name"], "Deploy process", "{look:?}, {want:?}");
+            assert_eq!(figure["description"], "Review happens before release", "{look:?}, {want:?}");
+            assert_eq!(keyed.len(), keys, "{look:?}, {want:?}: the frame, any wrapper and the drawing: {keyed:?}");
+            assert_eq!(keyed[0][2], BOX.0, "{look:?}, {want:?}: the first keyed is the frame, as wide as the box");
+            let drawing = keyed[keys - 1][2];
+            assert!(drawing <= BOX.0, "{look:?}, {want:?}: the drawing, {drawing} wide, fits the box");
+        }
     }
 }
