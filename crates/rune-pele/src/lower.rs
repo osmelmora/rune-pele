@@ -20,10 +20,11 @@
 //! [`Unsupported`]. The view then draws the source another way; it never draws part of a Scene.
 
 use std::f32::consts::TAU;
+use std::ops::Range;
 
 use pele_core::scene::{
     AnchorKind, Draw, Geometry, Group, LineCap as SceneCap, LineJoin, LinkRef, Paint, PaintStyle, PaintVisit,
-    PathCommand, ResolvedPaints, Rgba, StrokeStyle,
+    PathCommand, ResolvedPaints, Rgba, Role, Size, StrokeStyle,
 };
 use pele_core::{DiagramKind, Scene};
 use rune::color::{srgb_decode, srgb_encode};
@@ -35,6 +36,7 @@ use crate::Event;
 use crate::bands::bands;
 use crate::fill::{Crossing, fill};
 use crate::geometry::{Affine, Arc, Outline, Point, Polyline, Segment};
+use crate::icon::{Icon, IconPaint};
 use crate::stroke::{Cap, Join, StrokeLook, Strokes, stroke};
 use crate::text::{Anchor, BaselinePoint, Baselines, style as text_style};
 
@@ -110,6 +112,9 @@ impl std::fmt::Display for Unsupported {
 /// What an app's handler hears from a drawing.
 pub(crate) type Handler<S> = fn(&mut S, Event, &mut Tx);
 
+/// The app's icons: the icon it draws for a name, or none.
+pub(crate) type Icons = fn(&str) -> Option<Icon>;
+
 /// How far a flattened curve may stray from the true one, in device pixels. Rune draws a
 /// stroke one segment at a time, each antialiased on its own, so a curve cut finer than it
 /// needs comes out bolder at every joint.
@@ -155,6 +160,8 @@ const SUPER_SHIFT: f64 = -0.45;
 pub struct Drawing {
     size: [f32; 2],
     items: Vec<Item>,
+    /// How many icon boxes the items hold.
+    slots: usize,
     /// The diagram's name and description for assistive technology.
     title: Option<String>,
     description: Option<String>,
@@ -175,6 +182,56 @@ enum Item {
     Shape(ShapeItem),
     Text(TextItem),
     Group(GroupItem),
+    Icon(IconSlot),
+}
+
+/// The box of an icon, which the app's icons draw in by name when it is painted. Where they have
+/// no icon by its name, it shows Pele's built-in glyph for the name, or nothing.
+struct IconSlot {
+    key: String,
+    name: String,
+    /// The box, in the coordinates `to_drawing` maps to the drawing's.
+    origin: pele_core::scene::Point,
+    size: Size,
+    to_drawing: Affine,
+    zoom: f64,
+    /// Device pixels a point.
+    scale: f64,
+    opacity: f32,
+    /// Its place among the drawing's slots, which are numbered in paint order.
+    index: usize,
+    glyph: Option<Box<Item>>,
+}
+
+/// An app's icon as drawn in its slot.
+struct DrawnIcon {
+    /// The box round its coats, or `None` where it draws nothing.
+    frame: Option<Frame>,
+    /// Each coat's figure, its paint, and whether it is stroked rather than filled.
+    coats: Vec<(Figure, IconPaint, bool)>,
+}
+
+/// What a drawing is painted with.
+struct Brush<'a, S> {
+    paints: &'a ResolvedPaints,
+    on_event: Option<Handler<S>>,
+    /// The app's icon drawn in each slot, or `None` where it has none by the slot's name. Empty
+    /// where the app gives no icons.
+    icons: Vec<Option<DrawnIcon>>,
+}
+
+impl<S> Brush<'_, S> {
+    /// The app's icons drawn in `slots`.
+    fn drawn(&self, slots: &Range<usize>) -> impl Iterator<Item = &DrawnIcon> {
+        self.icons.get(slots.clone()).unwrap_or_default().iter().flatten()
+    }
+}
+
+/// The least box that holds both.
+fn union(a: Frame, b: Frame) -> Frame {
+    let at = [a.at[0].min(b.at[0]), a.at[1].min(b.at[1])];
+    let end = [0, 1].map(|axis| (a.at[axis] + a.size[axis]).max(b.at[axis] + b.size[axis]));
+    Frame { at, size: [end[0] - at[0], end[1] - at[1]] }
 }
 
 /// An element's box in the drawing's points.
@@ -333,7 +390,11 @@ struct Turn {
 /// A group that is an element: its children are placed inside it.
 struct GroupItem {
     key: String,
-    frame: Frame,
+    /// The box round what it draws without the app's icons: `None` where it holds only icon
+    /// boxes with no glyph. The app's icons widen it when it is painted.
+    frame: Option<Frame>,
+    /// The icon boxes it holds, at any depth.
+    slots: Range<usize>,
     children: Vec<Item>,
     /// Where the pointer finds a group that only shows a tooltip: the boxes of what it draws.
     spots: Vec<Frame>,
@@ -402,6 +463,7 @@ impl Drawing {
         }
         let (scale, zoom) = (f64::from(scale), f64::from(zoom));
         let mut open = vec![Open { to_drawing: Affine::scale(zoom), element: None, children: Vec::new() }];
+        let mut slots = 0;
         for visit in scene.paint() {
             match visit {
                 PaintVisit::Begin(group) => {
@@ -420,7 +482,12 @@ impl Drawing {
                 }
                 PaintVisit::Draw(draw) => {
                     let group = open.last_mut().expect("the root stays open");
-                    group.children.extend(lower_draw(draw, &group.to_drawing, zoom, baselines, scale)?);
+                    let mut item = lower_draw(draw, &group.to_drawing, zoom, baselines, scale)?;
+                    if let Some(Item::Icon(slot)) = &mut item {
+                        slot.index = slots;
+                        slots += 1;
+                    }
+                    group.children.extend(item);
                 }
             }
         }
@@ -429,15 +496,30 @@ impl Drawing {
         Ok(Drawing {
             size: [(size.width * zoom) as f32, (size.height * zoom) as f32],
             items: root.children,
+            slots,
             title: scene.accessible_title(),
             description: scene.accessible_description(),
         })
     }
 
     /// The drawing as keyed elements in paint order, in `paints`' colours, under a figure with
-    /// the diagram's name and description. A link tells `on_event` when it is activated.
-    pub(crate) fn el<S: 'static>(&self, paints: &ResolvedPaints, on_event: Option<Handler<S>>) -> El {
-        let children = self.items.iter().filter_map(|item| item.el(paints, [0.0; 2], on_event));
+    /// the diagram's name and description. A link tells `on_event` when it is activated. Each
+    /// icon box shows the icon `icons` gives for its name, where it gives one.
+    pub(crate) fn el<S: 'static>(
+        &self,
+        paints: &ResolvedPaints,
+        on_event: Option<Handler<S>>,
+        icons: Option<Icons>,
+    ) -> El {
+        let mut drawn: Vec<Option<DrawnIcon>> = Vec::new();
+        if let Some(icons) = icons {
+            drawn.resize_with(self.slots, || None);
+            for slot in slots(&self.items) {
+                drawn[slot.index] = icons(&slot.name).map(|icon| slot.drawn(&icon));
+            }
+        }
+        let brush = Brush { paints, on_event, icons: drawn };
+        let children = self.items.iter().filter_map(|item| item.el(&brush, [0.0; 2]));
         // The drawing is one picture: nothing in it moves to the pixel grid on its own, so that
         // an edge still ends on the border it runs to.
         let mut figure = el().size(self.size[0], self.size[1]).pixel_snap(false).role("figure").children(children);
@@ -458,7 +540,7 @@ impl Drawing {
                 match item {
                     Item::Text(text) => into.extend(text.run.placed(Some(ink), None, [0.0; 2])),
                     Item::Group(group) => runs(&group.children, ink, into),
-                    Item::Shape(_) => {}
+                    Item::Shape(_) | Item::Icon(_) => {}
                 }
             }
         }
@@ -472,14 +554,25 @@ impl Drawing {
         self.size
     }
 
+    /// What the drawing asks of Rune without the app's icons.
     pub fn census(&self) -> Census {
         fn count(items: &[Item], depth: usize, census: &mut Census) {
             for item in items {
+                match item {
+                    Item::Icon(slot) => {
+                        if let Some(glyph) = &slot.glyph {
+                            count(std::slice::from_ref(glyph), depth, census);
+                        }
+                        continue;
+                    }
+                    Item::Group(group) if group.frame.is_none() => continue,
+                    _ => {}
+                }
                 census.elements += 1;
                 census.deepest = census.deepest.max(depth);
                 match item {
                     Item::Shape(shape) => census.shape_ops += shape.figure.ops(),
-                    Item::Text(_) => {}
+                    Item::Text(_) | Item::Icon(_) => {}
                     Item::Group(group) => count(&group.children, depth + 1, census),
                 }
             }
@@ -496,29 +589,102 @@ pub(crate) fn colour(rgba: Rgba) -> Color {
 }
 
 impl Item {
-    fn frame(&self) -> Frame {
+    /// The box round what the item draws without the app's icons, where it draws anything so.
+    fn frame(&self) -> Option<Frame> {
         match self {
-            Item::Shape(shape) => shape.figure.frame,
-            Item::Text(text) => text.run.bounds(),
+            Item::Shape(shape) => Some(shape.figure.frame),
+            Item::Text(text) => Some(text.run.bounds()),
             Item::Group(group) => group.frame,
+            Item::Icon(slot) => slot.glyph.as_ref()?.frame(),
         }
     }
 
-    /// The boxes the pointer finds the item in.
+    /// The boxes the pointer finds the item in without the app's icons.
     fn spots(&self) -> Vec<Frame> {
         match self {
             Item::Shape(shape) => shape.figure.spots.clone(),
-            Item::Text(_) | Item::Group(_) => vec![self.frame()],
+            Item::Icon(slot) => slot.glyph.as_ref().map(|glyph| glyph.spots()).unwrap_or_default(),
+            Item::Text(_) | Item::Group(_) => self.frame().into_iter().collect(),
+        }
+    }
+
+    /// The icon boxes the item holds, at any depth.
+    fn slots(&self) -> Range<usize> {
+        match self {
+            Item::Icon(slot) => slot.index..slot.index + 1,
+            Item::Group(group) => group.slots.clone(),
+            Item::Shape(_) | Item::Text(_) => 0..0,
         }
     }
 
     /// The element, placed inside an element whose top left is at `origin`.
-    fn el<S: 'static>(&self, paints: &ResolvedPaints, origin: [f32; 2], on_event: Option<Handler<S>>) -> Option<El> {
+    fn el<S: 'static>(&self, brush: &Brush<S>, origin: [f32; 2]) -> Option<El> {
         match self {
-            Item::Shape(shape) => shape.el(paints, origin),
-            Item::Text(text) => text.el(paints, origin),
-            Item::Group(group) => Some(group.el(paints, origin, on_event)),
+            Item::Shape(shape) => shape.el(brush.paints, origin),
+            Item::Text(text) => text.el(brush.paints, origin),
+            Item::Group(group) => group.el(brush, origin),
+            Item::Icon(slot) => match brush.icons.get(slot.index) {
+                Some(Some(icon)) => icon.el(brush.paints, origin, &slot.key, slot.opacity),
+                _ => slot.glyph.as_ref()?.el(brush, origin),
+            },
         }
+    }
+}
+
+/// The icon boxes among `items`, at any depth, in paint order.
+fn slots(items: &[Item]) -> Vec<&IconSlot> {
+    let mut found = Vec::new();
+    for item in items {
+        match item {
+            Item::Icon(slot) => found.push(slot),
+            Item::Group(group) => found.extend(slots(&group.children)),
+            Item::Shape(_) | Item::Text(_) => {}
+        }
+    }
+    found
+}
+
+impl IconSlot {
+    /// `icon` fitted to the box and lowered as every other shape is: zoomed, moved and turned
+    /// with the box, and flattened for the device pixels it is drawn on. An icon is drawn whole
+    /// or not at all, as a Scene is, so one with a fill whose contours cross draws nothing.
+    fn drawn(&self, icon: &Icon) -> DrawnIcon {
+        let mut coats = Vec::new();
+        for coat in icon.placed(self.origin, self.size) {
+            let look = coat.stroke.map(|width| StrokeLook {
+                width: width * self.zoom,
+                cap: Cap::Round,
+                join: Join::Round,
+                dash: Vec::new(),
+            });
+            let outline = Outline::lower(&path(&coat.commands)).transformed(&self.to_drawing);
+            match Figure::new(&outline, look.is_none(), look.as_ref(), self.scale as f32) {
+                Ok(Some(figure)) => coats.push((figure, coat.paint, look.is_some())),
+                Ok(None) => {}
+                Err(Crossing) => return DrawnIcon { frame: None, coats: Vec::new() },
+            }
+        }
+        let frame = coats.iter().map(|(figure, ..)| figure.frame).reduce(union);
+        DrawnIcon { frame, coats }
+    }
+}
+
+impl DrawnIcon {
+    /// The icon as one element keyed as its box, placed inside an element whose top left is at
+    /// `origin`. `currentColor` is the diagram's foreground, which Pele's SVG sets as the colour
+    /// its icon boxes inherit.
+    fn el(&self, paints: &ResolvedPaints, origin: [f32; 2], key: &str, opacity: f32) -> Option<El> {
+        let frame = self.frame?;
+        let ink = |paint: IconPaint| match paint {
+            IconPaint::Current => paints.get(Paint::Role(Role::Foreground)).map(colour),
+            IconPaint::Fixed(colour) => Some(colour),
+        };
+        let coats = self.coats.iter().filter_map(|(figure, paint, stroked)| {
+            let ink = ink(*paint);
+            let element = if *stroked { figure.painted(None, ink) } else { figure.painted(ink.map(Ink::Flat), None) }?;
+            Some(figure.frame.placed(element, frame.at))
+        });
+        Some(frame.placed(el().key(key).children(coats), origin).layer_opacity(opacity))
     }
 }
 
@@ -856,14 +1022,18 @@ impl TextItem {
 impl GroupItem {
     /// The element of a group around what it holds, or nothing where it holds nothing.
     fn around(group: Group, children: Vec<Item>, scale: f64) -> Option<GroupItem> {
-        let first = children.first()?;
+        // Keyed by what it draws without the app's icons, where it draws anything so.
+        let first = children.iter().find(|child| child.frame().is_some()).or(children.first())?;
         let key = match first {
             Item::Shape(shape) => &shape.key,
             Item::Text(text) => &text.key,
             Item::Group(inner) => &inner.key,
+            Item::Icon(slot) => &slot.key,
         };
         let key = format!("{key}~group");
-        let frames = children.iter().map(Item::frame);
+        let held = children.iter().map(Item::slots).filter(|slots| !slots.is_empty());
+        let slots = held.reduce(|a, b| a.start.min(b.start)..a.end.max(b.end)).unwrap_or(0..0);
+        let frames = children.iter().filter_map(Item::frame);
         let (low, high) = frames.fold(([f64::MAX; 2], [f64::MIN; 2]), |(low, high), frame| {
             let at = frame.at.map(f64::from);
             let end = [at[0] + f64::from(frame.size[0]), at[1] + f64::from(frame.size[1])];
@@ -879,7 +1049,8 @@ impl GroupItem {
         });
         Some(GroupItem {
             key,
-            frame: frame(low, high, scale),
+            frame: (low[0] <= high[0]).then(|| frame(low, high, scale)),
+            slots,
             children,
             spots,
             opacity: group.opacity as f32,
@@ -889,22 +1060,31 @@ impl GroupItem {
         })
     }
 
-    fn el<S: 'static>(&self, paints: &ResolvedPaints, origin: [f32; 2], on_event: Option<Handler<S>>) -> El {
-        let children = self.children.iter().filter_map(|child| child.el(paints, self.frame.at, on_event));
+    /// The group's element, as wide as what it draws and the app's icons in it: the pointer finds
+    /// its link and its tooltip on an icon too. Nothing, where it draws nothing.
+    fn el<S: 'static>(&self, brush: &Brush<S>, origin: [f32; 2]) -> Option<El> {
+        let icons: Vec<Frame> = brush.drawn(&self.slots).filter_map(|icon| icon.frame).collect();
+        let frame = self.frame.into_iter().chain(icons.iter().copied()).reduce(union)?;
+        let children = self.children.iter().filter_map(|child| child.el(brush, frame.at));
         // A tooltip in several boxes is on an empty element over each, and the group's own box
         // shows none.
         let tooltip = self.tooltip.as_deref();
-        let spots = self.spots.iter().filter(|_| self.spots.len() > 1);
-        let spots = spots.filter_map(|spot| Some(spot.placed(el().help(tooltip?), self.frame.at)));
-        let children: Vec<El> = children.chain(spots).collect();
+        let spots: Vec<Frame> = match self.link {
+            None if tooltip.is_some() => self.spots.iter().chain(&icons).copied().collect(),
+            _ => self.spots.clone(),
+        };
+        let several = spots.iter().filter(|_| spots.len() > 1);
+        let several = several.filter_map(|spot| Some(spot.placed(el().help(tooltip?), frame.at)));
+        let children: Vec<El> = children.chain(several).collect();
         let mut element =
-            self.frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);
+            frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);
         if self.inert {
             element = element.inert();
         }
-        if let Some(tooltip) = tooltip.filter(|_| self.spots.len() <= 1) {
+        if let Some(tooltip) = tooltip.filter(|_| spots.len() <= 1) {
             element = element.help(tooltip);
         }
+        let on_event = brush.on_event;
         if let (Some(link), Some(on_event)) = (&self.link, on_event) {
             let (pressed, entered) = (link.to.clone(), link.to.clone());
             // Rune presses a focused element on Space only. Return is the element's to take.
@@ -923,7 +1103,7 @@ impl GroupItem {
                 .label(link.name.as_str())
                 .cursor(Cursor::Pointer);
         }
-        element
+        Some(element)
     }
 }
 
@@ -934,7 +1114,7 @@ fn shown_text(items: &[Item]) -> String {
             match item {
                 Item::Text(text) => into.push(&text.run.content),
                 Item::Group(group) => runs(&group.children, into),
-                Item::Shape(_) => {}
+                Item::Shape(_) | Item::Icon(_) => {}
             }
         }
     }
@@ -1099,18 +1279,33 @@ fn lower_draw(
     baselines: &mut Baselines,
     scale: f64,
 ) -> Result<Option<Item>, Unsupported> {
-    // A built-in glyph is the path Pele's SVG draws in the icon's box, faded with the box.
-    if let Geometry::Icon { origin, size, glyph: Some(glyph), .. } = draw.geometry {
-        let (outline, stroke) = glyph.drawn_in(origin, size);
-        let style = PaintStyle {
-            fill: Paint::None,
-            fill_opacity: 1.0,
-            stroke: Some(stroke),
-            opacity: draw.style.opacity,
-            gradient: None,
+    // The box of an icon, which the app's icons draw in by name when it is painted. Pele's SVG
+    // leaves it empty for its host, or draws a built-in glyph in it: the path Pele's SVG draws in
+    // the box, faded with the box.
+    if let Geometry::Icon { name, origin, size, glyph } = draw.geometry {
+        let opacity = draw.style.opacity;
+        let glyph = match glyph {
+            Some(glyph) => {
+                let (outline, stroke) = glyph.drawn_in(origin, size);
+                let style =
+                    PaintStyle { fill: Paint::None, fill_opacity: 1.0, stroke: Some(stroke), opacity, gradient: None };
+                let draw = Draw { key: draw.key.clone(), geometry: Geometry::Path(outline), style, ..draw };
+                lower_draw(draw, to_drawing, zoom, baselines, scale)?.map(Box::new)
+            }
+            None => None,
         };
-        let draw = Draw { geometry: Geometry::Path(outline), style, ..draw };
-        return lower_draw(draw, to_drawing, zoom, baselines, scale);
+        return Ok(Some(Item::Icon(IconSlot {
+            key: draw.key.to_string(),
+            name,
+            origin,
+            size,
+            to_drawing: *to_drawing,
+            zoom,
+            scale,
+            opacity: opacity as f32,
+            index: 0,
+            glyph,
+        })));
     }
     if !draw.geometry.renders() {
         return Ok(None);
@@ -1133,9 +1328,7 @@ fn lower_draw(
         Geometry::Ellipse { centre, radii } => ellipse(point(centre), [radii.width, radii.height]),
         Geometry::Polygon(points) => polygon(&points.into_iter().map(point).collect::<Vec<_>>()),
         Geometry::Image { .. } => return Err(Unsupported::Image),
-        // The box of an icon with no built-in glyph, which the host draws by name. Pele's SVG
-        // leaves it empty for its host, and no host fills it here yet.
-        Geometry::Icon { .. } => return Ok(None),
+        Geometry::Icon { .. } => unreachable!("an icon's box is a slot"),
         Geometry::Text(run) => {
             if run.text.is_empty() {
                 return Ok(None);

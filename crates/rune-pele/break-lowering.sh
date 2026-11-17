@@ -58,8 +58,8 @@ break_one stroke-blended-twice lower.rs a_translucent_stroke \
   'let once = coat.overlaps && colour.a < 1.0;' \
   'let once = false && coat.overlaps && colour.a < 1.0;'
 break_one group-faded-piecewise lower.rs a_group_fades \
-  'self.frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);' \
-  'self.frame.placed(el().key(self.key.as_str()), origin).children(children).dim(self.opacity);'
+  'frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);' \
+  'frame.placed(el().key(self.key.as_str()), origin).children(children).dim(self.opacity);'
 break_one text-turned-the-other-way lower.rs turned_text_turns \
   'element.rotate(turn.radians).origin(pivot[0], pivot[1])' \
   'element.rotate(-turn.radians).origin(pivot[0], pivot[1])'
