@@ -477,8 +477,9 @@ pub struct Diagram {
 }
 
 impl Diagram {
-    /// `id` keys the diagram's element and must be unique in its window. `fonts` are the fonts
-    /// the app gives Rune.
+    /// `id` keys the diagram's element and must be unique in its window. In a fitted view it
+    /// keys the frame the fit reads its width from, and the drawing inside it too. `fonts` are
+    /// the fonts the app gives Rune.
     pub fn new(id: impl Into<String>, fonts: FontCatalog) -> Self {
         Diagram { id: id.into(), fonts, session: RefCell::default() }
     }
@@ -512,7 +513,7 @@ impl Diagram {
         let env = cx.env();
         // The width a fitted view has, as Rune last laid out its frame: none before its first
         // layout. The frame is the same whether the source draws or a drawing is kept.
-        let room = options.fit.and_then(|_| cx.layout_with(&self.frame_key(), |rect| rect[2]));
+        let room = options.fit.and_then(|_| cx.layout_with(self.frame_key(), |rect| rect[2]));
         let error = match self.draw_source(env, source, &options, room, on_event) {
             Ok(drawn) => {
                 self.session.borrow_mut().outcome = Some(Outcome::Drew);
@@ -610,9 +611,11 @@ impl Diagram {
         })
     }
 
-    /// The key of a fitted view's frame, whose width it fits.
-    fn frame_key(&self) -> String {
-        format!("{}~fit", self.id)
+    /// The key of a fitted view's frame, whose width it fits: the id, as the drawing inside it
+    /// is keyed, so the view is one element keyed with the id in every mode. Rune finds the frame
+    /// as the first element so keyed, and no other element of the window may be keyed so.
+    fn frame_key(&self) -> &str {
+        &self.id
     }
 
     /// A fitted view's drawing in its frame: as wide as its parent, and scrolling sideways where

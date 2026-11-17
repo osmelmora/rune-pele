@@ -1,7 +1,8 @@
 //! What a view is in its window, through rune-pele's public API: a `Diagram` that replaces
-//! another under the same id draws and links its own source.
+//! another under the same id draws and links its own source, and a fitted view reads its own
+//! frame's width whatever its neighbours are keyed.
 
-use rune::{Cx, El, Env, Runtime, Tx, el};
+use rune::{Cx, El, Env, Runtime, Tx, col, el};
 use rune_pele::{Diagram, Event, FontCatalog, RenderStatus, ViewOptions};
 
 struct Linked {
@@ -72,4 +73,40 @@ fn a_diagram_that_replaces_another_under_its_id_draws_and_links_its_own_source()
     rt.frame(2.0);
     assert_eq!(texts(&rt), ["Replacement", "Done"]);
     assert_eq!(press_the_link(&mut rt, 2.5)[2..], ["https://example.org/replacement"]);
+}
+
+struct Pair {
+    fitted: Diagram,
+    natural: Diagram,
+    natural_first: bool,
+}
+
+const ACROSS: &str = "flowchart LR\n A[Build and deploy] --> B[Confirm metrics] --> C[Review report]";
+
+fn pair_view(pair: &Pair, cx: &mut Cx<Pair>) -> El {
+    let fitted = pair.fitted.view(cx, ACROSS, ViewOptions::fit()).expect("it draws");
+    let natural = pair.natural.view(cx, "flowchart LR\n Z[Ready]", ViewOptions::natural()).expect("it draws");
+    let children = if pair.natural_first { [natural, fitted] } else { [fitted, natural] };
+    col().w(500.0).children(children)
+}
+
+/// A neighbour whose id is the fitted view's with `~fit` after it cannot lend the fitted view
+/// its width: in either order the fitted diagram, which is narrower than the column, is drawn at
+/// its own size.
+#[test]
+fn a_fitted_view_reads_its_own_frame_whatever_its_neighbour_is_keyed() {
+    let mut zooms = Vec::new();
+    for natural_first in [false, true] {
+        let pair = Pair {
+            fitted: Diagram::new("network", FontCatalog::rune()),
+            natural: Diagram::new("network~fit", FontCatalog::rune()),
+            natural_first,
+        };
+        let mut rt = Runtime::new(pair, pair_view, (500.0, 400.0), Env::new(false, 1.0));
+        rt.frame(1.0);
+        let width = rt.state.fitted.scene().expect("a native scene").size().width;
+        assert!(width < 500.0, "the fitted diagram is {width} wide, under the column's 500");
+        zooms.push(rt.state.fitted.zoom().expect("a native view"));
+    }
+    assert_eq!(zooms, [1.0, 1.0], "with the fitted view first and then second");
 }
