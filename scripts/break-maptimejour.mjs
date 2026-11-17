@@ -41,9 +41,9 @@ const BREAKS = [
   {
     name: 'treemap format: a tie rounds toward zero',
     test: 'treemap_layout',
-    file: `${treemap}/format.rs`,
-    from: "if digits[first + count] >= b'5' {",
-    to: "if digits[first + count] > b'5' {",
+    file: `${src}/js.rs`,
+    from: "if next < b'5' {",
+    to: "if next <= b'5' {",
   },
   {
     name: 'treemap drawing: a tooltip only where the path names a section',

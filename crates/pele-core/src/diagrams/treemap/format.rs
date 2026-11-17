@@ -101,8 +101,12 @@ impl Formatter {
                 js::to_fixed(abs * 100.0, self.precision.unwrap_or(6))
             }
             Notation::Integer => js::to_fixed(js::round(abs), 0),
-            Notation::Exponent => to_exponential(abs, self.precision.unwrap_or(6)),
-            Notation::Shortest => js::to_string(to_precision_number(abs, self.precision.unwrap_or(12).max(1))),
+            Notation::Exponent => js::to_exponential(abs, self.precision.unwrap_or(6)),
+            Notation::Shortest => {
+                let digits: Vec<u16> =
+                    js::to_precision(abs, self.precision.unwrap_or(12).max(1)).encode_utf16().collect();
+                js::to_string(string_to_number(&digits))
+            }
         };
         if self.trim && body.contains('.') && !body.contains('e') {
             body = trim_zeros(&body);
@@ -146,58 +150,4 @@ fn group(digits: &str) -> String {
     }
     parts.reverse();
     parts.join(",")
-}
-
-/// The first `count` significant digits of a positive finite `x`, rounded as the spec rounds:
-/// to the nearest, ties away from zero, on the exact binary value. Also the decimal exponent of
-/// the first digit.
-fn significant(x: f64, count: usize) -> (Vec<u8>, i32) {
-    let exact = format!("{x:.1100}");
-    let (int, frac) = exact.split_once('.').expect("fixed format has a point");
-    let digits: Vec<u8> = int.bytes().chain(frac.bytes()).collect();
-    let first = digits.iter().position(|&digit| digit != b'0').expect("a positive number has a digit");
-    let mut exponent = int.len() as i32 - 1 - first as i32;
-    let mut kept = digits[first..first + count].to_vec();
-    if digits[first + count] >= b'5' {
-        match kept.iter().rposition(|&digit| digit != b'9') {
-            Some(at) => {
-                kept[at] += 1;
-                kept[at + 1..].fill(b'0');
-            }
-            None => {
-                kept.fill(b'0');
-                kept[0] = b'1';
-                exponent += 1;
-            }
-        }
-    }
-    (kept, exponent)
-}
-
-/// `x.toExponential(digits)` for `x` that is not negative.
-fn to_exponential(x: f64, digits: usize) -> String {
-    if !x.is_finite() {
-        return js::to_string(x);
-    }
-    let (kept, exponent) = if x == 0.0 { (vec![b'0'; digits + 1], 0) } else { significant(x, digits + 1) };
-    let mut out = String::with_capacity(digits + 8);
-    out.push(char::from(kept[0]));
-    if digits > 0 {
-        out.push('.');
-        out.push_str(std::str::from_utf8(&kept[1..]).expect("ascii digits"));
-    }
-    out.push_str(if exponent < 0 { "e-" } else { "e+" });
-    out.push_str(&exponent.abs().to_string());
-    out
-}
-
-/// `Number(x.toPrecision(digits))` for `x` that is not negative: `x` to that many significant
-/// digits, read back as the nearest double.
-fn to_precision_number(x: f64, digits: usize) -> f64 {
-    if !x.is_finite() || x == 0.0 {
-        return x;
-    }
-    let (kept, exponent) = significant(x, digits);
-    let mantissa = std::str::from_utf8(&kept).expect("ascii digits");
-    format!("{mantissa}e{}", exponent - digits as i32 + 1).parse().expect("digits and an exponent parse")
 }
