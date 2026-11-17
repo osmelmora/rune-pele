@@ -1,0 +1,24 @@
+# An app outside the rune-pele workspace that draws a diagram with rune-pele, set up as the
+# README's "Using rune-pele in your app" says. `mise run consumer` builds and tests it.
+[package]
+name = "rune-pele-consumer"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# A workspace of its own, as an app's is: the rune-pele workspace's `[patch]` does not reach it.
+[workspace]
+
+[dependencies]
+rune-pele = { path = "../../crates/rune-pele" }
+# The rev rune-pele pins: rune-pele takes this rev's `Cx` and gives its `El`. rune-pele turns
+# Rune's default features off, so the app chooses them. `embedded-fonts` gives text Inter, which
+# `FontCatalog::rune()` measures with.
+rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts"] }
+
+# Rune's own patches, from the same rev. Without them `rune` does not resolve.
+[patch.crates-io]
+winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
