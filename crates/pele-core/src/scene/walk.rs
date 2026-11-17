@@ -6,6 +6,7 @@
 //! interpreter reads a drawing's effective style and where its origin sits, and never Pele's
 //! attributes.
 
+use super::palette::no_paint;
 use super::style::{Meaning, Radius, Style};
 use super::{
     AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, IconGlyph, LineCap, LineJoin, Node,
@@ -324,13 +325,14 @@ fn keyword(written: &str) -> String {
 }
 
 /// Whether the walk draws what one declaration says. `meaning` is what the node's style means
-/// where a builder read it; the rest is read here.
+/// where a builder read it; the rest is read here. A paint that is no colour at all says
+/// nothing a page draws, and the walk draws nothing of it either.
 fn reads(style: &Style, meaning: &Meaning, property: &str, written: &str) -> bool {
     let value = keyword(written);
     let nothing = matches!(value.as_str(), "0" | "0px" | "normal");
     match property {
-        "fill" => meaning.fill.is_some(),
-        "stroke" => meaning.stroke.is_some(),
+        "fill" => meaning.fill.is_some() || no_paint(written),
+        "stroke" => meaning.stroke.is_some() || no_paint(written),
         "stroke-width" => meaning.stroke_width.is_some(),
         "opacity" => meaning.opacity.is_some(),
         "fill-opacity" => meaning.fill_opacity.is_some(),

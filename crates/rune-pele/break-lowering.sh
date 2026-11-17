@@ -156,6 +156,10 @@ break_one zero-radius-drawn lower.rs a_point_of_radius_zero \
   'if !draw.geometry.renders() {' \
   'if false && !draw.geometry.renders() {' \
   zero_radius
+break_one invalid-fill-unread ../../pele-core/src/scene/walk.rs a_colour_no_css_reads \
+  '"fill" => meaning.fill.is_some() || no_paint(written),' \
+  '"fill" => meaning.fill.is_some(),' \
+  invalid_colour
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

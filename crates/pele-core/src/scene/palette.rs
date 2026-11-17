@@ -281,6 +281,28 @@ pub(super) fn css_colour(raw: &[u16], dark: bool) -> Option<Rgba> {
     (!rgb.iter().chain([&alpha]).any(|c| c.is_nan())).then(|| Rgba::from_srgb(rgb, alpha))
 }
 
+/// The words a page reads as a paint that this cannot read without one: CSS's keywords for a
+/// value from elsewhere, and the system's colours.
+const PAGE_PAINTS: &str = "currentcolor inherit initial unset revert revert-layer context-fill context-stroke \
+accentcolor accentcolortext activetext buttonborder buttonface buttontext canvas canvastext field fieldtext graytext \
+highlight highlighttext linktext mark marktext selecteditem selecteditemtext visitedtext activeborder activecaption \
+appworkspace background buttonhighlight buttonshadow captiontext inactiveborder inactivecaption inactivecaptiontext \
+infobackground infotext menu menutext scrollbar threeddarkshadow threedface threedhighlight threedlightshadow \
+threedshadow window windowframe windowtext";
+
+/// Whether a `fill` or `stroke` value, as written, is no paint at all, so that a page's CSS
+/// drops the declaration and the element keeps the paint it has without it: a hash that is not
+/// 3, 4, 6 or 8 hex digits, a word that names no colour, or several words. A function this does
+/// not read, such as `color-mix()`, is left to a page, which may read it.
+pub(super) fn no_paint(written: &str) -> bool {
+    let raw: Vec<u16> = written.encode_utf16().collect();
+    let value = lowercase(raw.trim_js());
+    !value.contains('(')
+        && value != "none"
+        && !PAGE_PAINTS.split(' ').any(|word| word == value)
+        && css_colour(&raw, false).is_none()
+}
+
 /// The two sides of the one comma outside parentheses.
 fn split_top_comma(text: &str) -> Option<(&str, &str)> {
     let mut depth = 0i32;
@@ -339,6 +361,18 @@ mod tests {
         assert_eq!(colour("light-dark(#fff, rgb(1, 2, 3))", true), Some([1, 2, 3, 255]));
         for unknown in ["var(--pele-accent)", "color-mix(in srgb, red, blue)", "currentcolor", "rgb(1, 2)", "nope"] {
             assert_eq!(colour(unknown, false), None, "{unknown}");
+        }
+    }
+
+    #[test]
+    fn a_paint_that_is_no_colour_is_told_from_one_a_page_reads() {
+        for nothing in ["#", "#0", "#00", "#00000", "#0000000", "#12345g", "blu", " Blu ", "red red", "0"] {
+            assert!(no_paint(nothing), "{nothing} is no paint");
+        }
+        let paints = ["#0000", "#036", "Lime", "transparent", "none", "currentColor", "inherit", "Canvas"];
+        let functions = ["color-mix(in srgb, red, blue)", "var(--x)", "rgb(1 2)", "url(#a) red"];
+        for paint in paints.into_iter().chain(functions) {
+            assert!(!no_paint(paint), "{paint} is a paint, or a page may read it as one");
         }
     }
 
