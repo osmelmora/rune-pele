@@ -121,6 +121,101 @@ fn to_fixed_matches_to_fixed() {
     }
 }
 
+/// Doubles where significant digits go wrong first: signed zeros, the non-finite values, the
+/// extremes, the double nearest each power of ten with its neighbours, exact decimal ties, and
+/// runs of nines that carry into a new first digit. Each also negated.
+fn significant_cases() -> Vec<f64> {
+    let mut out =
+        vec![0.0, f64::NAN, f64::INFINITY, 5e-324, f64::MIN_POSITIVE, f64::MIN_POSITIVE.next_down(), f64::MAX];
+    for exponent in -324..=308 {
+        let power: f64 = format!("1e{exponent}").parse().expect("a power of ten parses");
+        out.extend([power, power.next_up(), power.next_down()]);
+    }
+    for k in 1..=64 {
+        // 2^-k ends in a 5 at its k-th decimal place, and so do its odd multiples.
+        let unit = 2f64.powi(-k);
+        out.extend([unit, 3.0 * unit, 5.0 * unit, 1.0 + unit, 1.0 - unit, 9.0 + unit]);
+    }
+    let digits = "1234567890123456";
+    for len in 1..=digits.len() {
+        // Whole numbers below 2^53 are exact, so one ending in 5 is a tie one place up.
+        let tie: f64 = format!("{}5", &digits[..len - 1]).parse().expect("digits parse");
+        out.extend([tie, tie / 1000.0]);
+    }
+    for k in 0..=17 {
+        let power = 10f64.powi(k);
+        out.extend([power - 0.5, power - 0.05, (power - 0.5) / 1e6, 1.0 - 0.5 / power, 9.5 * power]);
+    }
+    let negated: Vec<f64> = out.iter().map(|x| -x).collect();
+    out.extend(negated);
+    out
+}
+
+/// Every case at every precision given, at 50 and at 100, then seeded random doubles at a random
+/// precision each: bit patterns, odd multiples of a power of two, and coordinates.
+fn significant_inputs(precisions: std::ops::RangeInclusive<usize>) -> Vec<(f64, usize)> {
+    let mut out = Vec::new();
+    for x in significant_cases() {
+        out.extend(precisions.clone().chain([50, 100]).map(|digits| (x, digits)));
+    }
+    let mut rng = Rng(0x5851_f42d_4c95_7f2d);
+    let span = (precisions.end() - precisions.start() + 1) as u64;
+    for _ in 0..100_000 {
+        let digits = precisions.start() + (rng.next() % span) as usize;
+        let x = match rng.next() % 3 {
+            0 => f64::from_bits(rng.next()),
+            1 => ((rng.next() >> (11 + rng.next() % 53)) | 1) as f64 * 2f64.powi(-((rng.next() % 70) as i32)),
+            _ => ((rng.unit() - 0.5) * 10f64.powi((rng.next() % 12) as i32) * 1000.0).round() / 1000.0,
+        };
+        out.push((x, digits));
+    }
+    out
+}
+
+/// Whether the exact value of `x` is half-way between two numbers of `count` significant digits.
+fn is_tie(x: f64, count: usize) -> bool {
+    if !x.is_finite() || x == 0.0 {
+        return false;
+    }
+    let exact = format!("{:.1100}", x.abs()).replace('.', "");
+    let rest = exact.trim_start_matches('0').get(count..).unwrap_or("");
+    rest.starts_with('5') && rest[1..].bytes().all(|digit| digit == b'0')
+}
+
+/// Each `(x, digits)` through `op` in the oracle and through `ours`. `kept` says how many
+/// significant digits the op keeps for `digits`, to count the exact ties among the cases.
+fn diff_digits(op: &str, cases: &[(f64, usize)], kept: impl Fn(usize) -> usize, ours: impl Fn(f64, usize) -> String) {
+    let requests: Vec<String> = cases.iter().map(|&(x, digits)| format!("{op}\t{}\t{digits}", hex(x))).collect();
+    let theirs = oracle(&requests);
+    let ties = cases.iter().filter(|&&(x, digits)| is_tie(x, kept(digits))).count();
+    let mismatches: Vec<String> = cases
+        .iter()
+        .zip(&theirs)
+        .filter_map(|(&(x, digits), want)| {
+            let got = ours(x, digits);
+            (&got != want).then(|| format!("{op}({x:e}, {digits}) bits {}: node {want:?}, ours {got:?}", hex(x)))
+        })
+        .collect();
+    println!("{op}: {} compared, {ties} of them exact ties, {} differ", cases.len(), mismatches.len());
+    assert!(
+        mismatches.is_empty(),
+        "{} of {} differ:\n{}",
+        mismatches.len(),
+        cases.len(),
+        mismatches[..mismatches.len().min(20)].join("\n")
+    );
+}
+
+#[test]
+fn to_exponential_matches_to_exponential() {
+    diff_digits("exponential", &significant_inputs(0..=21), |digits| digits + 1, js::to_exponential);
+}
+
+#[test]
+fn to_precision_matches_to_precision() {
+    diff_digits("precision", &significant_inputs(1..=21), |digits| digits, js::to_precision);
+}
+
 /// The angles a chart feeds to `Math.sin` and `Math.cos`: turns, their neighbours and random spans.
 fn angles() -> Vec<f64> {
     let mut rng = Rng(0x2545_f491_4f6c_dd1d);

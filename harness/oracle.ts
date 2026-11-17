@@ -74,6 +74,8 @@ const ops: Record<string, (args: string[]) => string> = {
   num: ([x]) => num(double(x)),
   string: ([x]) => String(double(x)),
   fixed: ([x, digits]) => double(x).toFixed(Number(digits)),
+  exponential: ([x, digits]) => double(x).toExponential(Number(digits)),
+  precision: ([x, digits]) => double(x).toPrecision(Number(digits)),
   sin: ([x]) => bits(Math.sin(double(x))),
   cos: ([x]) => bits(Math.cos(double(x))),
   pow: ([x, y]) => bits(Math.pow(double(x), double(y))),
