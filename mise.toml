@@ -21,3 +21,7 @@ run = "cargo test -q --release -p rune-pele --test graph_view -- --nocapture --t
 [tasks.prove]
 description = "Run the Kani proofs for the JS numerics"
 run = "cargo kani -p pele-core -j --output-format terse"
+
+[tasks.consumer]
+description = "Build and test examples/consumer, an app in its own workspace that depends on rune-pele as the README says"
+run = "scripts/consumer.sh"

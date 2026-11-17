@@ -152,6 +152,48 @@ break_one kept-layouts-not-held lib.rs sources_that_lay_out_and_then_fail \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)) {' \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)).filter(|_| false) {' \
   kept_fit
+break_one engine-fallback-as-pele lib.rs the_engine_says \
+  'Drawn::RuneMermaid(_) => Some(Engine::RuneMermaid),' \
+  'Drawn::RuneMermaid(_) => Some(Engine::Pele),' \
+  engine_view
+break_one engine-fallback-with-links lib.rs the_engine_says \
+  'pub fn has_links(self) -> bool {
+        match self {
+            Engine::Pele => true,
+            Engine::RuneMermaid => false,' \
+  'pub fn has_links(self) -> bool {
+        match self {
+            Engine::Pele => true,
+            Engine::RuneMermaid => true,' \
+  engine_view
+
+# break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
+# then refuses.
+break_doc() {
+  name=$1 file=$src/$2
+  cp "$file" "$file.unbroken"
+  FROM=$3 TO=$4 perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
+  if [ $? -ne 0 ]; then
+    restore "$file"
+    echo "break $name: NOT APPLIED, the line to break is gone from $file"
+    failed=1
+    return
+  fi
+  if RUSTDOCFLAGS="-D warnings" cargo doc -q --no-deps -p rune-pele > "$logs/$name.log" 2>&1; then
+    echo "break $name: rustdoc still PASSES with it"
+    failed=1
+  else
+    echo "break $name: rustdoc fails, as it should:"
+    grep -E "^error" "$logs/$name.log" | head -2 | sed 's/^/    /'
+  fi
+  restore "$file"
+}
+
+break_doc doc-private-link lower.rs \
+  'or wider so that at most 128 lie along
+    /// the gradient.' \
+  'or wider where that is more than
+    /// [`MOST_BANDS`].'
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

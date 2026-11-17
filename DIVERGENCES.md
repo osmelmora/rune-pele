@@ -46,6 +46,8 @@ As Pele's `mount` does, a source that fails after one that drew leaves that draw
 
 `Diagram::status()` is then `RenderStatus::RuneMermaid`, and `Diagram::fallback()` says why. Where rune-mermaid cannot draw the source either, the view keeps the last drawing that drew, as the next section says, or with none is an error and draws nothing.
 
+rune-mermaid's drawing does less than Pele's, which draws every source it parses. It has no links, so a press tells the app nothing, and no tooltips. Of the view's options it follows only the width and the kept look. It ignores `ViewOptions::zoom`, the palette and the font size, and draws its own 13 point text in Rune's neutral colours. Wider than the view's width, or than a fitted view's, it shrinks to 0.6 of its size whatever its text then measures, and past that shows its middle with its sides faded out. `Diagram::engine()` says who drew the drawing a view shows, kept or not, and `Engine::has_links`, `Engine::has_tooltips` and `Engine::zooms` say what it can do.
+
 | Source | Why it is not drawn natively |
 | --- | --- |
 | A diagram type pele-core has not ported | There is no Scene to draw. |

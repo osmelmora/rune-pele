@@ -16,6 +16,8 @@
 //!
 //! [`lower::NATIVE`] lists the diagram types drawn this way. Any other type, and any source whose
 //! Scene asks for something the lowering does not draw, is drawn by Rune's own rune-mermaid.
+//! That drawing has no links or tooltips and ignores the zoom: [`Diagram::engine`] says who drew
+//! the drawing a view shows, and [`Engine`] what it can do.
 //!
 //! Layout is cached by source, layout options, device scale and Rune's font epoch, lowering by
 //! layout and zoom, and painting is a `memo` keyed by the lowered drawing and the resolved
@@ -122,6 +124,10 @@ impl Palette {
 }
 
 /// How one view of a diagram is drawn.
+///
+/// A drawing rune-mermaid draws ([`Engine::RuneMermaid`]) follows only the width and the kept
+/// look of these options. It ignores the palette, the font size, the zoom and a fit's smallest
+/// text, and is drawn in Rune's neutral light or dark colours.
 #[derive(Clone, Debug)]
 pub struct ViewOptions {
     layout: LayoutOptions,
@@ -310,6 +316,52 @@ pub enum Fallback {
     NotLowered(Unsupported),
 }
 
+/// Who drew the drawing a view shows, and so what that drawing can do. [`Diagram::engine`]
+/// reads it after a view, whether the view's source drew or the view kept an earlier drawing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Engine {
+    /// rune-pele, from pele-core's Scene: its links are live, it shows tooltips, and it follows
+    /// every view option.
+    Pele,
+    /// Rune's own rune-mermaid, for a source that is not drawn natively: [`Diagram::fallback`]
+    /// says why. It draws no links or tooltips, and of the view's options follows only the
+    /// width and the kept look, as [`ViewOptions`] says.
+    RuneMermaid,
+}
+
+impl Engine {
+    /// Whether the drawing's links are live: pressing one tells the handler that
+    /// [`Diagram::view_with`] gives. rune-mermaid draws no links, so a press tells the app
+    /// nothing.
+    pub fn has_links(self) -> bool {
+        match self {
+            Engine::Pele => true,
+            Engine::RuneMermaid => false,
+        }
+    }
+
+    /// Whether the drawing shows the source's tooltips where the pointer rests. rune-mermaid
+    /// draws none.
+    pub fn has_tooltips(self) -> bool {
+        match self {
+            Engine::Pele => true,
+            Engine::RuneMermaid => false,
+        }
+    }
+
+    /// Whether the drawing follows [`ViewOptions::zoom`], and a fitted view shrinks it no
+    /// further than [`ViewOptions::smallest_text`]. rune-mermaid does neither: it draws its own
+    /// 13 point text, at most the view's width wide or 680 points without one, shrinks a wider
+    /// diagram to 0.6 of its size whatever its text then measures, and past that shows the
+    /// middle with its sides faded out.
+    pub fn zooms(self) -> bool {
+        match self {
+            Engine::Pele => true,
+            Engine::RuneMermaid => false,
+        }
+    }
+}
+
 /// How much work a diagram has done, for tests and profiling.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ViewStats {
@@ -462,6 +514,10 @@ impl Session {
 
 /// One diagram on screen. Make one per diagram instance and keep it across views: it holds the
 /// layouts and measurer its views reuse.
+///
+/// A source the lowering cannot draw is drawn by rune-mermaid instead, which draws no links or
+/// tooltips and ignores the zoom. After each view, [`Diagram::engine`] says who drew the
+/// drawing shown, and so what it can do.
 pub struct Diagram {
     id: String,
     fonts: FontCatalog,
@@ -484,6 +540,8 @@ impl Diagram {
 
     /// [`Diagram::view`] with the diagram's links live: pressing one tells `on_event`. The
     /// handler is kept with the painted elements, so it is a plain function of the app's state.
+    /// A drawing rune-mermaid draws has no links, so it never tells `on_event`: see
+    /// [`Engine::has_links`].
     pub fn view_with<S: 'static>(
         &self,
         cx: &mut Cx<S>,
@@ -737,6 +795,17 @@ impl Diagram {
             (Some(Outcome::Drew), Some(Drawn::RuneMermaid(_))) => RenderStatus::RuneMermaid,
             (Some(Outcome::Kept(_)), _) => RenderStatus::Kept,
             (Some(Outcome::Failed(_)) | None, _) | (Some(Outcome::Drew), None) => RenderStatus::Unrendered,
+        }
+    }
+
+    /// Who drew the drawing the last view showed, and so what it can do, whether its source drew
+    /// it or the view kept it ([`RenderStatus::Kept`]). `None` when the view showed none.
+    /// [`Diagram::status`] says whether the source drew, and [`Diagram::fallback`] why
+    /// rune-mermaid did.
+    pub fn engine(&self) -> Option<Engine> {
+        match self.session.borrow().shown()? {
+            Drawn::Pele { .. } => Some(Engine::Pele),
+            Drawn::RuneMermaid(_) => Some(Engine::RuneMermaid),
         }
     }
 

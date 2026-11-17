@@ -41,3 +41,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Corpus parity report](./parity.md) covers the scoreboard, per-type runs, the files it writes, its exit gate and the wider differential test of each ported type.
 - [JavaScript numerics](./numerics.md) covers `Math.round`, Pele's `num()`, `String(x)`, `toFixed`, and how close `sin`, `cos` and `pow` are, against the oracle.
 - [Native Rune view](./rune-view.md) covers every type `lower::NATIVE` lists, drawn as Rune elements: the examples' `--snap`, the palette switch, the headless product tests, the lowerings, links and tooltips, the fallback, and Pele's SVG through resvg side by side.
+- [Using rune-pele from another project](./consumer.md) covers an app in a workspace of its own: its build with Rune's patches, its view, its manifest against the workspace's and the README's, and the failure without the patches.
