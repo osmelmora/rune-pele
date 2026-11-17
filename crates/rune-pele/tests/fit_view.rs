@@ -127,9 +127,9 @@ fn window<'a>(
     capturer.window(viewer, view, size, Env::new(false, scale))
 }
 
-/// The view Pele's SVG is compared with: Pele's metrics and colours, no width to fit.
+/// The view Pele's SVG is compared with: Pele's metrics, colours and corpus clock, no width to fit.
 fn as_pele() -> ViewOptions {
-    ViewOptions::natural().pele_metrics().palette(Palette::pele())
+    ViewOptions::natural().pele_metrics().palette(Palette::pele()).now(common::PELE_CORPUS_NOW)
 }
 
 /// Pele's SVG of each source under the id prefix a view lays out under, as `graph_view` draws it.
@@ -535,8 +535,11 @@ fn fitted(window: &mut Window<'_, Viewer>, width: f32) -> Fitted {
     assert_eq!(*state.error.borrow(), None, "at {width}");
     assert_eq!(state.diagram.status(), RenderStatus::Pele, "at {width}");
     let elements = window.runtime().elements();
-    let rect = |key: &str| elements.iter().find(|e| e.key.as_deref() == Some(key)).expect(key).rect;
-    let (drawn, frame) = (rect("diagram"), rect("diagram~fit"));
+    // The frame the fit reads its width from, keyed with the diagram's id, and inside it the
+    // drawing, keyed the same.
+    let keyed: Vec<[f32; 4]> =
+        elements.iter().filter(|e| e.key.as_deref() == Some("diagram")).map(|e| e.rect).collect();
+    let [frame, drawn] = keyed[..] else { panic!("a frame and its drawing at {width}: {keyed:?}") };
     let stats = state.diagram.stats();
     Fitted {
         width,

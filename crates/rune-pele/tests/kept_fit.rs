@@ -15,8 +15,9 @@ use rune_pele::{Diagram, FontCatalog, KeptLook, RenderStatus, ViewError, ViewOpt
 
 const RUN: &str = "kept-fit";
 const WINDOW: (f32, f32) = (900.0, 700.0);
-/// The key of the frame a fitted view reads its width from: the diagram's id, `~fit`.
-const FRAME: &str = "diagram~fit";
+/// The key of the frame a fitted view reads its width from: the diagram's id, which the frame is
+/// the first element keyed with.
+const FRAME: &str = "diagram";
 
 struct Viewer {
     diagram: Diagram,

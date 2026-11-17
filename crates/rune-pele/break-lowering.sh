@@ -166,6 +166,28 @@ break_one engine-fallback-with-links lib.rs the_engine_says \
             Engine::Pele => true,
             Engine::RuneMermaid => true,' \
   engine_view
+break_one drawing-numbered-per-diagram lib.rs a_diagram_that_replaces_another \
+  'let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: unique_id(), drawing });' \
+  'let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: session.stats.lowerings, drawing });' \
+  view_identity
+break_one frame-keyed-from-the-id lib.rs a_fitted_view_reads_its_own_frame \
+  'fn frame_key(&self) -> &str {
+        &self.id' \
+  'fn frame_key(&self) -> &str {
+        Box::leak(format!("{}~fit", self.id).into_boxed_str())' \
+  view_identity
+break_one pele-metrics-pin-the-clock lib.rs pele_metrics_measure_text \
+  'now: options.now.or_else(|| Some(system_now()))' \
+  'now: options.now.or_else(|| Some(system_now()).filter(|_| false))' \
+  view_identity
+break_one fit-under-the-smallest-drawn-text lib.rs fitted_text_keeps_to_the_smallest_size \
+  'if shrink >= least {' \
+  'if shrink >= 0.0 {' \
+  fit_text
+break_one fit-turns-only-under-640 lib.rs a_fitted_flowchart_that_runs_across \
+  'turn_wider_than: Some(step / least),' \
+  'turn_wider_than: None,' \
+  fit_text
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.

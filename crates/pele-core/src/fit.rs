@@ -59,7 +59,8 @@ const BREAKPOINT: f64 = 640.0;
 
 /// Pele's `turnToFit`, for a diagram that can run across or down: draws it across, and down
 /// instead when the host allows it, the width it has is under the breakpoint, across does not
-/// fit, and down is narrower.
+/// fit, and down is narrower. Where the host sets `turn_wider_than`, across that is wider than it
+/// turns too, at any width.
 pub(crate) fn turn_to_fit(
     options: &LayoutOptions,
     mut draw: impl FnMut(bool) -> Result<Scene, RenderError>,
@@ -71,7 +72,10 @@ pub(crate) fn turn_to_fit(
     if across.size().width <= available {
         return Ok(across);
     }
-    if available >= options.direction_breakpoint.filter(|&breakpoint| breakpoint > 0.0).unwrap_or(BREAKPOINT) {
+    let too_wide = options.turn_wider_than.is_some_and(|wider| across.size().width > wider);
+    if !too_wide
+        && available >= options.direction_breakpoint.filter(|&breakpoint| breakpoint > 0.0).unwrap_or(BREAKPOINT)
+    {
         return Ok(across);
     }
     let down = draw(true)?;

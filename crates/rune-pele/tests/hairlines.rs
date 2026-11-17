@@ -57,7 +57,7 @@ struct Viewer {
 
 fn view(s: &Viewer, cx: &mut Cx<Viewer>) -> El {
     let root = el().size(s.size.0, s.size.1).fill(Color::WHITE);
-    let options = ViewOptions::natural().pele_metrics().palette(Palette::pele());
+    let options = ViewOptions::natural().pele_metrics().palette(Palette::pele()).now(common::PELE_CORPUS_NOW);
     match s.diagram.view(cx, &s.source, options) {
         Ok(drawn) => root.child(drawn),
         Err(error) => {

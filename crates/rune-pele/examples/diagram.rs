@@ -4,7 +4,8 @@
 //! pressed.
 //!
 //! `cargo run -p rune-pele --example diagram -- tests/fixtures/rune/across.mmd` opens the window;
-//! narrow it to watch the diagram turn, then shrink, then scroll sideways. Add `--snap out.png`
+//! narrow it to watch the diagram shrink, then turn to run down where across would scroll, then
+//! shrink again, then scroll sideways. Add `--snap out.png`
 //! to render it headless, with `--theme light` or `--theme dark` and `--size 900x700`.
 //!
 //! `--stream` types the file in, three characters a frame at 60 frames a second, as a model

@@ -45,6 +45,7 @@ pub mod text;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use pele_core::scene::{Rgba, ThemeSeries};
@@ -186,6 +187,13 @@ impl ViewOptions {
     /// drawn smaller, but never with plain text under [`ViewOptions::smallest_text`]: at that
     /// size the view scrolls sideways instead. A fit never draws a diagram larger than its size.
     ///
+    /// Plain text is text the diagram draws at the view's font size or larger at its own size.
+    /// The least size holds for it as drawn: a narrower layout that sets it smaller itself, as a
+    /// treemap does in small cells, is drawn only where it can still reach that size, and the
+    /// diagram is otherwise drawn as it lays itself out. A diagram that runs across and can run
+    /// down, as a flowchart can, runs down wherever across would scroll at that size, at any
+    /// width, where Pele turns it only under 640 points.
+    ///
     /// The width is the view's own from Rune's last layout, and a change of it runs the app's
     /// view again. The diagram is laid out again only when the width crosses one of the steps
     /// a twelfth of an octave apart, at which it is then laid out, so that dragging a window's
@@ -196,7 +204,8 @@ impl ViewOptions {
     }
 
     /// The least size, in points, a fitted view draws plain text at: 11 unless set. It makes
-    /// the view's least zoom this over the plain text size, or 1 where that is less.
+    /// the view's least zoom this over the plain text size, or 1 where that is less, and more
+    /// for a narrower layout that sets plain text smaller.
     pub fn smallest_text(mut self, points: f32) -> Self {
         if let Some(fit) = &mut self.fit {
             fit.smallest_text = points;
@@ -215,6 +224,8 @@ impl ViewOptions {
     /// Lays the diagram out with Pele's own text metrics instead of the fonts it is drawn in,
     /// so that every shape is where Pele's SVG has it. Text in another font then no longer fits
     /// its boxes exactly, so this is for comparing a drawing with Pele's, not for showing one.
+    /// It changes only how text is measured: a gantt chart's today is still [`ViewOptions::now`]
+    /// or the system clock, not the clock Pele's corpus is drawn at.
     pub fn pele_metrics(mut self) -> Self {
         self.metrics = Metrics::Pele;
         self
@@ -404,6 +415,9 @@ struct Layout {
     scene: Rc<Scene>,
     /// Whether the diagram draws itself narrower for less room, once a fit has asked.
     narrows: OnceCell<bool>,
+    /// The least share of its size at the source's own size that this layout draws plain text
+    /// at, once a fit has asked: 1 where it sets none smaller.
+    shrink: OnceCell<f64>,
 }
 
 /// A layout lowered at one zoom, or why it is not drawn natively.
@@ -431,6 +445,20 @@ struct Measure {
 
 /// Layouts kept for sources and options a view may go back to.
 const KEPT: usize = 4;
+
+/// The system clock in milliseconds since 1970, as pele-core reads it for a `now` left unset.
+fn system_now() -> f64 {
+    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    since.map_or(0.0, |since| since.as_millis() as f64)
+}
+
+/// A number no other layout or lowering in the process has, of any `Diagram`. The paint memo is
+/// named by the diagram's id, so a `Diagram` that replaces another under that id must not number
+/// its first drawing as the one it replaces did.
+fn unique_id() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
 
 /// A drawing a view drew, kept to show again while a later source fails.
 #[derive(Clone)]
@@ -484,7 +512,6 @@ struct Session {
     measure: Option<Measure>,
     /// Runs shaped by measurers since dropped.
     shaped_before: u64,
-    next_id: u64,
     /// The last drawing a view drew.
     drawn: Option<Drawn>,
     outcome: Option<Outcome>,
@@ -525,8 +552,9 @@ pub struct Diagram {
 }
 
 impl Diagram {
-    /// `id` keys the diagram's element and must be unique in its window. `fonts` are the fonts
-    /// the app gives Rune.
+    /// `id` keys the diagram's element and must be unique in its window. In a fitted view it
+    /// keys the frame the fit reads its width from, and the drawing inside it too. `fonts` are
+    /// the fonts the app gives Rune.
     pub fn new(id: impl Into<String>, fonts: FontCatalog) -> Self {
         Diagram { id: id.into(), fonts, session: RefCell::default() }
     }
@@ -562,7 +590,7 @@ impl Diagram {
         let env = cx.env();
         // The width a fitted view has, as Rune last laid out its frame: none before its first
         // layout. The frame is the same whether the source draws or a drawing is kept.
-        let room = options.fit.and_then(|_| cx.layout_with(&self.frame_key(), |rect| rect[2]));
+        let room = options.fit.and_then(|_| cx.layout_with(self.frame_key(), |rect| rect[2]));
         let error = match self.draw_source(env, source, &options, room, on_event) {
             Ok(drawn) => {
                 self.session.borrow_mut().outcome = Some(Outcome::Drew);
@@ -660,9 +688,11 @@ impl Diagram {
         })
     }
 
-    /// The key of a fitted view's frame, whose width it fits.
-    fn frame_key(&self) -> String {
-        format!("{}~fit", self.id)
+    /// The key of a fitted view's frame, whose width it fits: the id, as the drawing inside it
+    /// is keyed, so the view is one element keyed with the id in every mode. Rune finds the frame
+    /// as the first element so keyed, and no other element of the window may be keyed so.
+    fn frame_key(&self) -> &str {
+        &self.id
     }
 
     /// A fitted view's drawing in its frame: as wide as its parent, and scrolling sideways where
@@ -694,17 +724,29 @@ impl Diagram {
         if natural.scene.size().width <= room {
             return Ok(Ok(Sized { laid: natural.clone(), natural, zoom: options.zoom }));
         }
-        let laid = if self.narrows(source, options, scale, &natural) {
-            let at = LayoutOptions { max_width: Some(fit::step_below(room)), ..options.layout.clone() };
-            match self.layout(source, &at, options.metrics, scale)? {
+        let plain = options.layout.typography.normal.size;
+        // The least zoom that draws plain text at the smallest size, or 1 where that is more.
+        let least = (f64::from(fit.smallest_text) / plain).min(1.0);
+        let (mut laid, mut laid_least) = (natural.clone(), least);
+        if self.narrows(source, options, scale, &natural) {
+            let step = fit::step_below(room);
+            // A diagram that can run down turns wherever across, at the least zoom, would still
+            // be wider than the step, so that it would scroll.
+            let at =
+                LayoutOptions { max_width: Some(step), turn_wider_than: Some(step / least), ..options.layout.clone() };
+            let narrower = match self.layout(source, &at, options.metrics, scale)? {
                 Ok(layout) => layout,
                 Err(why) => return Ok(Err(why)),
+            };
+            // A narrower layout may set plain text smaller itself. It is drawn only where that
+            // text still reaches the smallest size at a zoom of at most 1.
+            let shrink =
+                *narrower.shrink.get_or_init(|| fit::plain_text_shrink(&natural.scene, &narrower.scene, plain));
+            if shrink >= least {
+                (laid, laid_least) = (narrower, least / shrink);
             }
-        } else {
-            natural.clone()
-        };
-        let least = f64::from(fit.smallest_text) / options.layout.typography.normal.size;
-        let zoom = fit::zoom_into(room, laid.scene.size().width, least) as f32;
+        }
+        let zoom = fit::zoom_into(room, laid.scene.size().width, laid_least) as f32;
         Ok(Ok(Sized { natural, laid, zoom: zoom * options.zoom }))
     }
 
@@ -740,8 +782,7 @@ impl Diagram {
         let drawing = Drawing::zoomed(layout.kind, &layout.scene, &mut measure.baselines(), scale, zoom);
         session.times.lower = started.elapsed();
         session.stats.lowerings += 1;
-        session.next_id += 1;
-        let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: session.next_id, drawing });
+        let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: unique_id(), drawing });
         if session.lowered.len() == KEPT {
             session.lowered.remove(0);
         }
@@ -859,8 +900,14 @@ impl Diagram {
             Ok(prepared) => {
                 let scene = match metrics {
                     Metrics::Drawn => prepared.scene(NativeInputs { measure, options }),
-                    Metrics::Pele => pele_core::parity_scene_with(source, ParseOptions::default(), options)
-                        .map(|parity| parity.scene().clone()),
+                    // A parity draw pins an unset `now` to Pele's corpus clock. Metrics are not
+                    // the clock: with none given, the view takes the system's, as with its fonts.
+                    Metrics::Pele => {
+                        let options =
+                            LayoutOptions { now: options.now.or_else(|| Some(system_now())), ..options.clone() };
+                        pele_core::parity_scene_with(source, ParseOptions::default(), &options)
+                            .map(|parity| parity.scene().clone())
+                    }
                 };
                 Ok((prepared.kind(), scene.map_err(ViewError::Core)?))
             }
@@ -874,9 +921,14 @@ impl Diagram {
         };
         session.times.layout = started.elapsed();
         session.stats.layouts += 1;
-        session.next_id += 1;
-        let layout =
-            Rc::new(Layout { key, id: session.next_id, kind, scene: Rc::new(scene), narrows: OnceCell::new() });
+        let layout = Rc::new(Layout {
+            key,
+            id: unique_id(),
+            kind,
+            scene: Rc::new(scene),
+            narrows: OnceCell::new(),
+            shrink: OnceCell::new(),
+        });
         if session.layouts.len() == KEPT {
             session.layouts.remove(0);
         }
