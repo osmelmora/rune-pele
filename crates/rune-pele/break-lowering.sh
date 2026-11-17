@@ -132,12 +132,12 @@ break_one fit-under-the-smallest-text fit.rs a_fitted_view \
   '(room / width).min(1.0)' \
   fit_view
 break_one fit-never-narrower lib.rs a_fitted_view \
-  'let laid = if self.narrows(source, options, scale, &natural) {' \
-  'let laid = if false && self.narrows(source, options, scale, &natural) {' \
+  'if self.narrows(source, options, scale, &natural) {' \
+  'if false && self.narrows(source, options, scale, &natural) {' \
   fit_view
 break_one fit-at-every-width lib.rs a_resize \
-  'max_width: Some(fit::step_below(room)),' \
-  'max_width: Some(room),' \
+  'let step = fit::step_below(room);' \
+  'let step = room;' \
   fit_view
 break_one kept-drawn-unfitted lib.rs a_kept_drawing_follows \
   'self.draw_source(env, &natural.key.source, &options, room, on_event).ok()' \
