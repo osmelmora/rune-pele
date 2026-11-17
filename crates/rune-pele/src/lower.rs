@@ -545,8 +545,8 @@ impl Figure {
 
     /// `outline` filled along a level gradient that starts at the x `axis[0]` and ends at
     /// `axis[1]`, and stroked in `look`. The fill is upright bands, each as far along the
-    /// gradient as its middle is: one to a device pixel, or wider where that is more than
-    /// [`MOST_BANDS`].
+    /// gradient as its middle is: one to a device pixel, or wider so that at most 128 lie along
+    /// the gradient.
     pub fn along(
         outline: &Outline,
         axis: [f64; 2],
