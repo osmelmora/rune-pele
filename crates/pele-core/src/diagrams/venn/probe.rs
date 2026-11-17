@@ -203,7 +203,7 @@ pub fn render_answered(
             limits: prepared.limits,
         };
         // Node answers what Pele computes, so the drawing is one Pele makes.
-        svg::write(&ParityScene { scene: super::render::draw(model, &cx, &trig)? })
+        svg::write(&ParityScene { scene: super::render::draw(model, &cx, &trig)?, found: prepared.found })
     });
     (rendered, trig.missed.into_inner())
 }
