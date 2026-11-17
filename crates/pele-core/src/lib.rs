@@ -169,8 +169,9 @@ pub struct ParseOptions {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LayoutOptions {
     pub typography: Typography,
-    /// The space around the drawing, in pixels.
-    pub padding: f64,
+    /// The space around the drawing, in pixels. Unset, as Pele's `padding` may be left out, each
+    /// type takes its own default: 8 pixels, or a treemap's `diagramPadding`.
+    pub padding: Option<f64>,
     /// The width the host has for the diagram, in pixels. A type that can draw itself narrower
     /// does, so that its text is not shrunk with it.
     pub max_width: Option<f64>,
@@ -193,9 +194,6 @@ pub struct LayoutOptions {
     /// Pele's `now`: the time a gantt chart treats as now, in milliseconds since 1970. Unset or
     /// not finite, it is the current time; a parity draw pins it to Pele's corpus clock.
     pub now: Option<f64>,
-    /// Whether the host gave `padding` itself. Pele's `padding` option may be left out, and a
-    /// treemap whose host leaves it out takes its config's `diagramPadding` instead.
-    pub padding_given: bool,
 }
 
 /// A part of a diagram the host may set in the monospace font: Pele's `MonospacePart`.
@@ -241,7 +239,7 @@ impl Default for LayoutOptions {
     fn default() -> Self {
         LayoutOptions {
             typography: Typography::default(),
-            padding: 8.0,
+            padding: None,
             max_width: None,
             responsive: None,
             id_prefix: None,
@@ -251,8 +249,15 @@ impl Default for LayoutOptions {
             resources: ResourcePolicy::default(),
             monospace: Vec::new(),
             now: None,
-            padding_given: false,
         }
+    }
+}
+
+impl LayoutOptions {
+    /// Pele's `options.padding ?? 8`: the host's padding, else the 8 pixels every type but
+    /// treemap takes.
+    pub(crate) fn padding_or_default(&self) -> f64 {
+        self.padding.unwrap_or(8.0)
     }
 }
 

@@ -180,7 +180,7 @@ fn task_parts(out: &mut SceneBuilder, model: &GanttModel) -> Vec<PartId> {
 
 fn draw(model: &GanttModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError> {
     let size = cx.options.typography.normal.size;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let now = clock(cx.options.now);
     let config = Config { section: cx.config.get("gantt").and_then(JsValue::as_record) };
     let plain = Emphasis::default();

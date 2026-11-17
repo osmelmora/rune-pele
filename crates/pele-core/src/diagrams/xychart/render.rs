@@ -100,7 +100,7 @@ pub(crate) fn scene(model: &XyChartDb, cx: &DrawContext<'_>) -> Result<Scene, Re
     let small = js::round(size * 0.875);
     let tiny = js::round(size * 0.75);
     let measure = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let natural = dimension(get("width"), 700.0);
     let width = fit::cap_width(cx.options, natural, 240.0, 0.0);
     // A narrower chart is not as much shorter, so that the plot keeps room for its marks.

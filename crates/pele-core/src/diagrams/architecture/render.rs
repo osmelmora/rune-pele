@@ -325,7 +325,7 @@ fn plan(model: &ArchitectureModel, cx: &DrawContext<'_>, tight: bool) -> Plan {
         font,
         small: js::round(font * 0.875),
         group_pad: js::min(setting(cx, "padding", 20.0, 0.0, 256.0), tight_pad),
-        pad: cx.options.padding,
+        pad: cx.options.padding_or_default(),
         half: icon / 2.0,
         badge: js::round(font * 1.25),
     };

@@ -101,7 +101,7 @@ fn draw(model: &CynefinModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError
     let small = js::round(size * 0.8125);
     let item_size = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let show_descriptions =
         cx.config.get("cynefin").and_then(JsValue::as_record).and_then(|section| section.get("showDomainDescriptions"))
             != Some(&JsValue::Bool(false));

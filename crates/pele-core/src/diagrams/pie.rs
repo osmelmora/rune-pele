@@ -251,7 +251,7 @@ fn layout(model: &PieModel, cx: &DrawContext<'_>, attempt: PieAttempt) -> PieLay
     let radius = attempt.diameter / 2.0;
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
 
     let option = |key: &str| cx.config.get("pie")?.as_record()?.get(key);

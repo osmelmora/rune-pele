@@ -187,7 +187,7 @@ Each helper is ported once, in `crates/pele-core/src`, and held to Pele by a tes
 | A tooltip a type has already decoded, such as treemap's `titlePart` path | `Entity::decoded_tooltip(text)`: written with `esc` alone. `EntityRecord::tooltip_text()` gives every tooltip as text | `treemap_walk`, `treemap_parity` |
 | `rounded(attrs).replace('rx:var(--_r)', 'rx:min(var(--_r),${num(cap)}px)')` | `Style::rounded_at_most(style, cap)`, read by the walk as the theme's radius capped at `cap` | `treemap_walk` |
 | A series a legend names, such as a journey's actor | `Entity::series(label)`, the kind of a pie's section | `journey_walk` |
-| `options.padding ?? fallback` where the fallback is no 8 (treemap's `diagramPadding`) | `LayoutOptions::padding_given` | `treemap_parity` |
+| `options.padding ?? 8`, or `options.padding ?? fallback` where the fallback is no 8 (treemap's `diagramPadding`) | `options.padding_or_default()`, or `options.padding.unwrap_or_else(…)`: `LayoutOptions::padding` is `None` where Pele's `padding` is left out | `treemap_parity` |
 | `kinds[r.i + n]` in a Langium-style parser | `tokens::Reader::peek(n)` | `treemap_front` |
 | A relative `v` in a path | `PathProgram::v_by` | `journey_parity` |
 
@@ -232,7 +232,7 @@ Each helper is ported once, in `crates/pele-core/src`, and held to Pele by a tes
 - A sankey link is drawn with a gradient only when the host gives an `idPrefix` of word characters and dashes. With none, the corpus and most of the harvest draw no `<defs>`, so `sankey_parity` runs the harvest a second time with `idPrefix` `p1`.
 - Sankey's error positions are in the text before Mermaid's trimming of its rows: `parser.rs` maps them back through the same edits Pele records.
 - Packet's field numbers can be as large as the source writes, infinity included, so `packet_front` compares them as JavaScript writes them, not as JSON numbers.
-- Treemap's `diagramPadding` applies only where the host gives no `padding`, as Pele's `padding` option may be left out. `LayoutOptions::padding_given` says whether it was given; the `render_with` of `tests/differential/harness.rs` sets it with `padding`.
+- Treemap's `diagramPadding` applies only where the host gives no `padding`, as Pele's `padding` option may be left out. `LayoutOptions::padding` is `None` where it was not given; the `render_with` of `tests/differential/harness.rs` sets it to `Some` with `padding`.
 - In a treemap, `_` alone lexes as a name, not a number, as `ID2` comes before `NUMBER2`, and `,5` starts with a comma. Pele rejects both as a leaf's value. Trailing blanks before an indented row make two indentation tokens, which Pele rejects too.
 - A `;` or `#` ends any text of a journey, so an entity code there must be Mermaid's `#38;`, which preprocessing hides from the lexer.
 - The run makes one `node` call for the whole corpus. It takes a few seconds, so a long stall points at the oracle.

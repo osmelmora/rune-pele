@@ -227,7 +227,7 @@ pub(super) fn draw(model: &KanbanModel, cx: &DrawContext<'_>) -> Result<Scene, R
     let line = js::round(size * 1.5);
     let small_line = js::round(small * 1.5);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let conf = cx.config.get("kanban").and_then(JsValue::as_record);
     let setting = |key: &str| conf.and_then(|conf| conf.get(key));
     let own_width = match setting("sectionWidth").and_then(JsValue::as_number) {

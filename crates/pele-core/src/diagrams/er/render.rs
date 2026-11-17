@@ -255,7 +255,7 @@ fn draw(model: &ErModel, cx: &DrawContext<'_>, turned: bool) -> Result<Scene, Re
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measure = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
 
     let mut index: HashMap<&[u16], usize> = HashMap::new();

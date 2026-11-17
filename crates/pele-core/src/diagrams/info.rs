@@ -102,7 +102,7 @@ impl Diagram for Info {
     /// Pele's `renderInfo`: the title above the version, both centred.
     fn scene(model: &InfoModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError> {
         let size = cx.options.typography.normal.size;
-        let pad = cx.options.padding;
+        let pad = cx.options.padding_or_default();
         let title_text = model.title.as_deref().unwrap_or_default();
         let title = layout_label(title_text, false, cx.measure, size, 4000.0, Emphasis::BOLD);
         let title_height = if title.height > 0.0 { title.height + 8.0 } else { 0.0 };

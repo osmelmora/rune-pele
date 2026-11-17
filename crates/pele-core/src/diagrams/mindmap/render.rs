@@ -96,7 +96,7 @@ impl Bands {
 fn place(model: &MindmapModel, cx: &DrawContext<'_>, down: bool) -> Placed {
     let size = cx.options.typography.normal.size;
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let given = cx.config.get("mindmap").and_then(JsValue::as_record).and_then(|section| section.get("maxNodeWidth"));
     let wrap = match given.and_then(JsValue::as_number) {
         Some(width) if width > 0.0 => js::min(width, 2000.0),
@@ -259,7 +259,7 @@ fn pair(x: f64, y: f64) -> [Number; 2] {
 
 fn draw_once(model: &MindmapModel, cx: &DrawContext<'_>, down: bool) -> Result<Scene, RenderError> {
     let size = cx.options.typography.normal.size;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let nodes = &model.nodes;
     let n = nodes.len();
     let p = place(model, cx, down);

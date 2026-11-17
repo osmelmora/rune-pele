@@ -216,10 +216,7 @@ pub fn render_with(source: &str, options: &Value) -> Result<Rendered, RenderErro
     for (name, value) in options.as_object().expect("options are an object") {
         match name.as_str() {
             "maxWidth" => layout.max_width = Some(number(value)),
-            "padding" => {
-                layout.padding = number(value);
-                layout.padding_given = true;
-            }
+            "padding" => layout.padding = Some(number(value)),
             "fontSize" => layout.typography.normal.size = number(value),
             "idPrefix" => layout.id_prefix = Some(text(value)),
             "responsive" => layout.responsive = Some(flag(value)),

@@ -129,6 +129,20 @@ const BREAKS = [
     from: 'out.push_str("><title>");',
     to: 'out.push_str("><title> ");',
   },
+  {
+    name: 'treemap drawing: a host that leaves padding out gives 8, not the diagramPadding',
+    test: 'treemap_parity',
+    file: `${src}/lib.rs`,
+    from: '            padding: None,\n',
+    to: '            padding: Some(8.0),\n',
+  },
+  {
+    name: "treemap drawing: the diagramPadding wins over the host's padding",
+    test: 'treemap_parity',
+    file: `${treemap}/render.rs`,
+    from: 'cx.options.padding.unwrap_or_else(|| option(cx, "diagramPadding", 8.0, 0.0, 2000.0))',
+    to: 'option(cx, "diagramPadding", 8.0, 0.0, 2000.0)',
+  },
 ];
 
 function run(test) {

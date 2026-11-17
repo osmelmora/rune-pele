@@ -122,8 +122,7 @@ fn draw(model: &TreemapModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError
     let tiny = js::round(size * 0.75);
     let least = js::round(size * 0.5625);
     let measurer = cx.measure;
-    let pad =
-        if cx.options.padding_given { cx.options.padding } else { option(cx, "diagramPadding", 8.0, 0.0, 2000.0) };
+    let pad = cx.options.padding.unwrap_or_else(|| option(cx, "diagramPadding", 8.0, 0.0, 2000.0));
 
     // Mermaid sizes the diagram as ten times `nodeWidth` by ten times `nodeHeight`.
     let width = js::round(cap_width(cx.options, option(cx, "nodeWidth", 64.0, 1.0, 400.0) * 10.0, 200.0, 2.0 * pad));

@@ -36,7 +36,7 @@ fn draw(model: &PacketModel, cx: &DrawContext<'_>, down: bool) -> Result<Scene, 
     let size = cx.options.typography.normal.size;
     let label_size = js::round(size * 0.875);
     let bit_size = js::round(size * 0.625);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
 
     let packet = cx.config.get("packet").and_then(JsValue::as_record);
