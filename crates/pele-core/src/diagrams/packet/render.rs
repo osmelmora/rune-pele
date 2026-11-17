@@ -32,6 +32,34 @@ struct Field {
     shown: Shown,
 }
 
+/// The fields as the source writes them. The model has split each field at its own rows, and its
+/// pieces are joined again here. A piece counts one bit short.
+fn source_fields(model: &PacketModel) -> Vec<Block> {
+    let piece = |block: &Block| block.bits == block.end - block.start;
+    let mut whole: Vec<Block> = Vec::new();
+    for block in model.rows.iter().flatten() {
+        match whole.last_mut() {
+            Some(prev)
+                if piece(prev)
+                    && piece(block)
+                    && prev.label == block.label
+                    && block.start == prev.end + 1.0
+                    && block.start % model.bits_per_row == 0.0 =>
+            {
+                prev.end = block.end;
+                prev.bits = prev.end - prev.start;
+            }
+            _ => whole.push(block.clone()),
+        }
+    }
+    whole
+}
+
+/// `start-end`, as Pele writes a block's `data-id`.
+fn range(block: &Block) -> JsText {
+    JsText::from(format!("{}-{}", js::to_string(block.start), js::to_string(block.end)).as_str())
+}
+
 fn draw(model: &PacketModel, cx: &DrawContext<'_>, down: bool) -> Result<Scene, RenderError> {
     let size = cx.options.typography.normal.size;
     let label_size = js::round(size * 0.875);
@@ -49,6 +77,7 @@ fn draw(model: &PacketModel, cx: &DrawContext<'_>, down: bool) -> Result<Scene, 
     let descending = matches!(option("bitOrder"), Some(JsValue::String(order)) if order.is_str("descending"));
     let mut bits_per_row = model.bits_per_row;
     let mut rows: Vec<Vec<Block>> = model.rows.clone();
+    let whole = source_fields(model);
     if down {
         let room = cx.options.max_width.unwrap_or(320.0) - 2.0 * pad;
         let count = js::max(1.0, (room / js::min(bit_width, 18.0)).floor());
@@ -60,25 +89,7 @@ fn draw(model: &PacketModel, cx: &DrawContext<'_>, down: bool) -> Result<Scene, 
             bits_per_row = model.bits_per_row;
         }
         bit_width = js::min(bit_width, js::max(18.0, room / bits_per_row));
-        // The model has split each field at its own rows. Its pieces are joined again first, so
-        // that a field is only split where one of the new rows ends. A piece counts one bit short.
-        let piece = |block: &Block| block.bits == block.end - block.start;
-        let mut whole: Vec<Block> = Vec::new();
-        for block in model.rows.iter().flatten() {
-            match whole.last_mut() {
-                Some(prev)
-                    if piece(prev)
-                        && piece(block)
-                        && prev.label == block.label
-                        && block.start == prev.end + 1.0
-                        && block.start % model.bits_per_row == 0.0 =>
-                {
-                    prev.end = block.end;
-                    prev.bits = prev.end - prev.start;
-                }
-                _ => whole.push(block.clone()),
-            }
-        }
+        // A field is only split where one of the new rows ends.
         rows = Vec::new();
         for block in &whole {
             let mut start = block.start;
@@ -182,11 +193,17 @@ fn draw(model: &PacketModel, cx: &DrawContext<'_>, down: bool) -> Result<Scene, 
     let total_width = (js::max(packet_width, title.width) + 2.0 * pad).ceil();
     let total_height = (rows_height + title_height + 2.0 * pad).ceil();
     let mut out = SceneBuilder::new(cx, Size { width: total_width, height: total_height }, model.accessible.clone());
+    // A piece is keyed by the field it is of, ranked by its place in it, so that a field keeps its
+    // key however its rows split it. Pele writes the piece's own range.
+    let mut pieces: HashMap<usize, u32> = HashMap::new();
     let parts: Vec<_> = fields
         .iter()
         .map(|field| {
-            let name = format!("{}-{}", js::to_string(field.block.start), js::to_string(field.block.end));
-            out.part(Entity::node(&JsText::from(name.as_str())))
+            let of = whole.partition_point(|whole| whole.end < field.block.start);
+            let rank = pieces.entry(of).or_insert(0);
+            let part = out.part(Entity::node_written_as(&range(&whole[of]), &range(&field.block)).ranked(*rank));
+            *rank += 1;
+            part
         })
         .collect();
 
