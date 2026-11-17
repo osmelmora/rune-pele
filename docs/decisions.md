@@ -531,3 +531,17 @@ All are 0 different, except one `log10` result (below).
 - `pele` is the prefix Pele seeds a cynefin's boundaries from when it has none (`cynefin/render.ts:72`), so cynefin is drawn as before. `mount`'s own prefix, `pele-<copy>-<n>`, would change a cynefin's boundaries with the order of mounting.
 
 **Not changed.** `pele parity` and the SVG writer, which draw as `render` does: no prefix, links of one colour. The side by side now draws Pele's SVG under `idPrefix` `pele` for every type, so sankey's gradients are compared by default. `tests/lowering.rs` checks the default, an app's prefix and a prefix Pele rejects; `break-lowering.sh` removes the default and that test fails.
+
+## 2026-11-17 Streamed sources and fitting the width
+
+**Why.** A main use is diagrams a language model writes, streamed into a chat, on phones and on wide screens. A spike measured (on branch `spike-fit`): about a third of the character prefixes of the 32 fixtures draw; after a first drawing the view returned an error 316 times, for up to 177 characters in a row. Rune's `El::scale` keeps the unscaled size in layout and puts snapped edges between device pixels.
+
+**Decisions.**
+- **Keep the last good drawing** while a source fails (`rune-keep`). By default as Pele's `mount` shows it: dimmed to 0.4 with the error over its bottom edge (`KeptLook::DimmedWithError`). Opt-in, for streaming: unchanged, with the error read from `Diagram::error` (`KeptLook::Unchanged`). Chosen by the user: Pele's look by default, the quiet one opt-in. Option errors stay errors.
+- **Zoom in the lowering** (`ViewOptions::zoom`, `rune-fit`): geometry is multiplied before it is flattened, snapped and cut, so edges land on the final pixel grid. A zoom change lowers again and lays nothing out. Every corpus source of the 32 graph types passes at 0.75 and 0.5.
+- **Fit the width** (`ViewOptions::fit`, `smallest_text`): natural size if it fits; else laid out narrower where the type can narrow; else zoomed down to 11 point text; else scrolls. Never enlarges. Re-lays out at steps a twelfth of an octave apart, so a window drag does not lay out every frame.
+- **A kept drawing follows the fit** (merge): the last good source is drawn again at the new width or zoom, as Pele's `mount` draws its last parsed text again. The failing source is never laid out. Both looks sit in the one frame whose width the fit reads.
+
+**Findings that corrected the spike.** Its `El::scale` numbers were inflated by a mask bug in the spike itself, and its "17 px text drift" was node borders next to text, not text moving (measured by `rune-fit`).
+
+**Open.** Pele turns a left-to-right flowchart only under 640 points, so a fitted one between about 640 and 780 points shrinks to the smallest text and scrolls where turned it would fit. Kept as Pele does pending the user's choice.
