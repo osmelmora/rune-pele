@@ -200,9 +200,9 @@ break_one zero-radius-drawn lower.rs a_point_of_radius_zero \
   'if !draw.geometry.renders() {' \
   'if false && !draw.geometry.renders() {' \
   zero_radius
-break_one invalid-fill-unread ../../pele-core/src/scene/walk.rs a_colour_no_css_reads \
-  '"fill" => meaning.fill.is_some() || no_paint(written),' \
-  '"fill" => meaning.fill.is_some(),' \
+break_one invalid-fill-unread ../../pele-core/src/scene/css.rs a_colour_no_css_reads \
+  '(Grammar::Paint, [one]) => colour(*one),' \
+  '(Grammar::Paint, [one]) => true,' \
   invalid_colour
 break_one spaces-not-collapsed ../../pele-core/src/scene/walk.rs a_run_of_spaces \
   '_ => collapsed(runs),' \
@@ -224,6 +224,32 @@ break_one link-deaf-to-enter lower.rs a_link_is_a_tab_stop \
   'let follows = key.key == Key::Enter && key.mods == Mods::default();' \
   'let follows = key.key == Key::Escape && key.mods == Mods::default();' \
   accessibility
+break_one half-typed-length-applied ../../pele-core/src/scene/css.rs every_prefix_of_each_fixture \
+  'Token::Dimension(n, unit) => LENGTH_UNITS.contains(&unit) && (signed || n >= 0.0),' \
+  'Token::Dimension(n, _) => signed || n >= 0.0,' \
+  keep_view
+break_one dropped-value-unread ../../pele-core/src/scene/walk.rs a_value_its_property_does_not_take \
+  'if page == Page::Drops || meaning.read[index] {' \
+  'if meaning.read[index] {' \
+  invalid_value
+break_one dropped-value-drawn ../../pele-core/src/scene/style.rs a_value_its_property_does_not_take \
+  'if page == Page::Drops {
+                continue;' \
+  'if page == Page::Drops && false {
+                continue;' \
+  invalid_value
+break_one read-by-an-earlier-declaration ../../pele-core/src/scene/style.rs a_value_its_property_does_not_take \
+  'let found = read.is_some();' \
+  'let found = read.is_some() || slot.is_some();' \
+  invalid_value
+break_one open-value-takes-in-nothing ../../pele-core/src/scene/css.rs a_function_left_open \
+  'swallowed = followed && value.open.is_some();' \
+  'swallowed = false;' \
+  invalid_value
+break_one calc-of-no-length-applied ../../pele-core/src/scene/css.rs a_length_typed_into_an_edge_style \
+  'LENGTH_UNITS.contains(&unit) || degrees(1.0, unit).is_some() || OTHER_UNITS.contains(&unit)' \
+  'true' \
+  invalid_value
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.
