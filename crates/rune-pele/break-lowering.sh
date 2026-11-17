@@ -141,8 +141,12 @@ break_one kept-outside-the-frame lib.rs a_kept_drawing_follows \
   'Ok(shown)' \
   kept_fit
 break_one frame-inside-the-dimmed-look lib.rs a_kept_drawing_follows \
-  'let shown = options.kept.el(drawing, &self.id,' \
-  'let shown = options.kept.el(self.framed(options.fit, drawing), &self.id,' \
+  'let shown = options.kept.el(drawing, &self.id, &error.to_string(), font_size, critical);
+        self.session.borrow_mut().outcome = Some(Outcome::Kept(error));
+        Ok(self.framed(options.fit, shown))' \
+  'let shown = options.kept.el(self.framed(options.fit, drawing), &self.id, &error.to_string(), font_size, critical);
+        self.session.borrow_mut().outcome = Some(Outcome::Kept(error));
+        Ok(shown)' \
   kept_fit
 break_one kept-layouts-not-held lib.rs sources_that_lay_out_and_then_fail \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)) {' \
