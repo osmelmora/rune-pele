@@ -160,6 +160,10 @@ break_one invalid-fill-unread ../../pele-core/src/scene/walk.rs a_colour_no_css_
   '"fill" => meaning.fill.is_some() || no_paint(written),' \
   '"fill" => meaning.fill.is_some(),' \
   invalid_colour
+break_one spaces-not-collapsed ../../pele-core/src/scene/walk.rs a_run_of_spaces \
+  '_ => collapsed(runs),' \
+  '_ => runs,' \
+  whitespace
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

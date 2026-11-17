@@ -9,9 +9,9 @@
 use super::palette::no_paint;
 use super::style::{Meaning, Radius, Style};
 use super::{
-    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, IconGlyph, LineCap, LineJoin, Node,
-    NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene,
-    Size, TextEmission, TextWeight, Transform,
+    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, Field, IconGlyph, LineCap, LineJoin,
+    Node, NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role,
+    Scene, Size, TextEmission, TextWeight, Transform,
 };
 use crate::measure::{Emphasis, Font, FontFamily, FontWeight, Label, SMALLER, Script};
 use std::collections::HashMap;
@@ -865,7 +865,8 @@ impl Scene {
                 let part = self.part_key(node).expect("every drawing is a part of an entity");
                 let label = pieces.labels.entry((node.part.expect("a part"), part.facet)).or_insert(0);
                 let label = std::mem::replace(label, *label + 1);
-                for (line, run, baseline) in runs(text, &inherited) {
+                let preserved = node.emission.contains(&Field::PreserveSpace);
+                for (line, run, baseline) in runs(text, &inherited, preserved) {
                     let detail = match label {
                         0 => FragmentDetail::TextRun { line, run },
                         label => FragmentDetail::LaterTextRun { label, line, run },
@@ -894,8 +895,49 @@ impl Scene {
     }
 }
 
-/// The runs a text element draws, numbered by line and by place on the line.
-fn runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)> {
+/// The runs a text element draws, numbered by line and by place on the line, with the spaces
+/// SVG shows. `preserved` says the element is written with `xml:space="preserve"` among its
+/// attributes; Pele writes it on every text of lines it places itself, too.
+fn runs(text: &PlacedText, inherited: &Inherited, preserved: bool) -> Vec<(u32, u32, BaselineRun)> {
+    let runs = written_runs(text, inherited);
+    match text.emission {
+        TextEmission::Rich { .. } | TextEmission::Line { .. } => runs,
+        _ if preserved => runs,
+        _ => collapsed(runs),
+    }
+}
+
+/// `runs` of one text element as SVG's default `xml:space` shows them: a tab, line feed or
+/// carriage return is a space, a space after another is none, across runs too, and so is a
+/// space at either end of the element. A run left with nothing is not drawn. Only these four
+/// characters are spaces here: a no-break space is not one.
+fn collapsed(runs: Vec<(u32, u32, BaselineRun)>) -> Vec<(u32, u32, BaselineRun)> {
+    let mut after_space = true;
+    let mut out: Vec<(u32, u32, BaselineRun)> = runs
+        .into_iter()
+        .map(|(line, place, mut run)| {
+            let spaced = run.text.chars().map(|c| if matches!(c, '\t' | '\n' | '\r') { ' ' } else { c });
+            run.text = spaced
+                .filter(|&c| {
+                    let repeated = c == ' ' && after_space;
+                    after_space = c == ' ';
+                    !repeated
+                })
+                .collect();
+            (line, place, run)
+        })
+        .collect();
+    if let Some((_, _, last)) = out.iter_mut().rev().find(|(_, _, run)| !run.text.is_empty())
+        && last.text.ends_with(' ')
+    {
+        last.text.pop();
+    }
+    out.retain(|(_, _, run)| !run.text.is_empty());
+    out
+}
+
+/// The runs a text element draws, numbered by line and by place on the line, as written.
+fn written_runs(text: &PlacedText, inherited: &Inherited) -> Vec<(u32, u32, BaselineRun)> {
     let label = &text.label;
     match &text.emission {
         TextEmission::Plain { x, y } => {
