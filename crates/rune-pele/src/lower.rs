@@ -81,8 +81,10 @@ pub const NATIVE: [DiagramKind; 33] = [
 pub enum Unsupported {
     /// The diagram type is not among [`NATIVE`].
     Kind(DiagramKind),
-    /// A style declaration the Scene's walk does not read, as `property:value`: a colour only a
-    /// page can resolve, a font family, a line through text.
+    /// A style declaration a page applies and the Scene's walk does not read, as
+    /// `property:value`: a colour or length only a page can resolve, a font family, a line
+    /// through text. A value its property does not take, such as `stroke-width:2p`, is not one:
+    /// a page drops it, and so does the walk.
     Style(String),
     /// A fill whose outline crosses itself or another contour of its path.
     CrossingFill,
