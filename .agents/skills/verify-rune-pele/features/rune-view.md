@@ -22,6 +22,7 @@ A Rune app calls `rune_pele::Diagram::view` with Mermaid source and gets the dia
 - `rune-scene` checks the Scene's read model the Rune view is built on: paint order, keys, inherited style and palette resolution.
 - `rune-fit` draws a diagram smaller in the lowering and fits a view to the width it has. It draws every corpus source of the 32 graph types at zoom 0.75 and 0.5 in a 2x window beside Pele's SVG at the same density, and each fixture at the spike's zooms both that way and with Rune's `El::scale`. It holds text at each zoom to its zoomed box and a stroke to its zoomed width. It walks a fit through its steps for a flowchart that turns, a pie whose plot narrows and an er diagram that cannot narrow, resizes from 900 points to 300, and presses a link and rests on tooltips at half size.
 - `rune-theme` checks the series colours a source sets in its theme config, at a pixel of git's main branch label: the source's in `Palette::pele()`, and the palette's own in any other. It also checks how the side-by-side reads those colours from Pele's SVG, and a git commit's tooltip.
+- `rune-engine` checks that `Diagram::engine()` says what the drawing shown does: a link pressed, a tooltip where the pointer rests, and a zoom, natively, by rune-mermaid, and kept.
 
 ## How to get to it (user POV)
 
@@ -35,6 +36,7 @@ A Rune app calls `rune_pele::Diagram::view` with Mermaid source and gets the dia
 - `ViewOptions::fit()` fits the diagram to the width of the view's parent, which the view reads from Rune's layout: its own size where that fits, laid out again for the width where the type draws itself narrower, smaller down to 11 point plain text (`ViewOptions::smallest_text`), then scrolling sideways. `ViewOptions::zoom(z)` draws it `z` times its size, after any fit. `Diagram::zoom()` says the zoom the last view drew at, and `ViewStats::lowerings` counts lowerings, once for each layout and zoom.
 - The `diagram` example fits its window. Its first line says the width the diagram is laid out at and the zoom it is shown at, so `--size` shows each step.
 - A gantt chart marks today at `ViewOptions::now(milliseconds)`. Without it, the chart takes the system clock when the view lays it out and keeps that time: the marker moves only when the view lays the chart out again for another reason, such as a new source, width or font epoch. An app that wants the marker to follow the day passes `now` itself, for example the start of the current day. Each new value lays the diagram out again, and the same value does not.
+- `Diagram::engine()` says who drew the drawing the last view showed, whether its source drew it or the view kept it: `Engine::Pele`, or `Engine::RuneMermaid`, whose drawing has no links or tooltips and ignores the zoom. `Engine::has_links`, `has_tooltips` and `zooms` say so, and `None` means nothing was shown.
 
 ## Driving it with the pele CLI
 
@@ -93,6 +95,8 @@ Preconditions:
 - **Performance.** Run `$C $R rune-perf env RUNE_PELE_OUT=$PWD/out/verify/$R/rune-perf cargo test -q --release -p rune-pele --test graph_view -- --nocapture --ignored how_long`. Exit 0. Stdout has a line per type and per stress case with `layout`, `lower` and `paint` times, the same after a palette change, and the counts of keyed elements, shape ops and Rune elements.
 - **Scene read model.** Run `$C $R rune-scene cargo test -q -p pele-core --test scene_walk`. Exit 0 and `10 passed`.
 - **Source theme colours.** Run `$C $R rune-theme cargo test -q -p rune-pele --test theme_view -- --nocapture --test-threads=1`. Exit 0 and `3 passed`. Stdout has `main label in Pele's palette [255, 0, 0, 255], an app's palette [0, 170, 85, 255], the window's theme [76, 120, 168, 255]`, each channel within a level. It also has `tooltip on init: Some("Start the project"); on docs, which has no message: None`.
+- **What the drawing shown can do.** Run `$C $R rune-engine cargo test -q --release -p rune-pele --test engine_view -- --nocapture`. Exit 0 and `1 passed`. Stdout has four lines. `native` reads `Pele, engine Some(Pele), Can { links: true, tooltips: true, zoom: true }` and `rune-mermaid` reads `RuneMermaid, engine Some(RuneMermaid), Can { links: false, tooltips: false, zoom: false }`: on the review's `fallback.mmd`, a press on `Read the guide` tells the app nothing, no tooltip shows there, and zoom 0.5 leaves the drawing as wide. `kept native` and `kept rune-mermaid` read `Kept` with the same engine and the same `Can` as before the source failed.
+- **Break what the engine says, and the docs.** `crates/rune-pele/break-lowering.sh` ends with `engine-fallback-as-pele` and `engine-fallback-with-links`, each failing `the_engine_says` of `engine_view`, and `doc-private-link`, whose line reads `break doc-private-link: rustdoc fails, as it should:` and then rustdoc's error that the public documentation for `along` links to the private item `MOST_BANDS`. `mise run check` refuses the same warning.
 
 ## Gotchas
 
