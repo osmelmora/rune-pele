@@ -164,6 +164,22 @@ break_one spaces-not-collapsed ../../pele-core/src/scene/walk.rs a_run_of_spaces
   '_ => collapsed(runs),' \
   '_ => runs,' \
   whitespace
+break_one figure-unnamed lower.rs the_diagram_is_named \
+  'if let Some(title) = &self.title {' \
+  'if let Some(title) = self.title.as_ref().filter(|_| false) {' \
+  accessibility
+break_one link-named-by-its-address lower.rs a_link_is_a_tab_stop \
+  '.label(link.name.as_str())' \
+  '.label(link.to.href.as_str())' \
+  accessibility
+break_one link-out-of-the-tab-order lower.rs a_link_is_a_tab_stop \
+  '.focusable(true)' \
+  '.focusable(false)' \
+  accessibility
+break_one link-deaf-to-enter lower.rs a_link_is_a_tab_stop \
+  'let follows = key.key == Key::Enter && key.mods == Mods::default();' \
+  'let follows = key.key == Key::Escape && key.mods == Mods::default();' \
+  accessibility
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

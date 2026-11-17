@@ -29,7 +29,7 @@ use pele_core::{DiagramKind, Scene};
 use rune::color::{srgb_decode, srgb_encode};
 use rune::shape::LineCap;
 use rune::tok::OpticalSize;
-use rune::{Color, Cursor, El, Shadow, Shape, Span, TextStyle, Tx, canvas, el};
+use rune::{Color, Cursor, El, Key, KeyEvent, Mods, Shadow, Shape, Span, TextStyle, Tx, canvas, el};
 
 use crate::Event;
 use crate::bands::bands;
@@ -155,6 +155,9 @@ const SUPER_SHIFT: f64 = -0.45;
 pub struct Drawing {
     size: [f32; 2],
     items: Vec<Item>,
+    /// The diagram's name and description for assistive technology.
+    title: Option<String>,
+    description: Option<String>,
 }
 
 /// How much a drawing asks of Rune.
@@ -335,9 +338,16 @@ struct GroupItem {
     /// Where the pointer finds a group that only shows a tooltip: the boxes of what it draws.
     spots: Vec<Frame>,
     opacity: f32,
-    link: Option<LinkRef>,
+    link: Option<NamedLink>,
     tooltip: Option<String>,
     inert: bool,
+}
+
+/// Where a link leads, and what assistive technology names it by: the text it shows, or its
+/// address where it shows none.
+struct NamedLink {
+    to: LinkRef,
+    name: String,
 }
 
 /// A group of the walk while its drawings are being lowered.
@@ -416,16 +426,28 @@ impl Drawing {
         }
         let size = scene.size();
         let root = open.pop().expect("the root stays open");
-        Ok(Drawing { size: [(size.width * zoom) as f32, (size.height * zoom) as f32], items: root.children })
+        Ok(Drawing {
+            size: [(size.width * zoom) as f32, (size.height * zoom) as f32],
+            items: root.children,
+            title: scene.accessible_title(),
+            description: scene.accessible_description(),
+        })
     }
 
-    /// The drawing as keyed elements in paint order, in `paints`' colours. A link tells
-    /// `on_event` when it is activated.
+    /// The drawing as keyed elements in paint order, in `paints`' colours, under a figure with
+    /// the diagram's name and description. A link tells `on_event` when it is activated.
     pub(crate) fn el<S: 'static>(&self, paints: &ResolvedPaints, on_event: Option<Handler<S>>) -> El {
         let children = self.items.iter().filter_map(|item| item.el(paints, [0.0; 2], on_event));
         // The drawing is one picture: nothing in it moves to the pixel grid on its own, so that
         // an edge still ends on the border it runs to.
-        el().size(self.size[0], self.size[1]).pixel_snap(false).children(children)
+        let mut figure = el().size(self.size[0], self.size[1]).pixel_snap(false).role("figure").children(children);
+        if let Some(title) = &self.title {
+            figure = figure.label(title.as_str());
+        }
+        if let Some(description) = &self.description {
+            figure = figure.description(description.as_str());
+        }
+        figure
     }
 
     /// Only the drawing's text, every run in `ink` and without its outline, where the drawing
@@ -851,13 +873,17 @@ impl GroupItem {
             (Some(_), None) => children.iter().flat_map(Item::spots).collect(),
             _ => Vec::new(),
         };
+        let link = group.link.map(|to| {
+            let shown = shown_text(&children);
+            NamedLink { name: if shown.is_empty() { to.href.clone() } else { shown }, to }
+        });
         Some(GroupItem {
             key,
             frame: frame(low, high, scale),
             children,
             spots,
             opacity: group.opacity as f32,
-            link: group.link,
+            link,
             tooltip: group.tooltip,
             inert: group.untouchable,
         })
@@ -880,15 +906,41 @@ impl GroupItem {
             element = element.help(tooltip);
         }
         if let (Some(link), Some(on_event)) = (&self.link, on_event) {
-            let activated = link.clone();
+            let (pressed, entered) = (link.to.clone(), link.to.clone());
+            // Rune presses a focused element on Space, and leaves Return to it.
+            let enter = move |state: &mut S, key: &KeyEvent, tx: &mut Tx| {
+                let follows = key.key == Key::Enter && key.mods == Mods::default();
+                if follows && !tx.key_repeat() {
+                    on_event(state, Event::Activate(entered.clone()), tx);
+                }
+                follows
+            };
             element = element
-                .on_press_tx(move |state: &mut S, tx: &mut Tx| on_event(state, Event::Activate(activated.clone()), tx))
+                .on_press_tx(move |state: &mut S, tx: &mut Tx| on_event(state, Event::Activate(pressed.clone()), tx))
+                .on_key(enter)
+                .focusable(true)
                 .role("link")
-                .label(link.href.as_str())
+                .label(link.name.as_str())
                 .cursor(Cursor::Pointer);
         }
         element
     }
+}
+
+/// The text `items` show, run after run, with one space between words.
+fn shown_text(items: &[Item]) -> String {
+    fn runs<'a>(items: &'a [Item], into: &mut Vec<&'a str>) {
+        for item in items {
+            match item {
+                Item::Text(text) => into.push(&text.run.content),
+                Item::Group(group) => runs(&group.children, into),
+                Item::Shape(_) => {}
+            }
+        }
+    }
+    let mut shown = Vec::new();
+    runs(items, &mut shown);
+    shown.iter().flat_map(|run| run.split_whitespace()).collect::<Vec<_>>().join(" ")
 }
 
 fn point(p: pele_core::scene::Point) -> Point {

@@ -466,6 +466,12 @@ pub(super) fn drawable(units: &[u16]) -> String {
     char::decode_utf16(units.iter().copied()).flatten().filter(|&c| !super::xml_drops(c)).collect()
 }
 
+/// Accessible text as the SVG holds it, with its entity codes decoded, where it has any text.
+fn accessible(text: Option<&[u16]>) -> Option<String> {
+    let text = text.filter(|text| !text.is_empty())?;
+    Some(drawable(&crate::input::decode_entities(text)))
+}
+
 fn at(pair: &[Number; 2]) -> Point {
     Point { x: pair[0].effective(), y: pair[1].effective() }
 }
@@ -688,6 +694,18 @@ impl Scene {
             self.visit(id, &root, &mut pieces, &mut out);
         }
         out.into_iter()
+    }
+
+    /// The diagram's name for assistive technology, the source's `accTitle`, as the SVG's
+    /// `<title>` reads.
+    pub fn accessible_title(&self) -> Option<String> {
+        accessible(self.document.accessible.title.as_deref())
+    }
+
+    /// The diagram's description for assistive technology, the source's `accDescr`, as the
+    /// SVG's `<desc>` reads.
+    pub fn accessible_description(&self) -> Option<String> {
+        accessible(self.document.accessible.description.as_deref())
     }
 
     /// The style declarations the walk does not draw, each as `property:value`: a colour only a

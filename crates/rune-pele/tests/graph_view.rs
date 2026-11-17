@@ -517,7 +517,7 @@ fn a_link_tells_the_app_and_a_tooltip_shows_where_the_pointer_rests() {
     let elements = window.runtime().elements();
     let links: Vec<_> = elements.iter().filter(|element| element.role == "link").collect();
     let labels: Vec<Option<&str>> = links.iter().map(|link| link.label.as_deref()).collect();
-    assert_eq!(labels, [Some("https://example.com/checkout"), Some("https://example.com/releases")]);
+    assert_eq!(labels, [Some("Checkout"), Some("Publish")], "a link is named by the label it shows");
     let helps: Vec<Option<&str>> = links.iter().map(|link| link.help.as_deref()).collect();
     assert_eq!(helps, [Some("Fetch the sources"), Some("Where releases go")], "a link's group carries its tooltip");
 
@@ -589,9 +589,7 @@ fn the_links_of_each_opened_type_tell_the_app_and_its_tooltips_show_where_the_po
         let centre = |rect: [f32; 4]| (rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
 
         let pressable: Vec<_> = elements.iter().filter(|element| element.role == "link").collect();
-        let labels: Vec<Option<&str>> = pressable.iter().map(|link| link.label.as_deref()).collect();
-        let hrefs: Vec<Option<&str>> = links.iter().map(|(href, _)| Some(*href)).collect();
-        assert_eq!(labels, hrefs, "{kind}: one pressable element per link");
+        assert_eq!(pressable.len(), links.len(), "{kind}: one pressable element per link");
         for (link, (href, target)) in pressable.iter().zip(links) {
             let before = window.state().followed.len();
             let (x, y) = centre(link.rect);
