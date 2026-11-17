@@ -6,6 +6,7 @@
 //! way are asked here of the same text, [`Style::css`], so each answer is Pele's even where a
 //! value holds what looks like a second declaration.
 
+use super::css::Page;
 use super::palette::css_colour;
 use super::{EVEN, Paint, Properties, Role, amount, color, esc, js_trim, lowercase, xml_drops};
 use crate::input::{JsText, Units, is_space, string_to_number, to_lowercase};
@@ -407,15 +408,18 @@ pub(crate) struct Meaning {
 }
 
 impl Style {
-    /// Reads the declarations in order, so that a later one wins as it does in CSS. `colour`
-    /// keeps a colour the source writes and answers the paint that stands for it.
+    /// Reads the declarations a page applies in order, so that a later one wins as it does in
+    /// CSS. `colour` keeps a colour the source writes and answers the paint that stands for it.
     pub(crate) fn meaning(&self, properties: &Properties, colour: &mut dyn FnMut(&[u16], Role) -> Paint) -> Meaning {
         let role = |paint: Option<Paint>| match paint {
             Some(Paint::Role(role)) => role,
             _ => Role::Foreground,
         };
         let mut meaning = Meaning::default();
-        for Declaration { property, written } in &self.declarations {
+        for (Declaration { property, written }, page) in self.on_a_page() {
+            if page == Page::Drops {
+                continue;
+            }
             let value = &units(written);
             let lower = lowercase(value.trim_js());
             let mut paint = |instead_of: Role| {
