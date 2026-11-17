@@ -907,7 +907,7 @@ impl GroupItem {
         }
         if let (Some(link), Some(on_event)) = (&self.link, on_event) {
             let (pressed, entered) = (link.to.clone(), link.to.clone());
-            // Rune presses a focused element on Space, and leaves Return to it.
+            // Rune presses a focused element on Space only. Return is the element's to take.
             let enter = move |state: &mut S, key: &KeyEvent, tx: &mut Tx| {
                 let follows = key.key == Key::Enter && key.mods == Mods::default();
                 if follows && !tx.key_repeat() {

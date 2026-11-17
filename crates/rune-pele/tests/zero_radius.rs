@@ -23,7 +23,7 @@ fn quadrant(radius: u32) -> String {
 
 /// Pixels in the point's cyan, which nothing else in the chart is drawn in.
 fn cyan(pixels: &Pixels) -> usize {
-    pixels.rgba.chunks_exact(4).filter(|c| c[3] > 128 && c[0] < 90 && c[1] > 185 && c[2] > 185).count()
+    pixels.rgba.as_chunks::<4>().0.iter().filter(|c| c[3] > 128 && c[0] < 90 && c[1] > 185 && c[2] > 185).count()
 }
 
 struct Page {

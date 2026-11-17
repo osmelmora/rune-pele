@@ -28,7 +28,8 @@ fn view(app: &App, cx: &mut Cx<App>) -> El {
 }
 
 fn runtime(source: &str) -> Runtime<App> {
-    let app = App { diagram: Diagram::new("deploy", FontCatalog::rune()), source: source.to_owned(), followed: Vec::new() };
+    let app =
+        App { diagram: Diagram::new("deploy", FontCatalog::rune()), source: source.to_owned(), followed: Vec::new() };
     let mut runtime = Runtime::new(app, view, (400.0, 300.0), Env::new(false, 1.0));
     runtime.frame(0.0);
     runtime

@@ -9,9 +9,9 @@
 use super::palette::no_paint;
 use super::style::{Meaning, Radius, Style};
 use super::{
-    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, Field, IconGlyph, LineCap, LineJoin,
-    Node, NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role,
-    Scene, Size, TextEmission, TextWeight, Transform,
+    AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, Field, IconGlyph, LineCap, LineJoin, Node,
+    NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene,
+    Size, TextEmission, TextWeight, Transform,
 };
 use crate::measure::{Emphasis, Font, FontFamily, FontWeight, Label, SMALLER, Script};
 use std::collections::HashMap;
