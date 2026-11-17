@@ -23,7 +23,11 @@ pub fn write(parity: &ParityScene) -> Result<Rendered, RenderError> {
     let limit = scene.document.limit_utf16;
     if svg.encode_utf16().count() > limit {
         let message = format!("Diagram output is longer than the limit of {limit} characters.");
-        let diagnostic = Diagnostic { kind: Some(scene.document.kind), ..Diagnostic::new(ErrorCode::Limit, message) };
+        let diagnostic = Diagnostic {
+            kind: Some(parity.found.kind),
+            mermaid_type: Some(parity.found.mermaid),
+            ..Diagnostic::new(ErrorCode::Limit, message)
+        };
         return Err(RenderError::Diagnostic(diagnostic));
     }
     Ok(Rendered { svg, width: scene.size().width, height: scene.size().height })

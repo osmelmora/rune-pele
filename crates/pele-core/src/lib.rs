@@ -825,6 +825,8 @@ impl Prepared {
 /// crate can make one, so the SVG writer never sees a drawing that Pele could not have made.
 pub struct ParityScene {
     scene: Scene,
+    /// The type and Mermaid's alias detection found, which Pele's late limit error names.
+    found: catalog::Detected,
 }
 
 impl ParityScene {
@@ -850,7 +852,7 @@ pub fn parity_scene_with(
     let prepared = prepare(source, parse)?;
     let layout = LayoutOptions { now: layout.now.or(Some(PARITY_NOW)), ..layout.clone() };
     let scene = prepared.scene(NativeInputs { measure: &measure::ArialMetrics, options: &layout })?;
-    Ok(ParityScene { scene })
+    Ok(ParityScene { scene, found: prepared.found })
 }
 
 /// Renders Mermaid source with Pele's parity inputs: Arial metric tables and no prior layout.

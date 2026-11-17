@@ -3,7 +3,7 @@
 //! private to the crate.
 
 use crate::Script;
-use crate::catalog::DrawContext;
+use crate::catalog::{self, DrawContext};
 use crate::diagrams::tokens::{self, Matcher, TokenType};
 use crate::diagrams::{outline, scan};
 use crate::input::{self, JsObject, JsValue, Units};
@@ -200,7 +200,8 @@ pub fn palette(rule: Palette, config: &str) -> PaletteProbe {
             ink.map_or_else(String::new, |ink| format!(" fill=\"{ink}\""))
         })
         .collect();
-    let svg = svg::write(&ParityScene { scene }).expect("an empty drawing is in its limit").svg;
+    let found = catalog::detect(&"pie".encode_utf16().collect::<Vec<_>>()).expect("pie is detected");
+    let svg = svg::write(&ParityScene { scene, found }).expect("an empty drawing is in its limit").svg;
     PaletteProbe { svg, fills }
 }
 
