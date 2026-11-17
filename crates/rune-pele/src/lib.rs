@@ -181,6 +181,11 @@ impl ViewOptions {
     /// drawn smaller, but never with plain text under [`ViewOptions::smallest_text`]: at that
     /// size the view scrolls sideways instead. A fit never draws a diagram larger than its size.
     ///
+    /// Plain text is text the diagram draws at the view's font size or larger at its own size.
+    /// The least size holds for it as drawn: a narrower layout that sets it smaller itself, as a
+    /// treemap does in small cells, is drawn only where it can still reach that size, and the
+    /// diagram is otherwise drawn as it lays itself out.
+    ///
     /// The width is the view's own from Rune's last layout, and a change of it runs the app's
     /// view again. The diagram is laid out again only when the width crosses one of the steps
     /// a twelfth of an octave apart, at which it is then laid out, so that dragging a window's
@@ -191,7 +196,8 @@ impl ViewOptions {
     }
 
     /// The least size, in points, a fitted view draws plain text at: 11 unless set. It makes
-    /// the view's least zoom this over the plain text size, or 1 where that is less.
+    /// the view's least zoom this over the plain text size, or 1 where that is less, and more
+    /// for a narrower layout that sets plain text smaller.
     pub fn smallest_text(mut self, points: f32) -> Self {
         if let Some(fit) = &mut self.fit {
             fit.smallest_text = points;
@@ -355,6 +361,9 @@ struct Layout {
     scene: Rc<Scene>,
     /// Whether the diagram draws itself narrower for less room, once a fit has asked.
     narrows: OnceCell<bool>,
+    /// The least share of its size at the source's own size that this layout draws plain text
+    /// at, once a fit has asked: 1 where it sets none smaller.
+    shrink: OnceCell<f64>,
 }
 
 /// A layout lowered at one zoom, or why it is not drawn natively.
@@ -655,17 +664,26 @@ impl Diagram {
         if natural.scene.size().width <= room {
             return Ok(Ok(Sized { laid: natural.clone(), natural, zoom: options.zoom }));
         }
-        let laid = if self.narrows(source, options, scale, &natural) {
-            let at = LayoutOptions { max_width: Some(fit::step_below(room)), ..options.layout.clone() };
-            match self.layout(source, &at, options.metrics, scale)? {
+        let plain = options.layout.typography.normal.size;
+        // The least zoom that draws plain text at the smallest size, or 1 where that is more.
+        let least = (f64::from(fit.smallest_text) / plain).min(1.0);
+        let (mut laid, mut laid_least) = (natural.clone(), least);
+        if self.narrows(source, options, scale, &natural) {
+            let step = fit::step_below(room);
+            let at = LayoutOptions { max_width: Some(step), ..options.layout.clone() };
+            let narrower = match self.layout(source, &at, options.metrics, scale)? {
                 Ok(layout) => layout,
                 Err(why) => return Ok(Err(why)),
+            };
+            // A narrower layout may set plain text smaller itself. It is drawn only where that
+            // text still reaches the smallest size at a zoom of at most 1.
+            let shrink =
+                *narrower.shrink.get_or_init(|| fit::plain_text_shrink(&natural.scene, &narrower.scene, plain));
+            if shrink >= least {
+                (laid, laid_least) = (narrower, least / shrink);
             }
-        } else {
-            natural.clone()
-        };
-        let least = f64::from(fit.smallest_text) / options.layout.typography.normal.size;
-        let zoom = fit::zoom_into(room, laid.scene.size().width, least) as f32;
+        }
+        let zoom = fit::zoom_into(room, laid.scene.size().width, laid_least) as f32;
         Ok(Ok(Sized { natural, laid, zoom: zoom * options.zoom }))
     }
 
@@ -829,7 +847,14 @@ impl Diagram {
         };
         session.times.layout = started.elapsed();
         session.stats.layouts += 1;
-        let layout = Rc::new(Layout { key, id: unique_id(), kind, scene: Rc::new(scene), narrows: OnceCell::new() });
+        let layout = Rc::new(Layout {
+            key,
+            id: unique_id(),
+            kind,
+            scene: Rc::new(scene),
+            narrows: OnceCell::new(),
+            shrink: OnceCell::new(),
+        });
         if session.layouts.len() == KEPT {
             session.layouts.remove(0);
         }

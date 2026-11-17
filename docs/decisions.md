@@ -545,3 +545,5 @@ All are 0 different, except one `log10` result (below).
 **Findings that corrected the spike.** Its `El::scale` numbers were inflated by a mask bug in the spike itself, and its "17 px text drift" was node borders next to text, not text moving (measured by `rune-fit`).
 
 **Open.** Pele turns a left-to-right flowchart only under 640 points, so a fitted one between about 640 and 780 points shrinks to the smallest text and scrolls where turned it would fit. Kept as Pele does pending the user's choice.
+
+**The smallest text, as drawn** (`fix-view`). The smallest text size holds for the text drawn. A narrower layout can set plain text smaller itself, as treemap does in small cells (16 to 9 points at 240 points of room), so a fit takes a narrower layout only where its plain text can still be drawn at the smallest size at a zoom of at most 1. Elsewhere it draws the diagram's own layout at the least zoom, and scrolls. Measured over every fixture from 900 points to 200: no plain text under 11 points; treemap scrolls from 270.

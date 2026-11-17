@@ -1,5 +1,11 @@
-//! What a fitted view draws for the width it has: the steps it lays a diagram out at, and the
-//! zoom that fits a laid-out diagram to that width.
+//! What a fitted view draws for the width it has: the steps it lays a diagram out at, how much
+//! smaller a narrower layout sets plain text, and the zoom that fits a laid-out diagram to that
+//! width.
+
+use std::collections::HashMap;
+
+use pele_core::Scene;
+use pele_core::scene::{Draw, FragmentKey, Geometry, PaintVisit};
 
 /// Steps a view lays a diagram out at, in an octave. Laid out at the step under the width, a
 /// diagram that narrows leaves at most 5.6% of the width unused, and a drag from 900 points to
@@ -16,6 +22,22 @@ pub(crate) fn step_below(room: f64) -> f64 {
     let index = (room.log2() * STEPS_PER_OCTAVE).floor();
     let below = [index + 1.0, index, index - 1.0].into_iter().map(step).find(|step| *step <= room);
     below.unwrap_or(1.0).max(1.0)
+}
+
+/// How much smaller `laid` draws plain text than `natural`, the same source at its own size: the
+/// least share of its size there that `laid` draws a run at which `natural` draws at `plain`
+/// points or more, matched by the run's key, and 1 where it draws none smaller.
+pub(crate) fn plain_text_shrink(natural: &Scene, laid: &Scene, plain: f64) -> f64 {
+    let own: HashMap<FragmentKey, f64> = text_runs(natural).filter(|(_, size)| *size >= plain).collect();
+    text_runs(laid).filter_map(|(key, size)| own.get(&key).map(|own| size / own)).fold(1.0, f64::min)
+}
+
+/// Each run of text `scene` draws: its key and its size.
+fn text_runs(scene: &Scene) -> impl Iterator<Item = (FragmentKey, f64)> + '_ {
+    scene.paint().filter_map(|visit| match visit {
+        PaintVisit::Draw(Draw { key, geometry: Geometry::Text(run), .. }) => Some((key, run.font.size)),
+        _ => None,
+    })
 }
 
 /// The zoom that draws a diagram `width` points wide in `room`: never more than 1, and never
