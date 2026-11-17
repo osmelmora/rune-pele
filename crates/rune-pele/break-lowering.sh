@@ -152,6 +152,10 @@ break_one kept-layouts-not-held lib.rs sources_that_lay_out_and_then_fail \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)) {' \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)).filter(|_| false) {' \
   kept_fit
+break_one zero-radius-drawn lower.rs a_point_of_radius_zero \
+  'if !draw.geometry.renders() {' \
+  'if false && !draw.geometry.renders() {' \
+  zero_radius
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

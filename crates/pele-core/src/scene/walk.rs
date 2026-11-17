@@ -137,6 +137,21 @@ pub enum Geometry {
     },
 }
 
+impl Geometry {
+    /// Whether SVG renders the shape at all. A rectangle with a side, a circle with a radius or
+    /// an ellipse with a radius that is not a positive number is not rendered: neither its fill
+    /// nor its stroke shows.
+    pub fn renders(&self) -> bool {
+        let positive = |length: f64| length > 0.0 && length.is_finite();
+        match self {
+            Geometry::Rect { size, .. } => positive(size.width) && positive(size.height),
+            Geometry::Circle { radius, .. } => positive(*radius),
+            Geometry::Ellipse { radii, .. } => positive(radii.width) && positive(radii.height),
+            _ => true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ImageFit {
     /// Stretched to the box.

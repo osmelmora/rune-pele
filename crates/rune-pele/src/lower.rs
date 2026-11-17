@@ -1060,6 +1060,9 @@ fn lower_draw(
         let draw = Draw { geometry: Geometry::Path(outline), style, ..draw };
         return lower_draw(draw, to_drawing, zoom, baselines, scale);
     }
+    if !draw.geometry.renders() {
+        return Ok(None);
+    }
     let key = draw.key.to_string();
     let style = draw.style;
     // The corner, size and corner radius of a rectangle or circle, which is a box where it
