@@ -152,6 +152,28 @@ break_one kept-layouts-not-held lib.rs sources_that_lay_out_and_then_fail \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)) {' \
   'if let Some(layout) = session.drawn.as_ref().and_then(|drawn| drawn.layout(&key)).filter(|_| false) {' \
   kept_fit
+break_one drawing-numbered-per-diagram lib.rs a_diagram_that_replaces_another \
+  'let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: unique_id(), drawing });' \
+  'let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: session.stats.lowerings, drawing });' \
+  view_identity
+break_one frame-keyed-from-the-id lib.rs a_fitted_view_reads_its_own_frame \
+  'fn frame_key(&self) -> &str {
+        &self.id' \
+  'fn frame_key(&self) -> &str {
+        Box::leak(format!("{}~fit", self.id).into_boxed_str())' \
+  view_identity
+break_one pele-metrics-pin-the-clock lib.rs pele_metrics_measure_text \
+  'now: options.now.or_else(|| Some(system_now()))' \
+  'now: options.now.or_else(|| Some(system_now()).filter(|_| false))' \
+  view_identity
+break_one fit-under-the-smallest-drawn-text lib.rs fitted_text_keeps_to_the_smallest_size \
+  'if shrink >= least {' \
+  'if shrink >= 0.0 {' \
+  fit_text
+break_one fit-turns-only-under-640 lib.rs a_fitted_flowchart_that_runs_across \
+  'turn_wider_than: Some(step / least),' \
+  'turn_wider_than: None,' \
+  fit_text
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
