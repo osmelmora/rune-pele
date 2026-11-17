@@ -399,3 +399,133 @@ pub fn drawn_keys(scene: &pele_core::Scene, source: &str) -> BTreeSet<String> {
     }
     seen
 }
+
+/// The sources a walk test reads for `kind`: Pele's corpus, the source the Rune view is shown
+/// with, and the harvest.
+pub fn walk_sources(kind: &str) -> Vec<String> {
+    let corpus = pele_oracle::corpus().into_iter().filter(|(name, _)| name == kind).flat_map(|(_, sources)| sources);
+    corpus.chain([rune_fixture(kind)]).chain(harvest(kind, "sources")).collect()
+}
+
+/// `tests/fixtures/rune/<kind>.mmd`, the source the Rune view is shown with.
+pub fn rune_fixture(kind: &str) -> String {
+    let path = pele_oracle::root().join(format!("tests/fixtures/rune/{kind}.mmd"));
+    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+}
+
+/// What tells one entity from another: its kind, its name and its place among those that share
+/// both.
+pub type Ident = (pele_core::scene::EntityKind, pele_core::scene::EntityName, u32);
+
+/// Each name as an entity of `kind`, ranked among the names before it that are the same.
+pub fn ranked(
+    kind: pele_core::scene::EntityKind,
+    names: impl IntoIterator<Item = pele_core::scene::EntityName>,
+) -> Vec<Ident> {
+    let mut seen: Vec<pele_core::scene::EntityName> = Vec::new();
+    let mut out = Vec::new();
+    for name in names {
+        let rank = seen.iter().filter(|seen| **seen == name).count() as u32;
+        seen.push(name.clone());
+        out.push((kind, name, rank));
+    }
+    out
+}
+
+/// A name as a source writes it.
+pub fn named(name: &str) -> pele_core::scene::EntityName {
+    pele_core::scene::EntityName::Named(name.encode_utf16().collect())
+}
+
+fn ident_text((kind, name, rank): &Ident) -> String {
+    let text = |units: &[u16]| String::from_utf16_lossy(units);
+    let name = match name {
+        pele_core::scene::EntityName::Named(name) => text(name),
+        pele_core::scene::EntityName::Between { from, to, kind } => format!("{}~{}~{kind}", text(from), text(to)),
+    };
+    format!("{kind:?}:{name}#{rank}")
+}
+
+/// `source` with its one `from` written as `to`.
+pub fn edit(source: &str, from: &str, to: &str) -> String {
+    assert_eq!(source.matches(from).count(), 1, "{from:?} is in {source:?} once");
+    source.replace(from, to)
+}
+
+/// An entity as its drawings' keys write it before their facet: `node:A`, `edge:A~B~link#1`.
+pub fn entity_text(entity: &pele_core::scene::EntityKey) -> String {
+    use pele_core::scene::{Facet, FragmentDetail, FragmentKey, PartKey};
+    let part = PartKey { entity: entity.clone(), facet: Facet::Shape };
+    let key = FragmentKey { part, detail: FragmentDetail::Whole }.to_string();
+    key.strip_suffix("/shape").expect("a shape's key ends in its facet").to_owned()
+}
+
+/// The entities a Scene draws, each once, in the order it first draws them.
+pub fn drawn_entities(scene: &pele_core::Scene) -> Vec<pele_core::scene::EntityKey> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for visit in scene.paint() {
+        if let pele_core::scene::PaintVisit::Draw(draw) = visit
+            && seen.insert(draw.key.part.entity.clone())
+        {
+            out.push(draw.key.part.entity);
+        }
+    }
+    out
+}
+
+/// The entities a Scene draws, as text, in the order it first draws them.
+pub fn drawn_entity_texts(scene: &pele_core::Scene) -> Vec<String> {
+    drawn_entities(scene).iter().map(entity_text).collect()
+}
+
+/// Fails unless the entities of the Scene, besides the diagram as a whole, are exactly those
+/// `expected` names, each once. Every drawing is of one of them, though Pele may leave some
+/// undrawn, such as the elements of a boundary that holds itself.
+pub fn names_exactly(scene: &pele_core::Scene, expected: &[Ident], source: &str) {
+    let named: Vec<Ident> = scene
+        .entities()
+        .filter(|entity| entity.kind() != pele_core::scene::EntityKind::Diagram)
+        .map(|entity| (entity.kind(), entity.name().clone(), entity.duplicate()))
+        .collect();
+    let text = |idents: Vec<&Ident>| -> Vec<String> { idents.into_iter().map(ident_text).collect() };
+    let missing = text(expected.iter().filter(|want| !named.contains(want)).collect());
+    let extra = text(named.iter().filter(|have| !expected.contains(have)).collect());
+    assert!(
+        missing.is_empty() && extra.is_empty() && named.len() == expected.len(),
+        "the Scene's entities are not the source's: missing {missing:?}, extra {extra:?}, in {source:?}"
+    );
+}
+
+/// The key of every drawing `source` makes, with the entity it is of and the text it draws.
+fn keys_by_entity(source: &str) -> Vec<(String, String, Option<String>)> {
+    let scene = scene(source, &LayoutOptions::default()).unwrap_or_else(|| panic!("{source:?} draws"));
+    let draws = scene.paint().filter_map(|visit| match visit {
+        pele_core::scene::PaintVisit::Draw(draw) => {
+            let text = match draw.geometry {
+                pele_core::scene::Geometry::Text(run) => Some(run.text),
+                _ => None,
+            };
+            Some((entity_text(&draw.key.part.entity), draw.key.to_string(), text))
+        }
+        _ => None,
+    });
+    draws.collect()
+}
+
+/// Fails unless every key `before` draws is drawn by `after` too, a text with the same text, but
+/// those of the entities `edited` names, which the edit is to. So a key that moves to another
+/// element fails.
+pub fn keys_survive(before: &str, after: &str, edited: &[&str]) {
+    let after: BTreeMap<String, Option<String>> =
+        keys_by_entity(after).into_iter().map(|(_, key, text)| (key, text)).collect();
+    let lost: Vec<String> = keys_by_entity(before)
+        .into_iter()
+        .filter(|(entity, key, text)| !edited.contains(&entity.as_str()) && after.get(key) != Some(text))
+        .map(|(_, key, text)| match after.get(&key) {
+            None => format!("{key} is drawn no more"),
+            Some(now) => format!("{key} drew {text:?} and now {now:?}"),
+        })
+        .collect();
+    assert!(lost.is_empty(), "the edit moves keys of what it does not touch: {lost:?}");
+}
