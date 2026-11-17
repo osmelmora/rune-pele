@@ -2,8 +2,9 @@
 // Protocol: one request per stdin line, `<op>\t<arg>...`, one answer per stdout line.
 // Doubles travel as 16 hex digits of their IEEE-754 bits so no decimal parse sits between the sides.
 // `render` takes a JSON string and answers one JSON object. `render_with` also takes a JSON object
-// of Pele render options, laid over the pinned ones. `detect`, `preprocess`, `model` and `label`
-// expose the stages before drawing, so a port can be diffed one stage at a time.
+// of Pele render options, laid over the pinned ones. `render_error` takes the same and answers the
+// whole error Pele throws. `detect`, `preprocess`, `model` and `label` expose the stages before
+// drawing, so a port can be diffed one stage at a time.
 import { createInterface } from 'node:readline';
 import { detectDiagram } from '../vendor/pele/src/detect.ts';
 import { detectType, parse, render } from '../vendor/pele/src/index.ts';
@@ -42,6 +43,19 @@ function rendered(text: string, options: object): string {
   }
 }
 
+// The whole error Pele throws for a source under render options laid over the pinned ones: its
+// message, code, type, Mermaid's alias and position. A source Pele draws answers `error: null`.
+function renderError(text: string, options: object): string {
+  try {
+    render(text, { ...PARITY, ...options });
+    return JSON.stringify({ error: null });
+  } catch (error) {
+    if (!(error instanceof PeleError)) return JSON.stringify({ error: String(error) });
+    const { code, type, mermaidType, line, column, snippet } = error;
+    return JSON.stringify({ error: String(error), code, type, mermaidType, line, column, snippet });
+  }
+}
+
 // JSON has no NaN or Infinity, and a config may hold either.
 function plain(value: unknown): unknown {
   if (typeof value === 'number' && !Number.isFinite(value)) return { $number: String(value) };
@@ -65,6 +79,7 @@ const ops: Record<string, (args: string[]) => string> = {
   pow: ([x, y]) => bits(Math.pow(double(x), double(y))),
   render: ([source]) => rendered(JSON.parse(source) as string, {}),
   render_with: ([source, options]) => rendered(JSON.parse(source) as string, JSON.parse(options) as object),
+  render_error: ([source, options]) => renderError(JSON.parse(source) as string, JSON.parse(options) as object),
   detect: ([source]) => JSON.stringify(detectDiagram(JSON.parse(source) as string)),
   preprocess: ([source]) => {
     try {

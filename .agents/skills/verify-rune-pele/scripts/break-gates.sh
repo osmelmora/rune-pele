@@ -101,5 +101,8 @@ break_one option-value-missing-ignored $cli pele-cli cli unknown_options_and_opt
 break_one limit-alias-dropped crates/pele-core/src/svg.rs pele-core output_limit the_output_limit_error \
   'mermaid_type: Some(parity.found.mermaid),' \
   'mermaid_type: None,'
+break_one limit-code-wrong crates/pele-core/src/svg.rs pele-core output_limit the_output_limit_error \
+  '..Diagnostic::new(ErrorCode::Limit, message)' \
+  '..Diagnostic::new(ErrorCode::Semantic, message)'
 
 exit "$failed"
