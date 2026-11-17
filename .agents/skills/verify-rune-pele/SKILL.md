@@ -28,7 +28,7 @@ Teardown is the Cleanup section. Nothing keeps running between commands. A windo
 
 Run `.agents/skills/verify-rune-pele/scripts/doctor.sh` first, and again whenever a result looks wrong. It is read-only. It checks five things:
 
-- Node and rustc match `mise.toml`.
+- The Node that `mise which node` names, which is the one the oracle runs, and rustc match `mise.toml`.
 - `vendor/pele` is at the pin with no local edits.
 - The oracle bundle's first-line stamp matches the sha256 of `harness/oracle.ts` and the pin, and it answers `num(0.125)=0.13 num(-0.125)=-0.12`.
 - `pele-cli` builds.
@@ -43,18 +43,21 @@ Drive the CLI. Each command is a user path.
 - `pele render <file.mmd>`. Renders with this port (`--engine rune`, the default) and prints the SVG.
 - `pele render <file.mmd> --engine pele`. Renders with Pele through the oracle.
 - `-o <out.svg>` writes the SVG to a file instead of stdout.
-- `pele parity [--type <type>] [--out <dir>]`. Renders Pele's documentation corpus (`vendor/pele/tests/corpus/<type>-docs.json`) through both engines. It prints a per-type table (sources, identical, different, not ported, pele errors) and writes `<dir>/<type>/<i>.mmd`, `<i>.pele.svg`, `<i>.ours.svg` and `<dir>/report.json`.
+- `pele parity [--type <type>] [--out <dir>] [--corpus <dir>] [--expect-pele-errors <n>]`. Renders Pele's documentation corpus (`vendor/pele/tests/corpus/<type>-docs.json`) through both engines. It prints a per-type table (sources, identical, different, not ported, pele errors) and writes `<dir>/<type>/<i>.mmd`, `<i>.pele.svg`, `<i>.ours.svg` and `<dir>/report.json`.
+- Every `<type>-docs.json` the Pele pin holds in `tests/corpus` must be there and hold sources; git names the set at the pin. `--corpus` reads them from another folder, such as a copy to break. Each run empties its `--out` first, and only a folder that is new, empty or marked `.pele-parity` by an earlier run.
 
 Exit codes are part of the contract:
 
 | Exit | Meaning |
 | --- | --- |
 | 0 | Success. |
-| 1 | `parity` found a ported source whose SVG differs from Pele's. |
+| 1 | `parity` failed its gate: a source differs from Pele's, this port does not render one, Pele rejected other than `--expect-pele-errors` sources (default 0), or nothing was compared. |
 | 3 | `render --engine rune` hit a diagram type that is not ported. |
-| 64 | Usage error. |
+| 64 | Usage error: an unknown command or option, an option with no value, or a wrong argument. |
 | 65 | The engine rejected the source: Pele, or this port with Pele's message. |
-| 66 | Unreadable input file. |
+| 66 | Unreadable input file. For `parity`, a corpus file that is missing, not a JSON array of sources, or empty. |
+| 70 | The oracle could not answer: it is not built, its Node is not the version `mise.toml` pins, or it failed. |
+| 73 | The output cannot be written: the `-o` file, or a `parity --out` that is a file, cannot be made, or is a folder with files that `pele parity` did not write. |
 
 Run it as `mise exec -- target/debug/pele …` after building, or `mise exec -- cargo run -q -p pele-cli -- …`.
 

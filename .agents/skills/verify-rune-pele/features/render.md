@@ -10,6 +10,7 @@ A user hands `pele render` a Mermaid file and gets SVG back, from this port by d
 - `render-not-ported` would report a type this port lacks, with exit 3. Every type of Pele 1.13.0 is ported, so no source reaches it; it stays for a type a later Pele pin adds.
 - `render-rejected` reports a source that cannot be detected or parsed, with exit 65 from either engine.
 - `render-usage` reports a missing file argument, an unknown engine or an unreadable file.
+- `render-options` reports an unknown option, or an option with no value, before it renders anything.
 
 ## How to get to it (user POV)
 
@@ -31,7 +32,9 @@ Preconditions:
 - **Not ported.** Every type of Pele 1.13.0 is ported, so `pele parity` shows `not ported 0` on every row and no source exits 3. After a pin bump that adds a type, render a source of it: exit 3, stdout empty, stderr `not ported: rune-pele cannot render <type> yet`.
 - **Rejected source.** Write `hello there` to `out/verify/$R/hello.mmd`. Run `$C $R render-rejected target/debug/pele render out/verify/$R/hello.mmd --engine pele`. Exit 65, stderr `pele: PeleError: No diagram type detected for the given text.` Run it again without `--engine pele`. Exit 65, stdout empty, stderr `rune-pele: No diagram type detected for the given text.`
 - **Rejected source of a ported type.** Write a `pie` line and then ` "a" 1` to `out/verify/$R/bad-pie.mmd`. Run `$C $R render-rejected target/debug/pele render out/verify/$R/bad-pie.mmd`, then again with `--engine pele`. Both exit 65. After `rune-pele: ` and `pele: PeleError: ` the two stderr files hold the same four lines: `Parse error on line 2:`, the source line, a line of dashes ending in `^`, and ``Expecting token of type ':' but found `1`.``
-- **Usage errors.** Run `$C $R render-usage target/debug/pele render`, then `… render tests/fixtures/pie-pets.mmd --engine foo`, then `… render nope.mmd`. Exits 64, 64 and 66. Stderr is the usage text, then `unknown engine "foo"; use rune or pele`, then `nope.mmd: No such file or directory (os error 2)`.
+- **Usage errors.** Run `$C $R render-usage target/debug/pele render`, then `… render tests/fixtures/pie-pets.mmd --engine foo`, then `… render nope.mmd`. Exits 64, 64 and 66. Stderr is `render takes one file` and the usage text, then `unknown engine "foo"; use rune or pele`, then `nope.mmd: No such file or directory (os error 2)`.
+- **Options.** Run `$C $R render-options target/debug/pele render tests/fixtures/pie-pets.mmd --engine`, then the same with `-o` in place of `--engine`, then with `--bogus`. Each exits 64 with empty stdout, and stderr is `--engine needs a value`, `-o needs a value` or `unknown option --bogus`, then the usage text. A value that starts with `-` is no value, so `… -o --engine pele` exits 64 too.
+- **Output that cannot be written.** Run `$C $R render-out target/debug/pele render tests/fixtures/pie-pets.mmd -o out/verify/$R/no-such-folder/pie.svg`. Exit 73, stderr `out/verify/$R/no-such-folder/pie.svg: No such file or directory (os error 2)`.
 
 ## Gotchas
 
