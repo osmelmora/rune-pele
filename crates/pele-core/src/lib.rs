@@ -183,6 +183,10 @@ pub struct LayoutOptions {
     pub auto_direction: bool,
     /// The width under which that is done. Unset, it is 640 pixels.
     pub direction_breakpoint: Option<f64>,
+    /// A width over which a diagram that runs across, and does not fit `max_width`, is drawn
+    /// running down where that is narrower, whatever the breakpoint. Unset, only the breakpoint
+    /// decides, as in Pele, which has no such option.
+    pub turn_wider_than: Option<f64>,
     pub resources: ResourcePolicy,
     /// Pele's `monospace`: the parts of diagrams the host sets in the monospace font.
     pub monospace: Vec<MonospacePart>,
@@ -243,6 +247,7 @@ impl Default for LayoutOptions {
             id_prefix: None,
             auto_direction: true,
             direction_breakpoint: None,
+            turn_wider_than: None,
             resources: ResourcePolicy::default(),
             monospace: Vec::new(),
             now: None,

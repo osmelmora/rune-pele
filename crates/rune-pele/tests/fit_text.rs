@@ -1,6 +1,7 @@
-//! What a fitted view draws its text at, through rune-pele's public API in Rune's headless
-//! runtime: as the width goes from 900 points to 200, no text a fixture draws at the plain size or
-//! larger at its own size is drawn under the smallest text size.
+//! What a fitted view draws its text at and when it turns, through rune-pele's public API in
+//! Rune's headless runtime: as the width goes from 900 points to 200, no text a fixture draws at
+//! the plain size or larger at its own size is drawn under the smallest text size, and a diagram
+//! that runs across turns to run down where across would scroll.
 
 mod common;
 
@@ -180,4 +181,60 @@ fn fitted(rt: &Runtime<Boxed>) -> Fitted {
         zoom: rt.state.diagram.zoom().expect("a native view"),
         scrolls: drawn[2] > frame[2] + 0.5,
     }
+}
+
+/// The widest of the steps a fit lays out at, whole points a twelfth of an octave apart, that is
+/// no wider than `width`.
+fn step_below(width: f64) -> f64 {
+    (60..140).map(|k| (f64::from(k) / 12.0).exp2().floor()).filter(|step| *step <= width).fold(0.0, f64::max)
+}
+
+/// Pele turns a flowchart that runs across to run down only under 640 points. A fitted view
+/// turns it wherever across, at the smallest text, would still be wider than the width the view
+/// lays it out at, so that it would scroll, and zooms it across where that fits.
+#[test]
+fn a_fitted_flowchart_that_runs_across_turns_where_across_would_scroll() {
+    let source = fixture("across");
+    let least = (SMALLEST / PLAIN) as f32;
+    let mut rt = runtime(&source, ViewOptions::fit(), 1180.0);
+    let across = fitted(&rt);
+    assert_eq!(across.zoom, 1.0, "laid out narrower, across, at 1180: {across:?}");
+    let mut report = format!("across, laid out narrower at 1180: {:.1}x{:.1}\n", across.laid[0], across.laid[1]);
+    for (frame, width) in
+        [1000.0f32, 900.0, 860.0, 820.0, 800.0, 780.0, 760.0, 720.0, 680.0, 660.0, 640.0, 600.0].into_iter().enumerate()
+    {
+        resize(&mut rt, width, frame as f64 + 1.0);
+        let now = fitted(&rt);
+        let turned = now.laid[0] < across.laid[0] * f64::from(least);
+        writeln!(
+            report,
+            "at {width}: laid out {:.1}x{:.1}, zoom {:.4}, {}, scrolls {}",
+            now.laid[0],
+            now.laid[1],
+            now.zoom,
+            if turned { "turned" } else { "across" },
+            now.scrolls
+        )
+        .unwrap();
+        assert!(!now.scrolls, "at {width}: {now:?}");
+        assert!(now.zoom >= least - 1e-4, "at {width}: {now:?}");
+        // Across at the smallest text would scroll: it turns. Across fits the step the fit lays
+        // out at: it stays across. Between the two, the fit decides at that step.
+        let at_least = across.laid[0] * f64::from(least);
+        if at_least > f64::from(width) {
+            assert!(turned, "at {width}: {now:?}");
+        }
+        if at_least <= step_below(f64::from(width)) {
+            assert!(!turned, "at {width}: {now:?}");
+        }
+    }
+    // Outside a fit, Pele's breakpoint decides, as in Pele: across at 700, down at 600.
+    for (width, turns) in [(700.0f32, false), (600.0, true)] {
+        let rt = runtime(&source, ViewOptions::new(width), 1200.0);
+        let size = rt.state.diagram.scene().expect("a native scene").size();
+        writeln!(report, "ViewOptions::new({width}): laid out {:.1}x{:.1}", size.width, size.height).unwrap();
+        assert_eq!(size.width < across.laid[0] * f64::from(least), turns, "ViewOptions::new({width})");
+    }
+    print!("{report}");
+    write_report("fit-turn.txt", &report);
 }

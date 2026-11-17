@@ -184,7 +184,9 @@ impl ViewOptions {
     /// Plain text is text the diagram draws at the view's font size or larger at its own size.
     /// The least size holds for it as drawn: a narrower layout that sets it smaller itself, as a
     /// treemap does in small cells, is drawn only where it can still reach that size, and the
-    /// diagram is otherwise drawn as it lays itself out.
+    /// diagram is otherwise drawn as it lays itself out. A diagram that runs across and can run
+    /// down, as a flowchart can, runs down wherever across would scroll at that size, at any
+    /// width, where Pele turns it only under 640 points.
     ///
     /// The width is the view's own from Rune's last layout, and a change of it runs the app's
     /// view again. The diagram is laid out again only when the width crosses one of the steps
@@ -670,7 +672,10 @@ impl Diagram {
         let (mut laid, mut laid_least) = (natural.clone(), least);
         if self.narrows(source, options, scale, &natural) {
             let step = fit::step_below(room);
-            let at = LayoutOptions { max_width: Some(step), ..options.layout.clone() };
+            // A diagram that can run down turns wherever across, at the least zoom, would still
+            // be wider than the step, so that it would scroll.
+            let at =
+                LayoutOptions { max_width: Some(step), turn_wider_than: Some(step / least), ..options.layout.clone() };
             let narrower = match self.layout(source, &at, options.metrics, scale)? {
                 Ok(layout) => layout,
                 Err(why) => return Ok(Err(why)),
