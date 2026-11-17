@@ -105,7 +105,8 @@ pub(crate) fn layout_sankey(model: &SankeyModel, options: &LayoutOptions) -> Res
     layout(&Flows::new(model.nodes.len(), &links), options)
 }
 
-/// [`layout_sankey`] on bare flows. `Err` holds the node on a cycle that Pele's message names.
+/// Pele's `layoutSankey` on bare flows, each a source, a target and a value. `Err` holds the node
+/// on a cycle that Pele's message names.
 pub fn layout(flows: &Flows<'_>, options: &LayoutOptions) -> Result<SankeyLayout, usize> {
     let n = flows.nodes;
     let mut links: Vec<PlacedLink> = flows

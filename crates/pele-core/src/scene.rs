@@ -2,7 +2,7 @@
 //!
 //! Paint order lives in the node tree. Identity lives in a separate table of entities, so one
 //! section can own a slice in one layer and a legend row in another. Each number, path and text
-//! is stored once, with the spelling Pele gives it kept beside the value: [`Number`] remembers
+//! is stored once, with the spelling Pele gives it kept beside the value: a number remembers
 //! its number rule, a path remembers its commands, and each node remembers the order its
 //! attributes were set in. Only this module builds a Scene, and `crate::svg` only reads one.
 

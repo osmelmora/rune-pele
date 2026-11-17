@@ -3,7 +3,8 @@
 //! treeview's own folder and file (`treeview/icons.ts`).
 
 /// One built-in icon. It is drawn on the icon box's 24 by 24 grid, stroked 1.5 wide in the
-/// colour [`IconGlyph::stroke`] names, with the box's round caps and joins and no fill.
+/// root's foreground colour for architecture's icons or its muted colour for treeview's, with the
+/// box's round caps and joins and no fill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum IconGlyph {
     Database,

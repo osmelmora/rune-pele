@@ -13,8 +13,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
-/// One call the layout makes of a `Math` function [`Trig`] answers: its name, and the bits of
-/// its arguments.
+/// One call the layout makes of `Math.sin`, `cos`, `acos` or `atan2`, which libm does not answer
+/// as V8 does on every input: its name, and the bits of its arguments.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TrigCall {
     pub op: &'static str,
