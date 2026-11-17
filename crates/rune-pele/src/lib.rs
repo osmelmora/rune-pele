@@ -210,6 +210,8 @@ impl ViewOptions {
     /// Lays the diagram out with Pele's own text metrics instead of the fonts it is drawn in,
     /// so that every shape is where Pele's SVG has it. Text in another font then no longer fits
     /// its boxes exactly, so this is for comparing a drawing with Pele's, not for showing one.
+    /// It changes only how text is measured: a gantt chart's today is still [`ViewOptions::now`]
+    /// or the system clock, not the clock Pele's corpus is drawn at.
     pub fn pele_metrics(mut self) -> Self {
         self.metrics = Metrics::Pele;
         self
@@ -380,6 +382,12 @@ struct Measure {
 
 /// Layouts kept for sources and options a view may go back to.
 const KEPT: usize = 4;
+
+/// The system clock in milliseconds since 1970, as pele-core reads it for a `now` left unset.
+fn system_now() -> f64 {
+    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    since.map_or(0.0, |since| since.as_millis() as f64)
+}
 
 /// A number no other layout or lowering in the process has, of any `Diagram`. The paint memo is
 /// named by the diagram's id, so a `Diagram` that replaces another under that id must not number
@@ -800,8 +808,14 @@ impl Diagram {
             Ok(prepared) => {
                 let scene = match metrics {
                     Metrics::Drawn => prepared.scene(NativeInputs { measure, options }),
-                    Metrics::Pele => pele_core::parity_scene_with(source, ParseOptions::default(), options)
-                        .map(|parity| parity.scene().clone()),
+                    // A parity draw pins an unset `now` to Pele's corpus clock. Metrics are not
+                    // the clock: with none given, the view takes the system's, as with its fonts.
+                    Metrics::Pele => {
+                        let options =
+                            LayoutOptions { now: options.now.or_else(|| Some(system_now())), ..options.clone() };
+                        pele_core::parity_scene_with(source, ParseOptions::default(), &options)
+                            .map(|parity| parity.scene().clone())
+                    }
                 };
                 Ok((prepared.kind(), scene.map_err(ViewError::Core)?))
             }

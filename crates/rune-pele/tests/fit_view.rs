@@ -127,9 +127,9 @@ fn window<'a>(
     capturer.window(viewer, view, size, Env::new(false, scale))
 }
 
-/// The view Pele's SVG is compared with: Pele's metrics and colours, no width to fit.
+/// The view Pele's SVG is compared with: Pele's metrics, colours and corpus clock, no width to fit.
 fn as_pele() -> ViewOptions {
-    ViewOptions::natural().pele_metrics().palette(Palette::pele())
+    ViewOptions::natural().pele_metrics().palette(Palette::pele()).now(common::PELE_CORPUS_NOW)
 }
 
 /// Pele's SVG of each source under the id prefix a view lays out under, as `graph_view` draws it.

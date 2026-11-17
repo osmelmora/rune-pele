@@ -1,7 +1,10 @@
 //! What a view is in its window, through rune-pele's public API: a `Diagram` that replaces
-//! another under the same id draws and links its own source, and a fitted view reads its own
-//! frame's width whatever its neighbours are keyed.
+//! another under the same id draws and links its own source, a fitted view reads its own frame's
+//! width whatever its neighbours are keyed, and Pele's text metrics leave a gantt chart's clock
+//! alone.
 
+use pele_core::Scene;
+use pele_core::scene::{Geometry, Paint, PaintVisit, PathCommand, Role};
 use rune::{Cx, El, Env, Runtime, Tx, col, el};
 use rune_pele::{Diagram, Event, FontCatalog, RenderStatus, ViewOptions};
 
@@ -109,4 +112,59 @@ fn a_fitted_view_reads_its_own_frame_whatever_its_neighbour_is_keyed() {
         zooms.push(rt.state.fitted.zoom().expect("a native view"));
     }
     assert_eq!(zooms, [1.0, 1.0], "with the fitted view first and then second");
+}
+
+struct Chart {
+    diagram: Diagram,
+    options: ViewOptions,
+}
+
+fn chart_view(chart: &Chart, cx: &mut Cx<Chart>) -> El {
+    chart.diagram.view(cx, GANTT, chart.options.clone()).expect("it draws")
+}
+
+/// A chart from 2020 to 2040, which takes in today and Pele's corpus clock, 15 January 2026.
+const GANTT: &str = "gantt\n  dateFormat YYYY-MM-DD\n  section Project\n  Long project :task, 2020-01-01, 2040-12-31\n";
+
+/// The x of a gantt chart's today marker: its line, in the accent, 2 wide.
+fn today(scene: &Scene) -> f64 {
+    scene
+        .paint()
+        .find_map(|visit| {
+            let PaintVisit::Draw(draw) = visit else { return None };
+            let stroke = draw.style.stroke.as_ref()?;
+            if stroke.paint != Paint::Role(Role::Accent) || stroke.width != 2.0 {
+                return None;
+            }
+            let Geometry::Path(commands) = &draw.geometry else { return None };
+            let PathCommand::Move(at) = commands.first()? else { return None };
+            Some(draw.origin.x + at.x)
+        })
+        .expect("a today marker")
+}
+
+fn marker(options: ViewOptions) -> f64 {
+    let chart = Chart { diagram: Diagram::new("chart", FontCatalog::rune()), options };
+    let mut rt = Runtime::new(chart, chart_view, (1000.0, 600.0), Env::new(false, 1.0));
+    rt.frame(0.0);
+    today(&rt.state.diagram.scene().expect("a native scene"))
+}
+
+fn milliseconds_now() -> f64 {
+    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("after 1970");
+    since.as_millis() as f64
+}
+
+#[test]
+fn pele_metrics_measure_text_and_leave_the_clock_to_the_app() {
+    const PELE_CORPUS_NOW: f64 = 1_768_478_400_000.0;
+    let unset = marker(ViewOptions::natural().pele_metrics());
+    let clock = marker(ViewOptions::natural().pele_metrics().now(milliseconds_now()));
+    let corpus = marker(ViewOptions::natural().pele_metrics().now(PELE_CORPUS_NOW));
+    println!(
+        "today marker with Pele's metrics: no now {unset}, the system clock {clock}, Pele's corpus clock {corpus}"
+    );
+    // Two layouts a few milliseconds apart: a day is a tenth of a point on this chart.
+    assert!((unset - clock).abs() < 0.01, "with no now, the system clock: {unset} against {clock}");
+    assert!((unset - corpus).abs() > 1.0, "not Pele's corpus clock: {unset} against {corpus}");
 }

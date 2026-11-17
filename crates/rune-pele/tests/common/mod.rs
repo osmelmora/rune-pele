@@ -438,3 +438,8 @@ pub fn marked(image: &Pixels, marked: &[(u32, u32)]) -> Pixels {
     }
     Pixels { width: image.width, height: image.height, rgba }
 }
+
+/// The clock Pele's corpus test and the oracle draw at: noon UTC on 15 January 2026, in
+/// milliseconds. A view held to Pele's SVG is given it, so that a gantt chart's today is where
+/// Pele's is.
+pub const PELE_CORPUS_NOW: f64 = 1_768_478_400_000.0;
