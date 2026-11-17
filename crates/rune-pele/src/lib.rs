@@ -43,6 +43,7 @@ pub mod text;
 
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use pele_core::scene::{Rgba, ThemeSeries};
@@ -380,6 +381,14 @@ struct Measure {
 /// Layouts kept for sources and options a view may go back to.
 const KEPT: usize = 4;
 
+/// A number no other layout or lowering in the process has, of any `Diagram`. The paint memo is
+/// named by the diagram's id, so a `Diagram` that replaces another under that id must not number
+/// its first drawing as the one it replaces did.
+fn unique_id() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
 /// A drawing a view drew, kept to show again while a later source fails.
 #[derive(Clone)]
 enum Drawn {
@@ -432,7 +441,6 @@ struct Session {
     measure: Option<Measure>,
     /// Runs shaped by measurers since dropped.
     shaped_before: u64,
-    next_id: u64,
     /// The last drawing a view drew.
     drawn: Option<Drawn>,
     outcome: Option<Outcome>,
@@ -682,8 +690,7 @@ impl Diagram {
         let drawing = Drawing::zoomed(layout.kind, &layout.scene, &mut measure.baselines(), scale, zoom);
         session.times.lower = started.elapsed();
         session.stats.lowerings += 1;
-        session.next_id += 1;
-        let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: session.next_id, drawing });
+        let lowered = Rc::new(Lowered { layout: layout.clone(), zoom, id: unique_id(), drawing });
         if session.lowered.len() == KEPT {
             session.lowered.remove(0);
         }
@@ -805,9 +812,7 @@ impl Diagram {
         };
         session.times.layout = started.elapsed();
         session.stats.layouts += 1;
-        session.next_id += 1;
-        let layout =
-            Rc::new(Layout { key, id: session.next_id, kind, scene: Rc::new(scene), narrows: OnceCell::new() });
+        let layout = Rc::new(Layout { key, id: unique_id(), kind, scene: Rc::new(scene), narrows: OnceCell::new() });
         if session.layouts.len() == KEPT {
             session.layouts.remove(0);
         }
