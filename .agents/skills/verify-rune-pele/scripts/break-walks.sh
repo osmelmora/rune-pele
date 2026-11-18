@@ -56,11 +56,17 @@ break_one c4-aliases-unranked $src/c4/render.rs c4_walk every_element_is_drawn_u
   'let part = out.part(make(alias).ranked(*duplicate));' \
   'let part = out.part(make(alias).ranked(0));'
 break_one git-commit-keyed-by-place $src/git/render.rs git_walk a_key_survives_an_edit_elsewhere \
-  'out.part(Entity::node(&commit.id).tooltip(tooltip))' \
+  'out.part(Entity::node_written_as(&name.name, &commit.id).ranked(name.place).tooltip(tooltip))' \
   'out.part(Entity::node(&JsText::from(commit.seq.to_string().as_str())).tooltip(tooltip))'
 break_one git-branches-keyed-alike $src/git/render.rs git_walk every_element_is_drawn_under_a_key_of_its_own \
   'let part = out.part(Entity::group(&model.lanes[i]));' \
   'let part = out.part(Entity::group(&model.lanes[0]));'
+break_one git-unnamed-keyed-by-made-up-id $src/git/render.rs git_walk a_commit_with_no_id_added_to_one_branch \
+  'let name = if commit.own_id {' \
+  'let name = if true {'
+break_one git-unnamed-ranked-across-branches $src/git/render.rs git_walk a_commit_with_no_id_added_to_one_branch \
+  'quoted.push_units(&commit.branch);' \
+  ''
 break_one sankey-node-keyed-by-place $src/sankey/render.rs sankey_walk a_key_survives_an_edit_elsewhere \
   'model.nodes.iter().map(|id| out.part(Entity::node(id))).collect();' \
   'model.nodes.iter().enumerate().map(|(i, _)| out.part(Entity::node(&JsText::from(i.to_string().as_str())))).collect();'

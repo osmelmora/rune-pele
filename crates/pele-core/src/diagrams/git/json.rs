@@ -1,7 +1,7 @@
 //! The model as the oracle's `git_front` op prints Pele's: one JSON object, each field in a fixed
 //! order, with `null` where Pele's is undefined.
 
-use super::GitModel;
+use super::{CommitType, GitModel};
 use crate::input::JsText;
 
 /// `JSON.stringify` of a string: quotes, the short escapes, `\u00xx` for other controls and
@@ -71,9 +71,9 @@ pub(crate) fn front_json(model: &GitModel) -> String {
             None => out.push_str("null"),
         }
         out.push_str(",\"customId\":");
-        match commit.custom_id {
-            Some(own) => out.push_str(if own { "true" } else { "false" }),
-            None => out.push_str("null"),
+        match (commit.kind, commit.own_id) {
+            (CommitType::Merge, own) => out.push_str(if own { "true" } else { "false" }),
+            _ => out.push_str("null"),
         }
         out.push('}');
     }

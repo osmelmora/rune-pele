@@ -114,7 +114,7 @@ fn draw(model: &GitModel, cx: &DrawContext<'_>, direction: Direction) -> Result<
     for commit in sorted {
         let labelled = show_commit_label
             && commit.kind != CommitType::CherryPick
-            && (commit.kind != CommitType::Merge || commit.custom_id == Some(true));
+            && (commit.kind != CommitType::Merge || commit.own_id);
         let tags = commit
             .tags
             .iter()
@@ -420,12 +420,14 @@ fn draw(model: &GitModel, cx: &DrawContext<'_>, direction: Direction) -> Result<
     let mut out = SceneBuilder::new(cx, Size { width, height }, model.accessible.clone());
     let title_at = Point { x: width / 2.0, y: pad + title.height / 2.0 };
     out.title(&TitleLayout { label: title, at: title_at });
+    let keyed = commit_names(&views);
     let commit_parts: Vec<PartId> = views
         .iter()
-        .map(|view| {
+        .zip(&keyed)
+        .map(|(view, name)| {
             let commit = view.commit;
             let tooltip = written(commit).then_some(&commit.message);
-            out.part(Entity::node(&commit.id).tooltip(tooltip))
+            out.part(Entity::node_written_as(&name.name, &commit.id).ranked(name.place).tooltip(tooltip))
         })
         .collect();
 
@@ -464,14 +466,14 @@ fn draw(model: &GitModel, cx: &DrawContext<'_>, direction: Direction) -> Result<
 
         let edges = LayerSpec::class("pele-edges").fill(Paint::None).stroke_width(Number::raw(2.0)).cap(LineCap::Round);
         out.layer(edges, |out| {
-            let mut seen: HashMap<(usize, usize, &str), u32> = HashMap::new();
+            let mut seen: HashMap<EntityName, u32> = HashMap::new();
             for edge in curves.iter().chain(&lines) {
-                let rank = seen.entry((edge.from, edge.to, edge.kind)).or_insert(0);
                 let name = EntityName::Between {
-                    from: views[edge.from].commit.id.to_vec(),
-                    to: views[edge.to].commit.id.to_vec(),
+                    from: keyed[edge.from].end(),
+                    to: keyed[edge.to].end(),
                     kind: edge.kind.to_owned(),
                 };
+                let rank = seen.entry(name.clone()).or_insert(0);
                 let part = out.part(Entity::edge(&JsText::default(), name, *rank));
                 *rank += 1;
                 out.relation(part, commit_parts[edge.from], commit_parts[edge.to]);
@@ -496,6 +498,50 @@ fn draw(model: &GitModel, cx: &DrawContext<'_>, direction: Direction) -> Result<
         });
     });
     out.finish()
+}
+
+/// What a commit's key names it by: its own id, or with none its branch in quotes, ranked among
+/// the commits named alike before it. So a commit with no id is keyed by its place among its
+/// branch's commits with no id, where the id Pele makes up counts every commit before it and an
+/// edit anywhere before would move it. An id can be written with quotes too, and the rank keeps
+/// it apart from such a commit.
+struct CommitName {
+    name: JsText,
+    place: u32,
+}
+
+impl CommitName {
+    /// The commit as an end of an edge's name: `"develop"#2` for the third with no id on
+    /// `develop`.
+    fn end(&self) -> Vec<u16> {
+        let mut end = self.name.to_vec();
+        if self.place > 0 {
+            end.extend(format!("#{}", self.place).encode_utf16());
+        }
+        end
+    }
+}
+
+/// Each commit's name, in the order of `views`, which is the source's.
+fn commit_names(views: &[View<'_>]) -> Vec<CommitName> {
+    let mut places: HashMap<JsText, u32> = HashMap::new();
+    views
+        .iter()
+        .map(|view| {
+            let commit = view.commit;
+            let name = if commit.own_id {
+                commit.id.clone()
+            } else {
+                let mut quoted = JsText::from("\"");
+                quoted.push_units(&commit.branch);
+                quoted.push_str("\"");
+                quoted
+            };
+            let place = places.entry(name.clone()).or_insert(0);
+            *place += 1;
+            CommitName { name, place: *place - 1 }
+        })
+        .collect()
 }
 
 /// Merges and cherry-picks carry a message Mermaid makes up; only a written one is worth showing.

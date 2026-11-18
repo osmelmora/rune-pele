@@ -70,9 +70,9 @@ impl Db {
     }
 
     fn commit(&mut self, id: Option<Vec<u16>>, message: Vec<u16>, kind: CommitType, tags: Vec<Vec<u16>>) {
-        let id = match id {
-            Some(id) if !id.is_empty() => JsText::from(id),
-            _ => next_id(self.seq, &self.commits),
+        let (id, own_id) = match id {
+            Some(id) if !id.is_empty() => (JsText::from(id), true),
+            _ => (next_id(self.seq, &self.commits), false),
         };
         let commit = Commit {
             id,
@@ -83,7 +83,7 @@ impl Db {
             parents: self.head().map(|head| vec![head.id.clone()]).unwrap_or_default(),
             branch: self.current.clone(),
             custom_type: None,
-            custom_id: None,
+            own_id,
         };
         self.seq += 1;
         if self.commits.contains_key(&commit.id) {
@@ -160,7 +160,7 @@ impl Db {
             parents,
             branch: current,
             custom_type: kind,
-            custom_id: Some(own_id),
+            own_id,
         };
         self.seq += 1;
         self.add(commit);
@@ -230,7 +230,7 @@ impl Db {
             parents,
             branch: self.current.clone(),
             custom_type: None,
-            custom_id: None,
+            own_id: false,
         };
         self.seq += 1;
         self.add(commit);

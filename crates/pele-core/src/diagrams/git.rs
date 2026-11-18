@@ -73,8 +73,9 @@ pub(crate) struct Commit {
     pub(crate) branch: JsText,
     /// The type a merge is drawn as, where its statement names one.
     pub(crate) custom_type: Option<CommitType>,
-    /// Whether a merge's id is the author's. Only merges say.
-    pub(crate) custom_id: Option<bool>,
+    /// Whether the author gave the commit its id. Otherwise Pele made it up from the commit's
+    /// place among all commits. Pele's model says so only for a merge, as `customId`.
+    pub(crate) own_id: bool,
 }
 
 /// Pele's `GitModel`.
