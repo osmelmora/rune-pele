@@ -21,14 +21,17 @@ pub fn round(x: f64) -> f64 {
 /// 14.6.202.34, the V8 of the pinned Node 26.13.1, in plain double arithmetic.
 ///
 /// It matches Node on x64 bit for bit. Node on arm64 is built to fuse multiply-adds inside the
-/// same code, and answers one ulp away on a few inputs in a thousand. `num` hides the gap unless
-/// the true value sits within an ulp of a rounding tie. `tests/oracle.rs` measures it, and the
-/// decision log's "2026-11-18 V8's trig and log10" has both machines.
+/// same code, and answers one ulp away on about 5 random inputs in 1,000: exactly where the same
+/// code with `mul_add` in each place the compiler fuses rounds apart. `num` hides the gap unless
+/// the true value sits within an ulp of a rounding tie. `tests/oracle.rs` holds it to the pinned
+/// Node, `mise run intel-trig` to both, and the decision log's "2026-11-18 V8's trig and log10"
+/// has the numbers.
 pub fn sin(x: f64) -> f64 {
     fdlibm::sin(x)
 }
 
-/// `Math.cos`, V8's fdlibm as [`sin`] is, with the same match on x64 and gap on arm64.
+/// `Math.cos`, V8's fdlibm as [`sin`] is: bit for bit Node on x64, and one ulp from Node on arm64
+/// on about 4 random inputs in 1,000, where it fuses multiply-adds.
 pub fn cos(x: f64) -> f64 {
     fdlibm::cos(x)
 }
@@ -38,16 +41,16 @@ pub fn cos(x: f64) -> f64 {
 /// what is left are each scaled to base ten. The `libm` crate's `log10` follows a later FreeBSD
 /// version, which rounds differently.
 ///
-/// It matches Node on x64 bit for bit. Node's build on arm64 rounds about one random input in
-/// 900 an ulp apart. Within three ulps of every power of ten it rounds none apart, so a whole
-/// part read with `floor` is Pele's on both.
+/// It matches Node on x64 bit for bit. Node's build on arm64 fuses multiply-adds, and rounds about
+/// one random input in 900 an ulp or two apart. Within three ulps of every power of ten it rounds
+/// none apart, so a whole part read with `floor` is Pele's on both.
 pub fn log10(x: f64) -> f64 {
     fdlibm::log10(x)
 }
 
 /// `10 ** n`, as V8 works it out: the platform's `pow`, which is correctly rounded for a whole
 /// `n`. Parsing `1e{n}` rounds correctly too, so for a whole `n` it matches Node on x64 and arm64
-/// bit for bit, where [`pow`] does not. Any other `n` goes to [`pow`].
+/// bit for bit (measured from -330 to 330), where [`pow`] does not. Any other `n` goes to [`pow`].
 pub fn ten_to(n: f64) -> f64 {
     if n.is_finite() && n.fract() == 0.0 && n.abs() < 400.0 {
         format!("1e{n}").parse().expect("a power of ten parses")

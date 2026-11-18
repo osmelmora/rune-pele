@@ -244,7 +244,7 @@ impl Tally {
             self.failures.len()
         );
         for source in &self.trig_only {
-            println!("    libm's last bit reaches the drawing of {source:?}");
+            println!("    the last bit of a Math answer reaches the drawing of {source:?}");
         }
         assert!(
             self.failures.is_empty(),
@@ -417,7 +417,7 @@ fn hand_written_cases_match_pele() {
 
 /// The shapes of Pele's worst venn cases (`tests/venn/stress.test.ts`) at sizes the default
 /// limits allow. Its 40 unions of all 60 sets are unions of 24 of them here: a union of 40 or more
-/// of 60 sets never lets the layout settle, and libm's last bit reaches the drawing, which
+/// of 60 sets never lets the layout settle, and the last bit of a `Math` answer reaches the drawing, which
 /// `venn_layout.rs` holds as the one known difference.
 fn worst() -> Vec<String> {
     let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();

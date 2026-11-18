@@ -738,7 +738,7 @@ fn fixtures() -> Vec<(String, Vec<String>)> {
     sets
 }
 
-/// The venn source whose geometry libm and the pinned arm64 Node were seen to round apart
+/// The venn source whose geometry the port and the pinned arm64 Node were seen to round apart
 /// (`venn_layout`'s `the_unsettled_relaxation_differs_only_in_libms_last_bit`).
 fn unsettled_venn() -> String {
     let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();

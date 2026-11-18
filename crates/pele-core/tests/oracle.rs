@@ -244,9 +244,10 @@ fn within_one_ulp(ours: f64, theirs: f64) -> bool {
     ours == theirs || ours == theirs.next_up() || ours == theirs.next_down()
 }
 
-/// The pinned Node does not compute these three the way `libm` does. Its `Math.sin` and
-/// `Math.cos` are V8's fdlibm port compiled with fused multiply-adds on arm64, and its `Math.pow`
-/// is the platform's `pow`. So the claim here is the neighbouring double, not the same bits.
+/// The pinned Node does not compute these three as the port does. Its `Math.sin` and `Math.cos`
+/// are V8's fdlibm, which the port follows, compiled with fused multiply-adds on arm64, and its
+/// `Math.pow` is the platform's `pow`, which `libm` is not. So the claim here is the neighbouring
+/// double, not the same bits.
 fn diff_within_one_ulp(op: &str, inputs: &[f64], extra: &str, ours: impl Fn(f64) -> f64) {
     let requests: Vec<String> = inputs.iter().map(|&x| format!("{op}\t{}{extra}", hex(x))).collect();
     let theirs = oracle(&requests);
