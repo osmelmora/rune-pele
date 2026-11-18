@@ -13,12 +13,17 @@
 //! that did, fitted to the window as it would be drawn now: dimmed, with the error over its
 //! bottom edge, as Pele's `mount` shows it, or as it was with `--kept-unchanged`. The stream
 //! runs on the app's clock, so `--snap` with `--at <seconds>` draws the same frame every time.
+//!
+//! The example gives the view three icons of its own, hand-written below, for names the fixtures
+//! use: `architecture.mmd`'s `logos:aws-lambda` and `treeview.mmd`'s `logos:react` and folders.
+//! `--no-icons` draws the boxes as Pele's SVG does for a page with no icons.
 
 use std::time::Duration;
 
+use rune::color::hex;
 use rune::tok::{self, type_};
 use rune::{AppSpec, Cx, El, ScrollSpec, Tx, col, text};
-use rune_pele::{Diagram, Event, Fallback, FontCatalog, KeptLook, RenderStatus, ViewOptions};
+use rune_pele::{Diagram, Event, Fallback, FontCatalog, Icon, IconPaint, KeptLook, RenderStatus, ViewOptions};
 
 const SIZE: (f32, f32) = (900.0, 700.0);
 
@@ -33,14 +38,31 @@ struct State {
     arrived: usize,
     streaming: bool,
     look: KeptLook,
+    icons: bool,
     followed: Option<String>,
+}
+
+/// The example's icons, on a grid 24 across: a lambda and a pair of code brackets stroked in the
+/// diagram's foreground, as Pele's icon box strokes, and an amber folder in place of treeview's
+/// own. A name it has no icon for is drawn as without icons.
+fn icons(name: &str) -> Option<Icon> {
+    let grid = Icon::new([0.0, 0.0, 24.0, 24.0]).expect("a view box");
+    let icon = match name {
+        "logos:aws-lambda" => grid.stroke("M7 4h2.5L18 20M12.8 11.5 7 20", 2.0, IconPaint::Current),
+        "logos:react" => grid.stroke("M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16", 2.0, IconPaint::Current),
+        "mermaid-treeview:folder" => {
+            grid.fill("M3 6h6l2 2h10v11H3z", IconPaint::Fixed(hex("#e0a030").expect("a colour")))
+        }
+        _ => return None,
+    };
+    Some(icon.expect("the example's icons are SVG path data"))
 }
 
 fn init() -> State {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let path = args.iter().find(|arg| arg.ends_with(".mmd")).unwrap_or_else(|| {
         eprintln!(
-            "usage: diagram <file.mmd> [--stream] [--kept-unchanged] [--snap <png> [--at <seconds>]] [--theme light|dark] [--size WxH]"
+            "usage: diagram <file.mmd> [--stream] [--kept-unchanged] [--no-icons] [--snap <png> [--at <seconds>]] [--theme light|dark] [--size WxH]"
         );
         std::process::exit(64);
     });
@@ -52,7 +74,9 @@ fn init() -> State {
     let streaming = flag("--stream");
     let look = if flag("--kept-unchanged") { KeptLook::Unchanged } else { KeptLook::DimmedWithError };
     let arrived = if streaming { 0 } else { source.len() };
-    State { diagram: Diagram::new("diagram", FontCatalog::rune()), source, arrived, streaming, look, followed: None }
+    let icons = !flag("--no-icons");
+    let diagram = Diagram::new("diagram", FontCatalog::rune());
+    State { diagram, source, arrived, streaming, look, icons, followed: None }
 }
 
 /// Lets in what has arrived by `seconds` since the start.
@@ -79,6 +103,7 @@ fn on_event(state: &mut State, event: Event, _: &mut Tx) {
 fn view(s: &State, cx: &mut Cx<State>) -> El {
     let t = tok::theme(cx.system_dark());
     let options = ViewOptions::fit().kept_look(s.look);
+    let options = if s.icons { options.icons(icons) } else { options };
     let drawn = s.diagram.view_with(cx, &s.source[..s.arrived], options, on_event);
     let size = match (s.diagram.scene(), s.diagram.zoom()) {
         (Some(scene), Some(zoom)) => {
