@@ -133,6 +133,10 @@ const FLOWCHART: &str = "flowchart LR\n    S@{ icon: \"app:bolt\", form: \"squar
                          A@{ icon: \"app:badge\", label: \"Linked\" }\n    B@{ icon: \"app:badge\", label: \"Tipped<br>badge\" }\n    \
                          S --> A --> B\n    click A \"https://example.com/badge\"\n    click B callback \"Badge tip\"";
 
+/// A usecase actor drawn as an icon, and one whose icon nothing knows.
+const USECASE: &str = "usecase-beta\nactor Ops(\"Operator\")@{ icon: \"app:bolt\" }\n\
+                       actor Ghost(\"Unknown\")@{ icon: \"app:unknown\" }\nOps --> Deploy\nGhost --> Deploy\n";
+
 /// A treeview row with an icon of the app's in place of the file glyph Pele draws for a name it
 /// has no icon for, and one with Pele's file glyph.
 const TREEVIEW: &str = "---\nconfig:\n  treeView:\n    showIcons: true\n---\ntreeView-beta\n    src/\n        \
@@ -250,6 +254,7 @@ fn an_icon_the_app_gives_is_drawn_in_its_box_as_pele_draws_it_with_that_icon() {
         ("architecture", ARCHITECTURE, ["app:badge", "app:bolt", "database"].as_slice()),
         ("flowchart", FLOWCHART, &["app:bolt", "app:badge", "app:badge"]),
         ("treeview", TREEVIEW, &["app:bolt"]),
+        ("usecase", USECASE, &["app:bolt"]),
     ];
     for (name, source, drawn) in sources {
         let (svg, size) = pele(source);
