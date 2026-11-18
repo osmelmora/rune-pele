@@ -135,7 +135,7 @@ fn draw(model: &TreemapModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError
     let format = Formatter::new(&spec);
     // Reduce gaps and insets as average leaf area shrinks.
     let leaves = leaf_count(&model.roots).max(1) as f64;
-    let crowd = js::min(1.0, js::max(0.0, libm::log10((width * height) / leaves / 800.0)));
+    let crowd = js::min(1.0, js::max(0.0, js::log10((width * height) / leaves / 800.0)));
     let insets = Insets {
         gap: option(cx, "padding", js::round(2.0 + 2.0 * crowd), 0.0, 200.0),
         header: HEADER,

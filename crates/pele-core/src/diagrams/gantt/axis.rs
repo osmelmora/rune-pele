@@ -208,8 +208,8 @@ impl Calendar {
 
 fn tick_step(start: f64, stop: f64, count: f64) -> f64 {
     let step = (stop - start) / js::max(0.0, count);
-    let power = libm::log10(step).floor();
-    let error = step / js::pow(10.0, power);
+    let power = js::log10(step).floor();
+    let error = step / js::ten_to(power);
     let factor = if error >= 50f64.sqrt() {
         10.0
     } else if error >= 10f64.sqrt() {
@@ -219,7 +219,7 @@ fn tick_step(start: f64, stop: f64, count: f64) -> f64 {
     } else {
         1.0
     };
-    js::pow(10.0, power) * factor
+    js::ten_to(power) * factor
 }
 
 const AUTO: [(TickUnit, f64, f64); 18] = [

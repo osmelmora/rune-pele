@@ -3,7 +3,7 @@
 //! fixtures. Both are ignored: `mise run intel-trig` runs them beside an x86-64 Node of the pinned
 //! version, and they write their tables to `out/verify/intel-trig/`.
 
-use pele_core::{js, layout::num::hypot, xychart_ticks};
+use pele_core::{js, layout::num::hypot};
 use pele_oracle::PeleRender;
 use std::fmt::Write as _;
 use std::io::{Read, Write};
@@ -314,7 +314,10 @@ const FUNCTIONS: &[Function] = &[
     Function {
         js: "sin",
         arity: 1,
-        ports: &[Port { name: "js::sin (V8's fdlibm)", f: |x, _| js::sin(x), same_on_x64: false }],
+        ports: &[
+            Port { name: "js::sin (V8's fdlibm)", f: |x, _| js::sin(x), same_on_x64: false },
+            Port { name: "libm::sin (the port before)", f: |x, _| libm::sin(x), same_on_x64: false },
+        ],
         edges: angle_edges,
         random: random_angle,
         split: None,
@@ -322,7 +325,10 @@ const FUNCTIONS: &[Function] = &[
     Function {
         js: "cos",
         arity: 1,
-        ports: &[Port { name: "js::cos (V8's fdlibm)", f: |x, _| js::cos(x), same_on_x64: false }],
+        ports: &[
+            Port { name: "js::cos (V8's fdlibm)", f: |x, _| js::cos(x), same_on_x64: false },
+            Port { name: "libm::cos (the port before)", f: |x, _| libm::cos(x), same_on_x64: false },
+        ],
         edges: angle_edges,
         random: random_angle,
         split: None,
@@ -358,7 +364,10 @@ const FUNCTIONS: &[Function] = &[
     Function {
         js: "pow",
         arity: 2,
-        ports: &[Port { name: "js::pow (libm)", f: js::pow, same_on_x64: false }],
+        ports: &[
+            Port { name: "js::pow (libm)", f: js::pow, same_on_x64: false },
+            Port { name: "js::ten_to (gantt), for base 10", f: ten_or_pow, same_on_x64: false },
+        ],
         edges: pow_edges,
         random: random_power,
         split: None,
@@ -369,11 +378,7 @@ const FUNCTIONS: &[Function] = &[
         ports: &[
             Port { name: "js::pow (libm)", f: js::pow, same_on_x64: false },
             Port { name: "f64::powf (palette's ink)", f: f64::powf, same_on_x64: false },
-            Port {
-                same_on_x64: false,
-                name: "xychart_ticks::ten_to, for base 10",
-                f: |x, y| if x == 10.0 { xychart_ticks::ten_to(y) } else { js::pow(x, y) },
-            },
+            Port { name: "js::ten_to (xychart), for base 10", f: ten_or_pow, same_on_x64: false },
         ],
         edges: pow_edges,
         random: random_power,
@@ -383,8 +388,8 @@ const FUNCTIONS: &[Function] = &[
         js: "log10",
         arity: 1,
         ports: &[
-            Port { name: "libm::log10 (gantt, treemap)", f: |x, _| libm::log10(x), same_on_x64: false },
-            Port { name: "xychart_ticks::log10", f: |x, _| xychart_ticks::log10(x), same_on_x64: true },
+            Port { name: "js::log10 (xychart, gantt, treemap)", f: |x, _| js::log10(x), same_on_x64: true },
+            Port { name: "libm::log10 (gantt and treemap before)", f: |x, _| libm::log10(x), same_on_x64: false },
         ],
         edges: log10_edges,
         random: random_positive,
@@ -415,6 +420,11 @@ const FUNCTIONS: &[Function] = &[
         split: None,
     },
 ];
+
+/// `js::ten_to` for a power of ten, as xychart and gantt take one, and `js::pow` for the rest.
+fn ten_or_pow(x: f64, y: f64) -> f64 {
+    if x == 10.0 { js::ten_to(y) } else { js::pow(x, y) }
+}
 
 /// Equal bits, with every NaN one value: V8 may quiet or canonicalise a NaN's payload.
 fn same(a: f64, b: f64) -> bool {

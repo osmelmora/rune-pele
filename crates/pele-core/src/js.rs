@@ -33,6 +33,29 @@ pub fn cos(x: f64) -> f64 {
     fdlibm::cos(x)
 }
 
+/// `Math.log10`, as V8 computes it: its `ieee754::log10` and `ieee754::log`, ported from fdlibm's
+/// `e_log10.c` and `e_log.c`, in the same file as [`sin`]. The power of two and the logarithm of
+/// what is left are each scaled to base ten. The `libm` crate's `log10` follows a later FreeBSD
+/// version, which rounds differently.
+///
+/// It matches Node on x64 bit for bit. Node's build on arm64 rounds about one random input in
+/// 900 an ulp apart. Within three ulps of every power of ten it rounds none apart, so a whole
+/// part read with `floor` is Pele's on both.
+pub fn log10(x: f64) -> f64 {
+    fdlibm::log10(x)
+}
+
+/// `10 ** n`, as V8 works it out: the platform's `pow`, which is correctly rounded for a whole
+/// `n`. Parsing `1e{n}` rounds correctly too, so for a whole `n` it matches Node on x64 and arm64
+/// bit for bit, where [`pow`] does not. Any other `n` goes to [`pow`].
+pub fn ten_to(n: f64) -> f64 {
+    if n.is_finite() && n.fract() == 0.0 && n.abs() < 400.0 {
+        format!("1e{n}").parse().expect("a power of ten parses")
+    } else {
+        pow(10.0, n)
+    }
+}
+
 /// `Math.pow`, which is also the `**` operator.
 ///
 /// V8 calls the platform's `pow`, so no port matches every engine. Use it only where one ulp
@@ -318,6 +341,120 @@ mod fdlibm {
         }
     }
 
+    pub(super) fn log10(x: f64) -> f64 {
+        const TWO54: f64 = f64::from_bits(0x4350_0000_0000_0000);
+        const IVLN10: f64 = f64::from_bits(0x3fdb_cb7b_1526_e50e);
+        const LOG10_2HI: f64 = f64::from_bits(0x3fd3_4413_509f_6000);
+        const LOG10_2LO: f64 = f64::from_bits(0x3d59_fef3_11f1_2b36);
+        let bits = x.to_bits();
+        let (mut hx, lx) = ((bits >> 32) as i32, bits as u32);
+        let mut x = x;
+        let mut k: i32 = 0;
+        if hx < 0x0010_0000 {
+            if (hx & 0x7fff_ffff) as u32 | lx == 0 {
+                return f64::NEG_INFINITY;
+            }
+            if hx < 0 {
+                return f64::NAN;
+            }
+            k -= 54;
+            x *= TWO54;
+            hx = (x.to_bits() >> 32) as i32;
+        }
+        if hx >= 0x7ff0_0000 {
+            return x + x;
+        }
+        let lx = x.to_bits() as u32;
+        if hx == 0x3ff0_0000 && lx == 0 {
+            return 0.0;
+        }
+        k += (hx >> 20) - 1023;
+        let i = ((k as u32 & 0x8000_0000) >> 31) as i32;
+        hx = (hx & 0x000f_ffff) | ((0x3ff - i) << 20);
+        let y = f64::from(k + i);
+        let x = f64::from_bits(((hx as u32 as u64) << 32) | u64::from(lx));
+        let z = y * LOG10_2LO + IVLN10 * log(x);
+        z + y * LOG10_2HI
+    }
+
+    /// `ieee754::log` of V8, fdlibm's `e_log.c`: `log(1+f)` from a series in `s = f/(2+f)`, with the
+    /// power of two added in two parts.
+    fn log(x: f64) -> f64 {
+        const LN2_HI: f64 = f64::from_bits(0x3fe6_2e42_fee0_0000);
+        const LN2_LO: f64 = f64::from_bits(0x3dea_39ef_3579_3c76);
+        const TWO54: f64 = f64::from_bits(0x4350_0000_0000_0000);
+        const LG1: f64 = f64::from_bits(0x3fe5_5555_5555_5593);
+        const LG2: f64 = f64::from_bits(0x3fd9_9999_9997_fa04);
+        const LG3: f64 = f64::from_bits(0x3fd2_4924_9422_9359);
+        const LG4: f64 = f64::from_bits(0x3fcc_71c5_1d8e_78af);
+        const LG5: f64 = f64::from_bits(0x3fc7_4664_96cb_03de);
+        const LG6: f64 = f64::from_bits(0x3fc3_9a09_d078_c69f);
+        const LG7: f64 = f64::from_bits(0x3fc2_f112_df3e_5244);
+        // fdlibm's `0.33333333333333333`.
+        const THIRD: f64 = f64::from_bits(0x3fd5_5555_5555_5555);
+        let mut x = x;
+        let bits = x.to_bits();
+        let (mut hx, lx) = ((bits >> 32) as i32, bits as u32);
+        let mut k: i32 = 0;
+        if hx < 0x0010_0000 {
+            if (hx & 0x7fff_ffff) as u32 | lx == 0 {
+                return f64::NEG_INFINITY;
+            }
+            if hx < 0 {
+                return f64::NAN;
+            }
+            k -= 54;
+            x *= TWO54;
+            hx = (x.to_bits() >> 32) as i32;
+        }
+        if hx >= 0x7ff0_0000 {
+            return x + x;
+        }
+        k += (hx >> 20) - 1023;
+        hx &= 0x000f_ffff;
+        let i = (hx + 0x95f64) & 0x10_0000;
+        let high = (hx | (i ^ 0x3ff0_0000)) as u32;
+        x = f64::from_bits((u64::from(high) << 32) | (x.to_bits() & 0xffff_ffff));
+        k += i >> 20;
+        let f = x - 1.0;
+        if (0x000f_ffff & (2 + hx)) < 3 {
+            if f == 0.0 {
+                if k == 0 {
+                    return 0.0;
+                }
+                let dk = f64::from(k);
+                return dk * LN2_HI + dk * LN2_LO;
+            }
+            let r = f * f * (0.5 - THIRD * f);
+            if k == 0 {
+                return f - r;
+            }
+            let dk = f64::from(k);
+            return dk * LN2_HI - ((r - dk * LN2_LO) - f);
+        }
+        let s = f / (2.0 + f);
+        let dk = f64::from(k);
+        let z = s * s;
+        let mut i = hx - 0x6147a;
+        let w = z * z;
+        let j = 0x6b851 - hx;
+        let t1 = w * (LG2 + w * (LG4 + w * LG6));
+        let t2 = z * (LG1 + w * (LG3 + w * (LG5 + w * LG7)));
+        i |= j;
+        let r = t2 + t1;
+        if i > 0 {
+            let hfsq = 0.5 * f * f;
+            if k == 0 {
+                f - (hfsq - s * (hfsq + r))
+            } else {
+                dk * LN2_HI - ((hfsq - (s * (hfsq + r) + dk * LN2_LO)) - f)
+            }
+        } else if k == 0 {
+            f - s * (f - r)
+        } else {
+            dk * LN2_HI - ((s * (f - r) - dk * LN2_LO) - f)
+        }
+    }
     /// `__kernel_sin`: sin(x + y) for |x| up to about π/4, from a polynomial of degree 13. `tail`
     /// is fdlibm's `iy`, whether `y` is there at all.
     fn kernel_sin(x: f64, y: f64, tail: bool) -> f64 {
