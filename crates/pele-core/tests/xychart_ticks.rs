@@ -2,7 +2,8 @@
 //! ten `tickStep` takes, `tickStep`, `ticksBetween`, and the range and ticks `valueMarks` makes of
 //! a value axis. Every number crosses to the oracle and back as the bits of its double.
 
-use pele_core::xychart_ticks::{log10, ten_to, tick_step, ticks_between, value_axis};
+use pele_core::js::{log10, ten_to};
+use pele_core::xychart_ticks::{tick_step, ticks_between, value_axis};
 
 struct Rng(u64);
 

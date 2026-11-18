@@ -78,6 +78,7 @@ const ops: Record<string, (args: string[]) => string> = {
   precision: ([x, digits]) => double(x).toPrecision(Number(digits)),
   sin: ([x]) => bits(Math.sin(double(x))),
   cos: ([x]) => bits(Math.cos(double(x))),
+  log10: ([x]) => bits(Math.log10(double(x))),
   pow: ([x, y]) => bits(Math.pow(double(x), double(y))),
   render: ([source]) => rendered(JSON.parse(source) as string, {}),
   render_with: ([source, options]) => rendered(JSON.parse(source) as string, JSON.parse(options) as object),

@@ -68,7 +68,7 @@ fn geometries_with_node_trig(sources: &[&String]) -> Vec<Option<String>> {
 /// Puts each source through `venn_geometry` on both sides. A source that is no venn diagram on
 /// one side must be none on the other. A geometry that differs must come out bit for bit as
 /// Pele's once the layout is given Node's own `Math` answers: the port's arithmetic is then
-/// Pele's, and only libm's last bit tells them apart. Answers how many were bit-equal as they
+/// Pele's, and only the last bit of a `Math` answer tells them apart. Answers how many were bit-equal as they
 /// are, and how many only with Node's answers.
 fn geometries(what: &str, sources: &[String]) -> (usize, usize) {
     let requests: Vec<String> = sources.iter().map(|source| request("venn_geometry", source)).collect();
@@ -117,9 +117,9 @@ fn geometries(what: &str, sources: &[String]) -> (usize, usize) {
 fn harvested_geometry_matches_pele() {
     let (equal, trig) = geometries("harvested venn sources", &harvest("sources"));
     assert!(equal > 500, "the harvest holds venn diagrams Pele lays out");
-    assert_eq!(trig, 0, "libm's last bit changes no harvested geometry");
+    assert_eq!(trig, 0, "the last bit of a Math answer changes no harvested geometry");
     let (_, trig) = geometries("mutated venn sources", &harvest("mutated"));
-    assert_eq!(trig, 0, "libm's last bit changes no mutated geometry");
+    assert_eq!(trig, 0, "the last bit of a Math answer changes no mutated geometry");
 }
 
 /// A small seeded generator, so a failure names an input that can be made again.
@@ -311,10 +311,12 @@ fn atan2_matches_math_atan2() {
 
 /// The one source known to draw differently: 40 unions of the same 60 sets, the shape of one of
 /// Pele's worst cases (`tests/venn/stress.test.ts`). Every pair of circles is asked to overlap,
-/// which no placement can give them, so 300 rounds of relaxation never settle and carry libm's
-/// last bit into what is drawn. Its geometry is Pele's bit for bit once the layout is given
-/// Node's own `Math` answers. When libm's answers are made Node's, this test fails and the source
-/// moves to the worst cases of `venn_parity.rs`.
+/// which no placement can give them, so 300 rounds of relaxation never settle and carry the last
+/// bit of a `Math` answer into what is drawn. The port's answers are those of Node on x64, whose
+/// Pele draws it as the port does (`mise run intel-trig`), and the pinned Node on arm64 fuses
+/// multiply-adds. Its geometry is Pele's bit for bit once the layout is given Node's own `Math`
+/// answers. When the port's answers are made arm64 Node's, this test fails and the source moves
+/// to the worst cases of `venn_parity.rs`.
 #[test]
 fn the_unsettled_relaxation_differs_only_in_libms_last_bit() {
     let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();
@@ -325,13 +327,13 @@ fn the_unsettled_relaxation_differs_only_in_libms_last_bit() {
     );
     let theirs = pele_oracle::ask(&[request("venn_geometry", &source)]).remove(0);
     let ours = venn_probe::geometry(&source).expect("a venn diagram");
-    assert_ne!(ours, theirs, "libm's last bit changes this geometry");
+    assert_ne!(ours, theirs, "the last bit of a Math answer changes this geometry");
     let replayed = geometries_with_node_trig(&[&source]).remove(0);
     assert_eq!(replayed.as_deref(), Some(theirs.as_str()), "with Node's Math answers the geometry is Pele's");
     let ours = pele_core::render(&source).expect("a venn diagram renders");
     let PeleRender::Svg { svg, .. } = &pele_oracle::render_all(&[source]).remove(0) else { panic!("Pele renders it") };
     assert_ne!(&ours.svg, svg, "the difference reaches the drawing");
     println!(
-        "40 unions of 60 sets: geometry and drawing differ with libm, geometry is Pele's with Node's Math answers"
+        "40 unions of 60 sets: geometry and drawing differ with the port's Math, geometry is Pele's with Node's Math answers"
     );
 }

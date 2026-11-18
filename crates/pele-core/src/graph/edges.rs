@@ -548,7 +548,7 @@ fn sample(path: &PathProgram) -> Vec<f64> {
 
 /// Pele's `arc`: an unrotated arc from `from` to `to` as eight straight pieces, after SVG's
 /// conversion from end points to a centre. `same` is whether its large-arc and sweep flags agree.
-/// `Math.atan2` comes from libm, as `js::sin` and `js::cos` do.
+/// `Math.atan2` comes from libm, and `js::sin` and `js::cos` from V8's fdlibm.
 fn arc(out: &mut Vec<f64>, from: [f64; 2], radii: [f64; 2], same: bool, sweep: bool, to: [f64; 2]) {
     let [x1, y1] = from;
     let [mut rx, mut ry] = radii;

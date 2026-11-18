@@ -3,7 +3,7 @@
 //! fixtures. Both are ignored: `mise run intel-trig` runs them beside an x86-64 Node of the pinned
 //! version, and they write their tables to `out/verify/intel-trig/`.
 
-use pele_core::{js, layout::num::hypot, xychart_ticks};
+use pele_core::{js, layout::num::hypot};
 use pele_oracle::PeleRender;
 use std::fmt::Write as _;
 use std::io::{Read, Write};
@@ -154,18 +154,19 @@ fn pairs(xs: &[f64], ys: &[f64]) -> Vec<[f64; 2]> {
     xs.iter().flat_map(|&x| ys.iter().map(move |&y| [x, y])).collect()
 }
 
-/// The angles of `tests/oracle.rs` and the hundredths and eighths it samples, each with its
-/// neighbours: where the pinned Node on arm64 was seen one ulp away from libm.
+#[path = "js/fdlibm_edges.rs"]
+mod fdlibm_edges;
+
+/// One-argument groups as `Edges`.
+fn unary_groups(groups: fdlibm_edges::Groups) -> Edges {
+    groups.into_iter().map(|(name, inputs)| (name, unary(inputs))).collect()
+}
+
+/// Where V8's fdlibm changes course in `sin` and `cos`, the groups `tests/oracle.rs` holds to the
+/// pinned Node: among them the angles, hundredths and eighths where arm64 Node and libm were seen
+/// apart from x64 Node.
 fn angle_edges() -> Edges {
-    let degrees = (-720..=720).flat_map(|k| around(f64::from(k) * std::f64::consts::PI / 180.0, 1));
-    let quarters = (-4000..=4000).flat_map(|k| around(f64::from(k) * std::f64::consts::FRAC_PI_4, 1));
-    let hundredths = (-4000..=4000).flat_map(|k| around(f64::from(k) / 200.0, 1).chain([f64::from(k) / 8.0]));
-    vec![
-        ("special values", unary(SPECIAL.into_iter().chain([-1e22, 1e-10]))),
-        ("whole degrees to ±720°, ±1 ulp", unary(degrees)),
-        ("multiples of π/4 to ±1000π, ±1 ulp", unary(quarters)),
-        ("hundredths and eighths to ±20 and ±500, ±1 ulp", unary(hundredths)),
-    ]
+    unary_groups(fdlibm_edges::trig())
 }
 
 /// Cosines and their neighbours, as venn's overlap and block's arrow heads take them.
@@ -210,16 +211,11 @@ fn pow_edges() -> Edges {
     ]
 }
 
-/// Each power of ten as JavaScript parses it, with three neighbours a side, whole numbers and
-/// hundredths: an axis's step and a treemap's crowding.
+/// Where V8's fdlibm changes course in `log10`, the groups `tests/oracle.rs` holds to the pinned
+/// Node: among them powers of ten, whole numbers and hundredths, an axis's step and a treemap's
+/// crowding.
 fn log10_edges() -> Edges {
-    let tens = (-323..=308).flat_map(|k| around(format!("1e{k}").parse().expect("a power of ten"), 3));
-    vec![
-        ("special values", unary(SPECIAL)),
-        ("powers of ten, ±3 ulps", unary(tens)),
-        ("whole numbers to 100000", unary((1..=100_000).map(f64::from))),
-        ("hundredths to 20", unary((1..=4000).map(|k| f64::from(k) / 200.0))),
-    ]
+    unary_groups(fdlibm_edges::log10())
 }
 
 /// Each power of two with three neighbours a side, and whole numbers: a packet's bit count.
@@ -314,7 +310,10 @@ const FUNCTIONS: &[Function] = &[
     Function {
         js: "sin",
         arity: 1,
-        ports: &[Port { name: "js::sin (libm)", f: |x, _| js::sin(x), same_on_x64: false }],
+        ports: &[
+            Port { name: "js::sin (V8's fdlibm)", f: |x, _| js::sin(x), same_on_x64: true },
+            Port { name: "libm::sin (the port before)", f: |x, _| libm::sin(x), same_on_x64: false },
+        ],
         edges: angle_edges,
         random: random_angle,
         split: None,
@@ -322,7 +321,10 @@ const FUNCTIONS: &[Function] = &[
     Function {
         js: "cos",
         arity: 1,
-        ports: &[Port { name: "js::cos (libm)", f: |x, _| js::cos(x), same_on_x64: false }],
+        ports: &[
+            Port { name: "js::cos (V8's fdlibm)", f: |x, _| js::cos(x), same_on_x64: true },
+            Port { name: "libm::cos (the port before)", f: |x, _| libm::cos(x), same_on_x64: false },
+        ],
         edges: angle_edges,
         random: random_angle,
         split: None,
@@ -358,7 +360,10 @@ const FUNCTIONS: &[Function] = &[
     Function {
         js: "pow",
         arity: 2,
-        ports: &[Port { name: "js::pow (libm)", f: js::pow, same_on_x64: false }],
+        ports: &[
+            Port { name: "js::pow (libm)", f: js::pow, same_on_x64: false },
+            Port { name: "js::ten_to (gantt), for base 10", f: ten_or_pow, same_on_x64: false },
+        ],
         edges: pow_edges,
         random: random_power,
         split: None,
@@ -369,11 +374,7 @@ const FUNCTIONS: &[Function] = &[
         ports: &[
             Port { name: "js::pow (libm)", f: js::pow, same_on_x64: false },
             Port { name: "f64::powf (palette's ink)", f: f64::powf, same_on_x64: false },
-            Port {
-                same_on_x64: false,
-                name: "xychart_ticks::ten_to, for base 10",
-                f: |x, y| if x == 10.0 { xychart_ticks::ten_to(y) } else { js::pow(x, y) },
-            },
+            Port { name: "js::ten_to (xychart), for base 10", f: ten_or_pow, same_on_x64: false },
         ],
         edges: pow_edges,
         random: random_power,
@@ -383,8 +384,8 @@ const FUNCTIONS: &[Function] = &[
         js: "log10",
         arity: 1,
         ports: &[
-            Port { name: "libm::log10 (gantt, treemap)", f: |x, _| libm::log10(x), same_on_x64: false },
-            Port { name: "xychart_ticks::log10", f: |x, _| xychart_ticks::log10(x), same_on_x64: true },
+            Port { name: "js::log10 (xychart, gantt, treemap)", f: |x, _| js::log10(x), same_on_x64: true },
+            Port { name: "libm::log10 (gantt and treemap before)", f: |x, _| libm::log10(x), same_on_x64: false },
         ],
         edges: log10_edges,
         random: random_positive,
@@ -415,6 +416,11 @@ const FUNCTIONS: &[Function] = &[
         split: None,
     },
 ];
+
+/// `js::ten_to` for a power of ten, as xychart and gantt take one, and `js::pow` for the rest.
+fn ten_or_pow(x: f64, y: f64) -> f64 {
+    if x == 10.0 { js::ten_to(y) } else { js::pow(x, y) }
+}
 
 /// Equal bits, with every NaN one value: V8 may quiet or canonicalise a NaN's payload.
 fn same(a: f64, b: f64) -> bool {
@@ -732,7 +738,7 @@ fn fixtures() -> Vec<(String, Vec<String>)> {
     sets
 }
 
-/// The venn source whose geometry libm and the pinned arm64 Node were seen to round apart
+/// The venn source whose geometry the port and the pinned arm64 Node were seen to round apart
 /// (`venn_layout`'s `the_unsettled_relaxation_differs_only_in_libms_last_bit`).
 fn unsettled_venn() -> String {
     let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();

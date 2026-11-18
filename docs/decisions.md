@@ -650,3 +650,44 @@ Five units cleared the follow-ups the review round left, each from `main` at `d2
 - Port V8's fdlibm `sin` and `cos` into `js.rs`, through the prove-js-numerics skill (proposal 1 of the Intel entry).
 - Move xychart's `log10` and `ten_to` into `js.rs`, and use them in gantt and treemap (proposal 2).
 - A thick dashed stroke on a rounded box: `fix-lengths` measured 12.9 unexplained pixels in 10,000 against resvg, where the limit is 5. Not explained yet.
+
+## 2026-11-18 V8's trig and log10
+
+**Why.** Proposals 1 and 2 of "2026-11-18 Pele on Intel measured", the first two open items of "2026-11-18 Follow-ups": `js::sin` and `js::cos` called the libm crate, off from Node on both machines, and gantt and treemap called `libm::log10`, off from both on 2% of inputs.
+
+**What changed** (`fdlibm-trig`).
+- `js::sin` and `js::cos` are V8's fdlibm: `sin`, `cos`, `__ieee754_rem_pio2`, `__kernel_rem_pio2`, `__kernel_sin` and `__kernel_cos` of `src/base/ieee754.cc` in V8 14.6.202.34, the V8 of Node 26.13.1, line for line in plain double arithmetic, in a private `fdlibm` module of `js.rs`. Node builds V8 without `V8_USE_LIBM_TRIG_FUNCTIONS`, so its `Math.sin` is this code and not glibc's.
+- xychart's port of V8's `log10`, with its `log`, and `ten_to` moved to `js::log10` and `js::ten_to`. Xychart, gantt's tick step and treemap's crowding read them. Gantt's step also takes `js::ten_to` where it took `js::pow(10, k)`.
+
+**Parity (measured).** `pele parity` on a fresh `--out` after each step reads `522 522 0 0 0`, and every one of the 522 `ours.svg` is byte-identical to a run before the change. With x64 Node as the oracle it also reads `522 522 0 0 0`.
+
+**The maths (measured, `mise run intel-trig`, seed `0x1e7e1`, 10,000,000 random inputs a function).** Each cell counts answers that differ in any bit. The libm rows are the port before, measured in the same run.
+
+| JS | port | x64 vs port | arm64 vs port | x64 vs arm64 |
+| --- | --- | --- | --- | --- |
+| `Math.sin` | `js::sin` (V8's fdlibm) | 0 | 48,228 | 48,228 |
+| `Math.sin` | `libm::sin`, before | 73,939 | 117,165 | 48,228 |
+| `Math.cos` | `js::cos` (V8's fdlibm) | 0 | 39,946 | 39,946 |
+| `Math.cos` | `libm::cos`, before | 78,052 | 113,466 | 39,946 |
+| `Math.log10` | `js::log10` (xychart, gantt, treemap) | 0 | 11,348 | 11,348 |
+| `Math.log10` | `libm::log10`, gantt and treemap before | 201,150 | 200,405 | 11,348 |
+| `Math.pow` | `js::ten_to`, 10^k for k = -330..330 | 0 | 0 | 0 |
+
+The other rows of the Intel entry are unchanged. `js::sin`, `js::cos` and `js::log10` are 0 apart from x64 Node on every edge group too: the groups of `tests/js/fdlibm_edges.rs`, which add the kernels' and reductions' bounds, n·π/2, 26,340 huge arguments, subnormals, powers of two and the bounds of `log`'s series to the Intel entry's sets. intel-trig now marks them `same_on_x64`, so it fails if that stops being true.
+
+**Fused multiply-adds (measured).** A scratch copy of the port with `f64::mul_add` wherever clang's default `-ffp-contract=on` fuses (a product added or subtracted in the same expression, the left product first) is arm64 Node bit for bit: 0 apart on all 10,000,000 random `sin`, `cos` and `log10` inputs and on every edge group, against 48,228, 39,946 and 11,348 for the plain port. So every arm64 difference comes from fusion. The copy was not kept: a port that fuses would match arm64 Node and part from x64 Node, which ties parity to one CPU family. That choice is open.
+
+**What reaches a drawing (measured).**
+- Pele's answers on x64 and arm64 Node are byte-identical for 379,778 of 379,779 sources, as before. The one, `venn_layout`'s unsettled relaxation, the port now draws as Pele on x64 does, where before it drew like neither.
+- Random venn diagrams: 1,921 of 2,000 geometries bit-equal to Pele on arm64 (1,848 before), and all 2,000 on x64 (1,880 before). 1 of 3,000 random drawings differs from arm64 Pele only by a last bit (2 before), and none from x64 Pele (1 before).
+- `oracle.rs`'s `sin` is bit-equal to the pinned Node on 302,863 of 304,334 angles (300,834 before), and `cos` on 303,117.
+
+**Proofs and tests.**
+- Four Kani harnesses, each for every double it names: `sin` and `cos` NaN for NaN and the infinities (6.4 s alone); `sin(x)` is `x` and `cos(x)` is 1 under 2^-27 (6.3 s); both in [-1, 1] up to π/4 (116 s); `log10`'s ECMAScript special values (2.0 s). Their arguments reach no loop, so each unwinds once and Kani's unwinding checks prove it. `mise run prove` passes all 9 harnesses in 195 s.
+- Kept out of Kani, each stopped at 9 minutes with three harnesses running at once: `sin` odd with `cos` even, up to π/4 and from there to 2^19·π/2, with CaDiCaL; each of the two alone up to π/4, with Kissat; and both in [-1, 1] from π/4 to 2^19·π/2. `tests/fdlibm_properties.rs` samples them over the edges and a million doubles of any bits, and holds `log10(ten_to(k))` to `k` for every normal power of ten, 1e-307 to 1e308.
+- `oracle.rs`'s three `*_where_fdlibm_changes_course` tests hold `sin`, `cos` and `log10` to the pinned Node on the edge groups, through the oracle's new `log10` op: bit for bit where no rounding takes part, within one ulp elsewhere, and the same `floor` everywhere.
+- `break-numerics.sh` has 13 new breaks, each caught on its own. A last bit of `sin`'s `S1` passes the arm64 oracle test, whose bit-equal counts only drop (23,781 to 23,169 on the π/4 multiples), and only intel-trig's x64 comparison catches it. `mise run check` does not run that comparison.
+
+**Open.**
+- Whether to match arm64 Node with a fused port, or keep x64's (above).
+- `mise run check` cannot see a last-bit error in the fdlibm port. `mise run intel-trig` can, in about a minute, but needs Rosetta 2 and a download.
