@@ -315,7 +315,7 @@ const FUNCTIONS: &[Function] = &[
         js: "sin",
         arity: 1,
         ports: &[
-            Port { name: "js::sin (V8's fdlibm)", f: |x, _| js::sin(x), same_on_x64: false },
+            Port { name: "js::sin (V8's fdlibm)", f: |x, _| js::sin(x), same_on_x64: true },
             Port { name: "libm::sin (the port before)", f: |x, _| libm::sin(x), same_on_x64: false },
         ],
         edges: angle_edges,
@@ -326,7 +326,7 @@ const FUNCTIONS: &[Function] = &[
         js: "cos",
         arity: 1,
         ports: &[
-            Port { name: "js::cos (V8's fdlibm)", f: |x, _| js::cos(x), same_on_x64: false },
+            Port { name: "js::cos (V8's fdlibm)", f: |x, _| js::cos(x), same_on_x64: true },
             Port { name: "libm::cos (the port before)", f: |x, _| libm::cos(x), same_on_x64: false },
         ],
         edges: angle_edges,
