@@ -503,7 +503,7 @@ mod fdlibm {
 
     /// `__ieee754_rem_pio2`: x less the nearest multiple n of π/2, as a head and a tail, and n.
     /// Up to 2^19·π/2 it subtracts π/2 in 33-bit pieces; beyond, `kernel_rem_pio2` reduces it.
-    pub(super) fn rem_pio2(x: f64) -> (i32, [f64; 2]) {
+    fn rem_pio2(x: f64) -> (i32, [f64; 2]) {
         const INVPIO2: f64 = f64::from_bits(0x3fe4_5f30_6dc9_c883);
         const PIO2_1: f64 = f64::from_bits(0x3ff9_21fb_5440_0000);
         const PIO2_1T: f64 = f64::from_bits(0x3dd0_b461_1a62_6331);
