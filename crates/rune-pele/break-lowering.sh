@@ -8,6 +8,10 @@ cd "$(dirname "$0")/../.."
 src=crates/rune-pele/src
 logs=out/verify/rune-graph/break
 mkdir -p "$logs"
+if ! cargo build -q --release -p rune-pele --tests > "$logs/unbroken.log" 2>&1; then
+  echo "the unbroken tree does not build, so no break can be told apart (see $logs/unbroken.log)"
+  exit 1
+fi
 failed=0
 only="$*"
 

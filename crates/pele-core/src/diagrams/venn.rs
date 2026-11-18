@@ -77,6 +77,6 @@ impl Diagram for Venn {
     }
 
     fn scene(model: &VennModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError> {
-        render::draw(model, cx, &layout::Libm)
+        render::draw(model, cx, &layout::Ported)
     }
 }

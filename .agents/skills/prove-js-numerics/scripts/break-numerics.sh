@@ -11,6 +11,10 @@ cd "$(dirname "$0")/../../../.."
 logs="$PWD/out/verify/break-numerics"
 mkdir -p "$logs"
 file=crates/pele-core/src/js.rs
+if ! cargo build -q -p pele-core --tests > "$logs/unbroken.log" 2>&1; then
+  echo "the unbroken tree does not build, so no break can be told apart (see $logs/unbroken.log)"
+  exit 1
+fi
 failed=0
 
 # Puts js.rs back as it was. cargo goes by modification times, and the copy kept aside is older
