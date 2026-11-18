@@ -13,6 +13,7 @@ use crate::{DiagramKind, RenderError, js};
 use indexmap::IndexMap;
 use std::sync::LazyLock;
 
+mod css;
 mod glyph;
 mod palette;
 mod style;

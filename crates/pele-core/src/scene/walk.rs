@@ -6,8 +6,8 @@
 //! interpreter reads a drawing's effective style and where its origin sits, and never Pele's
 //! attributes.
 
-use super::palette::no_paint;
-use super::style::{Meaning, Radius, Style};
+use super::css::Page;
+use super::style::{Declaration, Meaning, Radius, Style};
 use super::{
     AnchorKind, Aspect, Document, EntityKey, EntityKind, EntityName, Facet, Field, IconGlyph, LineCap, LineJoin, Node,
     NodeContent, NodeId, Number, Paint, PartId, PathProgram, PathStep, PlacedText, Point, Properties, Role, Scene,
@@ -324,22 +324,17 @@ fn keyword(written: &str) -> String {
     written.trim().to_ascii_lowercase()
 }
 
-/// Whether the walk draws what one declaration says. `meaning` is what the node's style means
-/// where a builder read it; the rest is read here. A paint that is no colour at all says
-/// nothing a page draws, and the walk draws nothing of it either.
-fn reads(style: &Style, meaning: &Meaning, property: &str, written: &str) -> bool {
+/// Whether the walk draws what the declaration at `index` says. `meaning` says which
+/// declarations a builder read; the rest are read here. A declaration a page drops says nothing
+/// a page draws, and the walk draws nothing of it either.
+fn reads(style: &Style, meaning: &Meaning, index: usize, page: Page) -> bool {
+    if page == Page::Drops || meaning.read[index] {
+        return true;
+    }
+    let Declaration { property, written } = &style.declarations[index];
     let value = keyword(written);
     let nothing = matches!(value.as_str(), "0" | "0px" | "normal");
-    match property {
-        "fill" => meaning.fill.is_some() || no_paint(written),
-        "stroke" => meaning.stroke.is_some() || no_paint(written),
-        "stroke-width" => meaning.stroke_width.is_some(),
-        "opacity" => meaning.opacity.is_some(),
-        "fill-opacity" => meaning.fill_opacity.is_some(),
-        "stroke-opacity" => meaning.stroke_opacity.is_some(),
-        "stroke-dasharray" => meaning.dash.is_some(),
-        "rx" => meaning.radius.is_some(),
-        "font-size" => meaning.font_size.is_some(),
+    match property.as_str() {
         "font-weight" => declared_bold(&value).is_some(),
         "font-style" => declared_italic(&value).is_some(),
         "font-family" => declared_mono(&value).is_some(),
@@ -400,7 +395,8 @@ impl Inherited {
         }
         self.cap = properties.cap.unwrap_or(self.cap);
         self.join = properties.join.unwrap_or(self.join);
-        for declaration in properties.style.iter().flat_map(|style| &style.declarations) {
+        let applied = properties.style.iter().flat_map(Style::on_a_page).filter(|(_, page)| *page == Page::Applies);
+        for (declaration, _) in applied {
             let value = keyword(&declaration.written);
             match declaration.property.as_str() {
                 "stroke-linecap" => self.cap = declared_cap(&value).unwrap_or(self.cap),
@@ -708,15 +704,17 @@ impl Scene {
         accessible(self.document.accessible.description.as_deref())
     }
 
-    /// The style declarations the walk does not draw, each as `property:value`: a colour only a
-    /// page can read, a font family, a line through text. Where there are any, an interpreter
-    /// that reads only the walk draws something other than the SVG shows.
+    /// The style declarations a page applies and the walk does not draw, each as
+    /// `property:value`: a colour only a page can read, a font family, a line through text. Where
+    /// there are any, an interpreter that reads only the walk draws something other than the SVG
+    /// shows. A declaration a page drops, as `stroke-width:2p` or `fill:blu`, is not one: the
+    /// walk drops it too.
     pub fn unread_styles(&self) -> Vec<String> {
         let mut unread = Vec::new();
         for node in &self.arena {
             let Some(style) = &node.properties.style else { continue };
-            for declaration in &style.declarations {
-                if !reads(style, &node.styled, &declaration.property, &declaration.written) {
+            for (index, (declaration, page)) in style.on_a_page().enumerate() {
+                if !reads(style, &node.styled, index, page) {
                     unread.push(format!("{}:{}", declaration.property, declaration.written));
                 }
             }

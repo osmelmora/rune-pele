@@ -1,5 +1,5 @@
 //! The last drawing that drew, kept while a later source fails: through every character prefix
-//! of each fixture, in both looks, after a fallback to rune-mermaid, through a palette or
+//! of every fixture, in both looks, after a fallback to rune-mermaid, through a palette or
 //! dark-mode change, and until a source draws again.
 
 mod common;
@@ -14,7 +14,9 @@ use rune_pele::capture::{Capturer, Pixels, Window};
 use rune_pele::{Diagram, Fallback, FontCatalog, KeptLook, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "rune-keep";
-const TYPES: [&str; 32] = [
+/// Every fixture: one of each type that `NATIVE` lists but pie, then one that runs across, then
+/// one that rune-mermaid draws.
+const FIXTURES: [&str; 34] = [
     "flowchart",
     "class",
     "state",
@@ -47,6 +49,8 @@ const TYPES: [&str; 32] = [
     "kanban",
     "ishikawa",
     "sankey",
+    "across",
+    "unlowered",
 ];
 const WIDTH: f32 = 800.0;
 const VIEWPORT: (f32, f32) = (WIDTH, 1000.0);
@@ -133,17 +137,28 @@ fn broken(source: &str) -> String {
 
 #[test]
 fn every_prefix_of_each_fixture_after_its_first_drawing_draws_one() {
+    let listed: Vec<String> = FIXTURES.iter().map(|name| format!("{name}.mmd")).collect();
+    let mut on_disk: Vec<String> = std::fs::read_dir(pele_oracle::root().join("tests/fixtures/rune"))
+        .expect("the fixtures")
+        .map(|entry| entry.expect("a fixture").file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".mmd"))
+        .collect();
+    on_disk.sort();
+    let mut sorted = listed.clone();
+    sorted.sort();
+    assert_eq!(sorted, on_disk, "every fixture is streamed");
     let capturer = Capturer::new();
     let mut report = String::from(
         "Every character prefix of each fixture through one Diagram, as a source streams in, with KeptLook::Unchanged.\n\
          kept: frames that showed the last drawing that drew. run: the most kept frames in a row. pele-core: kept\n\
          frames whose error is pele-core's own for the prefix. lowering: kept frames whose source pele-core lays out\n\
          and the view neither lowers nor hands to rune-mermaid. measured: kept frames that shaped text, all while laying out\n\
-         a source that parses and then fails.\n\n\
-         type          prefixes before drawn rune-mermaid kept  run pele-core lowering measured\n",
+         a source that parses and then fails. rune-mermaid: prefixes drawn by rune-mermaid, each listed below with why.\n\n\
+         fixture       prefixes before drawn rune-mermaid kept  run pele-core lowering measured\n",
     );
     let (mut all_kept, mut longest) = (0, (0, ""));
-    for kind in TYPES {
+    let mut by_mermaid_why = String::new();
+    for kind in FIXTURES {
         let source = fixture(kind);
         let mut window = window(&capturer, "", options().kept_look(KeptLook::Unchanged), 1.0);
         let (mut before, mut drawn, mut by_mermaid, mut kept, mut run, mut most) = (0, 0, 0, 0, 0, 0);
@@ -161,6 +176,8 @@ fn every_prefix_of_each_fixture_after_its_first_drawing_draws_one() {
                     assert_eq!((returned, diagram.error()), (None, None), "{kind} {prefix:?}: a source that draws");
                     if diagram.status() == RenderStatus::RuneMermaid {
                         by_mermaid += 1;
+                        let line = prefix.lines().last().unwrap_or_default().trim_start();
+                        writeln!(by_mermaid_why, "{kind} {line:?}: {:?}", diagram.fallback()).unwrap();
                     }
                     drawn += 1;
                     run = 0;
@@ -219,9 +236,14 @@ fn every_prefix_of_each_fixture_after_its_first_drawing_draws_one() {
                 }
             }
         }
+        let whole_native = window.state().diagram.status() == RenderStatus::Pele;
         let prefixes = source.chars().count();
         assert_eq!(drawn + kept + before, prefixes, "{kind}: every prefix is counted once");
         assert!(drawn > 0, "{kind}: some prefix draws");
+        assert!(
+            !whole_native || by_mermaid == 0,
+            "{kind}: drawn natively whole, yet {by_mermaid} prefixes drawn by rune-mermaid:\n{by_mermaid_why}"
+        );
         writeln!(
             report,
             "{kind:<13} {prefixes:>8} {before:>6} {drawn:>5} {by_mermaid:>12} {kept:>4} {most:>4} {pele_core_errors:>9} {unlowered:>8} {measured:>8}"
@@ -233,6 +255,7 @@ fn every_prefix_of_each_fixture_after_its_first_drawing_draws_one() {
         }
     }
     writeln!(report, "\n{all_kept} kept frames; the longest run is {} frames, in {}.", longest.0, longest.1).unwrap();
+    writeln!(report, "\nPrefixes drawn by rune-mermaid, by their last line:\n{by_mermaid_why}").unwrap();
     print!("{report}");
     write_report("prefixes.txt", &report);
 }
