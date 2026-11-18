@@ -11,7 +11,12 @@ want_node=$(sed -n 's/^node = "\(.*\)"/\1/p' mise.toml)
 node_bin=$(mise which node 2>/dev/null) || fail "mise cannot find node; run \`mise install\`"
 have_node=$("$node_bin" --version 2>/dev/null) || fail "$node_bin does not run; run \`mise install\`"
 [ "$have_node" = "v$want_node" ] || fail "node at $node_bin is $have_node, mise.toml pins v$want_node"
-echo "doctor: node $have_node at $node_bin, the one the oracle runs"
+node_arch=$("$node_bin" -p process.arch 2>/dev/null) || fail "$node_bin does not run; run \`mise install\`"
+echo "doctor: node $have_node $node_arch at $node_bin, the one the oracle runs"
+# `mise run intel-trig` runs the oracle on the same version built for x64 this way, on purpose.
+if [ -n "${MISE_NODE_VERSION:-}" ]; then
+  echo "doctor: MISE_NODE_VERSION=$MISE_NODE_VERSION names this node, not mise.toml's; unset it for the pinned one"
+fi
 
 want_rust=$(sed -n 's/^rust = { version = "\([^"]*\)".*/\1/p' mise.toml)
 have_rust=$(mise exec -- rustc --version 2>/dev/null | cut -d' ' -f2) || fail "mise cannot run rustc; run \`mise install\`"
