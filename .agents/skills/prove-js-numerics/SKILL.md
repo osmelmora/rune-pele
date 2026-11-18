@@ -40,7 +40,7 @@ The significant-digit harness states the spec's rule as distances. Past the kept
 - The Pele code transcribed is `vendor/pele/src/svg/builder.ts`, function `num` (lines 33–47 at Pele `3a2f075ee0c3d914f0fad3545fc0f193693975ac`, tag 1.13.0). Its transcription is `pele_split` in the proofs module.
 - The spec transcribed is ECMAScript `Math.round` (ECMA-262, the `Math.round` clause), as `spec_round` in the proofs module.
 - The spec stated for `round_significant` is the choice of `n` and `e` in ECMA-262's `Number.prototype.toExponential` (step 10.a) and `Number.prototype.toPrecision` (step 10.a): the `n` of as many digits whose value is nearest the exact value, the larger if two are. The harness states it as the two distances and `add`.
-- Last confirmed in sync at rune-pele commit `f4b5d68`, on branch `fdlibm-trig`, which ported V8's `sin` and `cos`, moved `log10` and `ten_to` into `js.rs`, and added the four fdlibm harnesses. Before it, `3fa75f0`, which guarded `pow` and left the covered code as it was, `c3978d0`, which added `round_significant` and its harness, and `1e016df22c6baa8c31b73793a189d5c348d3e89d`.
+- Last confirmed in sync at rune-pele commit `4df3650`, on branch `fdlibm-trig`, whose branch ported V8's `sin` and `cos`, moved `log10` and `ten_to` into `js.rs`, and added the four fdlibm harnesses. Before it, `3fa75f0`, which guarded `pow` and left the covered code as it was, `c3978d0`, which added `round_significant` and its harness, and `1e016df22c6baa8c31b73793a189d5c348d3e89d`.
 
 Move the sync commit forward only after you have read the covered code at the new commit, confirmed that the transcriptions still match it, and seen `mise run prove` pass.
 
