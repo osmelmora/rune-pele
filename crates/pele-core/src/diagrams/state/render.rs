@@ -295,7 +295,7 @@ fn draw(model: &StateModel, cx: &DrawContext<'_>, turned: bool) -> Result<Scene,
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let wrap_width = number_option(section, "wrappingWidth", 200.0);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let policy = &cx.options.resources;
     let root_dir = if turned { Dir::TB } else { named_dir(Some(model.direction())) };
     let text = |raw: Option<&JsText>, font_size: f64, wrap: f64, style: Emphasis| {

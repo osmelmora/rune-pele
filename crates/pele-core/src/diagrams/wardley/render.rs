@@ -696,7 +696,7 @@ fn draw(
     tight: bool,
 ) -> Result<Scene, RenderError> {
     let size = cx.options.typography.normal.size;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     // A narrower map is not as much shorter, so that components keep some room between them.
     let plot_h = dimension(cx, model.size.map(|size| size.1), "height", 600.0) * js::max(0.75, plot_w / natural_w);
     let map = Map { model, cx, plot_w, plot_h, small: js::round(size * 0.8125), tiny: js::round(size * 0.6875), tight };

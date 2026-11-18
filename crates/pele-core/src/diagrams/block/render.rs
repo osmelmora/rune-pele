@@ -610,7 +610,7 @@ fn draw<'m>(model: &'m BlockModel, cx: &DrawContext<'_>, tight: bool) -> Result<
     let size = cx.options.typography.normal.size;
     let edge_size = js::round(size * 0.875);
     let measure = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let configured = cx.config.get("block").and_then(JsValue::as_record).and_then(|section| section.get("padding"));
     let spacing = match configured {
         Some(&JsValue::Number(padding)) if padding >= 0.0 => js::min(padding, 200.0),

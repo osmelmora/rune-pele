@@ -582,7 +582,7 @@ pub(super) fn draw(model: &RailroadModel, cx: &DrawContext<'_>, tight: bool) -> 
     let hidden = section.and_then(|section| section.get("showMarkers")) == Some(&JsValue::Bool(false));
     let radius = if hidden { 0.0 } else { option(config, "markerRadius", 4.0, 50.0) };
     let stroke_width = option(config, "strokeWidth", 0.0, 20.0);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let look = Look {
         head_size,
         head_height: js::round(head_size * 1.5),

@@ -92,7 +92,7 @@ fn parts(out: &mut SceneBuilder, model: &TreeViewModel) -> Vec<PartId> {
 fn draw(model: &TreeViewModel, cx: &DrawContext<'_>, tight: bool) -> Result<Scene, RenderError> {
     let size = cx.options.typography.normal.size;
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let section = cx.config.get("treeView").and_then(JsValue::as_record);
     let icons = IconConfig::of(section);
     let mono = cx.options.monospace.contains(&MonospacePart::Files);

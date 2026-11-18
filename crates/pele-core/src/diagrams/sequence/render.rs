@@ -298,7 +298,7 @@ impl Settings {
         let flag = |key: &str| conf.and_then(|conf| conf.get(key));
         let cap = |value: f64, tightly: f64| if tight { js::min(value, tightly) } else { value };
         let size = cx.options.typography.normal.size;
-        let pad = cx.options.padding;
+        let pad = cx.options.padding_or_default();
         let actor_margin = cap(option(conf, "actorMargin", 40.0), 8.0);
         let actors = js::max(1.0, model.actors.len() as f64);
         let room = (cx.options.max_width.unwrap_or(320.0) - 2.0 * pad) / actors - actor_margin - 24.0;

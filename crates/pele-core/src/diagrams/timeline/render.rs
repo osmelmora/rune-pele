@@ -82,7 +82,7 @@ fn draw(model: &TimelineModel, cx: &DrawContext<'_>, vertical: bool) -> Result<S
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let disabled =
         cx.config.get("timeline").and_then(JsValue::as_record).and_then(|section| section.get("disableMulticolor"));
     let multicolor = disabled != Some(&JsValue::Bool(true));

@@ -100,7 +100,7 @@ fn draw(
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
 
     let axis_scale = option(section, "axisScaleFactor", 1.0, 0.0, 10.0);
     let label_factor = option(section, "axisLabelFactor", 1.05, 0.0, 10.0);

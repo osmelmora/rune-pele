@@ -143,7 +143,7 @@ fn draw(model: &JourneyModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError
     let small = js::round(size * 0.875);
     let tiny = js::round(size * 0.75);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let tasks = &model.tasks;
     let n = tasks.len();
     let names: Vec<&JsText> = model.actors().into_iter().filter(|name| !name.is_empty()).collect();
@@ -388,7 +388,7 @@ fn vertical(model: &JourneyModel, cx: &DrawContext<'_>) -> Result<Scene, RenderE
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
     let room = js::max(140.0, cx.options.max_width.unwrap_or(320.0) - 2.0 * pad);
     let title = fit_label(model.title.as_deref(), measurer, size, room, Emphasis::BOLD);

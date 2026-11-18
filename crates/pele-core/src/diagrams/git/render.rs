@@ -87,7 +87,7 @@ impl Bounds {
 fn draw(model: &GitModel, cx: &DrawContext<'_>, direction: Direction) -> Result<Scene, RenderError> {
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.75);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
 
     let show_branches = flag(cx.config, "showBranches", true);

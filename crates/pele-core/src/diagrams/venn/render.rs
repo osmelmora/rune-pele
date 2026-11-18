@@ -107,7 +107,7 @@ pub(super) fn draw(model: &VennModel, cx: &DrawContext<'_>, trig: &dyn Trig) -> 
     let small = js::round(size * 0.875);
     let tiny = js::round(size * 0.8125);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
 
     let circles = layout_circles(&model.subsets, trig);
     let index: HashMap<&JsText, usize> = circles.iter().enumerate().map(|(i, c)| (&c.id, i)).collect();

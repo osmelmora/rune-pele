@@ -42,7 +42,7 @@ pub(crate) fn fit_width(
 
 /// Pele's `titleRoom`: the width a title may take before it wraps.
 pub(crate) fn title_room(options: &LayoutOptions) -> f64 {
-    available(options).map_or(4000.0, |available| js::max(80.0, available - 2.0 * options.padding))
+    available(options).map_or(4000.0, |available| js::max(80.0, available - 2.0 * options.padding_or_default()))
 }
 
 /// Pele's `capWidth`, for a chart that is drawn to a set width: its own, or the host's when that

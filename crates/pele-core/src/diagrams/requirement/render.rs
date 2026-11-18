@@ -243,7 +243,7 @@ fn draw(model: &RequirementModel, cx: &DrawContext<'_>, turned: bool) -> Result<
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
 
     let mut views: Vec<NodeView<'_>> = Vec::new();
     for requirement in model.requirements.values() {

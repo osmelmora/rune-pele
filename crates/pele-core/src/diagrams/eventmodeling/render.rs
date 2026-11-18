@@ -280,7 +280,7 @@ fn across(model: &EventModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError
     let mono_step = js::round(mono * 1.4);
     let small_step = js::round(small * 1.5);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let widest = |rows: &[JsText], size: f64, style: Emphasis| {
         rows.iter().fold(0.0, |widest, row| js::max(widest, width(measurer, row, size, style)))
     };
@@ -507,7 +507,7 @@ fn down_scene(model: &EventModel, cx: &DrawContext<'_>) -> Result<Scene, RenderE
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let mono = js::round(size * 0.75);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let measurer = cx.measure;
     let room = js::max(160.0, cx.options.max_width.unwrap_or(320.0) - 2.0 * pad);
     let trim = Marker::Point.trim();

@@ -247,7 +247,7 @@ fn draw(model: &ClassModel, cx: &DrawContext<'_>, turned: bool, tight: bool) -> 
     let tiny = js::round(size * 0.8);
     let tiny_height = js::round(tiny * 1.4);
     let measure = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
     let card_width =
         |raw: &[u16]| if raw.is_empty() { 0.0 } else { width(measure, &decode_entities(raw), tiny, plain) };

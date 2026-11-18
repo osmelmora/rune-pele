@@ -109,6 +109,112 @@ pub fn to_fixed(x: f64, digits: usize) -> String {
     out
 }
 
+/// `x.toExponential(digits)` for `digits` in `0..=100`: one digit, a point and `digits` more,
+/// then the exponent, as in `1.25e+3`.
+///
+/// The spec keeps the `digits + 1` significant digits nearest the exact binary value, the larger
+/// on a tie, as [`to_fixed`] rounds.
+pub fn to_exponential(x: f64, digits: usize) -> String {
+    assert!(digits <= 100, "toExponential digits must be in 0..=100");
+    if !x.is_finite() {
+        return to_string(x);
+    }
+    let mut out = String::with_capacity(digits + 8);
+    if x < 0.0 {
+        out.push('-');
+    }
+    let (kept, exponent) = significant(x.abs(), digits + 1);
+    write_exponential(&mut out, &kept, exponent);
+    out
+}
+
+/// `x.toPrecision(digits)` for `digits` in `1..=100`: that many significant digits, rounded as
+/// [`to_exponential`] rounds, written with an exponent only when the first digit's is under -6
+/// or at least `digits`.
+pub fn to_precision(x: f64, digits: usize) -> String {
+    assert!((1..=100).contains(&digits), "toPrecision digits must be in 1..=100");
+    if !x.is_finite() {
+        return to_string(x);
+    }
+    let mut out = String::with_capacity(digits + 8);
+    if x < 0.0 {
+        out.push('-');
+    }
+    let (kept, exponent) = significant(x.abs(), digits);
+    if exponent < -6 || exponent >= digits as i32 {
+        write_exponential(&mut out, &kept, exponent);
+    } else if exponent < 0 {
+        out.push_str("0.");
+        out.extend(std::iter::repeat_n('0', exponent.unsigned_abs() as usize - 1));
+        out.push_str(ascii(&kept));
+    } else {
+        let point = exponent as usize + 1;
+        out.push_str(ascii(&kept[..point]));
+        if point < digits {
+            out.push('.');
+            out.push_str(ascii(&kept[point..]));
+        }
+    }
+    out
+}
+
+/// The first digit, a point and the rest if there are any, then the exponent: `1.25e+3`.
+fn write_exponential(out: &mut String, kept: &[u8], exponent: i32) {
+    out.push(char::from(kept[0]));
+    if kept.len() > 1 {
+        out.push('.');
+        out.push_str(ascii(&kept[1..]));
+    }
+    let sign = if exponent < 0 { '-' } else { '+' };
+    write!(out, "e{sign}{}", exponent.unsigned_abs()).expect("writing to a String cannot fail");
+}
+
+fn ascii(digits: &[u8]) -> &str {
+    std::str::from_utf8(digits).expect("ascii digits")
+}
+
+/// The spec's `n` and `e` for `toExponential` and `toPrecision`: the `count` significant digits
+/// nearest a finite `x ≥ 0`, and the decimal exponent of the first. Zero is `count` zeros with
+/// exponent 0.
+fn significant(x: f64, count: usize) -> (Vec<u8>, i32) {
+    if x == 0.0 {
+        return (vec![b'0'; count], 0);
+    }
+    // A double's exact decimal expansion ends within 1074 places of the point.
+    let exact = format!("{x:.1100}");
+    let (int, frac) = exact.split_once('.').expect("fixed format has a point");
+    let digits: Vec<u8> = int.bytes().chain(frac.bytes()).collect();
+    let first = digits.iter().position(|&digit| digit != b'0').expect("a positive number has a digit");
+    let mut exponent = int.len() as i32 - 1 - first as i32;
+    let mut kept = digits[first..first + count].to_vec();
+    if round_significant(&mut kept, digits[first + count]) {
+        exponent += 1;
+    }
+    (kept, exponent)
+}
+
+/// Rounds the ASCII digits `kept` to the nearest number of as many digits, given `next`, the digit
+/// that follows them in the exact value. A tie goes to the larger, so a `next` of 5 or more rounds
+/// up whatever comes after it. Returns whether the carry ran past the first digit, as `9.96` kept
+/// to two digits gives `10`, which moves the exponent up by one.
+fn round_significant(kept: &mut [u8], next: u8) -> bool {
+    if next < b'5' {
+        return false;
+    }
+    match kept.iter().rposition(|&digit| digit != b'9') {
+        Some(at) => {
+            kept[at] += 1;
+            kept[at + 1..].fill(b'0');
+            false
+        }
+        None => {
+            kept.fill(b'0');
+            kept[0] = b'1';
+            true
+        }
+    }
+}
+
 /// Pele's `num()` (`src/svg/builder.ts`): a coordinate rounded to hundredths, trailing zeros dropped.
 pub fn num(value: f64) -> String {
     let mut out = String::new();
@@ -198,6 +304,23 @@ mod tests {
         assert_eq!(to_fixed(99.5, 0), "100");
         assert_eq!(to_fixed(1e21, 2), "1e+21");
     }
+
+    #[test]
+    fn significant_digits_round_ties_up_and_place_the_point_as_node_does() {
+        assert_eq!(to_exponential(1.25, 1), "1.3e+0");
+        assert_eq!(to_exponential(-0.0, 2), "0.00e+0");
+        assert_eq!(to_exponential(0.000123, 0), "1e-4");
+        assert_eq!(to_exponential(9.96, 1), "1.0e+1");
+        assert_eq!(to_exponential(-1e21, 3), "-1.000e+21");
+        assert_eq!(to_precision(123.456, 4), "123.5");
+        assert_eq!(to_precision(0.00000123, 2), "0.0000012");
+        assert_eq!(to_precision(1.23e-7, 2), "1.2e-7");
+        assert_eq!(to_precision(123456.0, 2), "1.2e+5");
+        assert_eq!(to_precision(99.96, 3), "100");
+        assert_eq!(to_precision(9.996, 3), "10.0");
+        assert_eq!(to_precision(-0.0, 1), "0");
+        assert_eq!(to_precision(1e21, 22), "1000000000000000000000");
+    }
 }
 
 #[cfg(kani)]
@@ -273,5 +396,57 @@ mod proofs {
     #[kani::solver(kissat)]
     fn num_split_matches_pele_for_negative_n() {
         assert!(agrees(-short_path_magnitude()));
+    }
+
+    /// The most digits treemap keeps: its precision is at most 20, and `toExponential(20)` keeps
+    /// 21. It bounds every loop below. The longest runs over the result's `count + 1` digits, 22
+    /// passes, so the unwind is 23.
+    const MOST_KEPT: usize = 21;
+
+    /// `truncated + one` in one more digit than `truncated`, by schoolbook addition from the right.
+    fn add(truncated: &[u8], one: bool) -> [u8; MOST_KEPT + 1] {
+        let mut sum = [b'0'; MOST_KEPT + 1];
+        let mut carry = one;
+        for at in (0..truncated.len()).rev() {
+            let digit = truncated[at] + u8::from(carry);
+            carry = digit > b'9';
+            sum[at + 1] = if carry { b'0' } else { digit };
+        }
+        sum[0] = if carry { b'1' } else { b'0' };
+        sum
+    }
+
+    /// For every run of 1 to 21 significant digits, every digit after them and whether anything
+    /// nonzero follows that digit, `round_significant` gives the spec's `n`: of the two numbers
+    /// with as many digits around the exact value, the nearer, and the larger on a tie.
+    #[kani::proof]
+    #[kani::unwind(23)]
+    fn significant_digits_round_to_the_nearest_and_ties_to_the_larger() {
+        let count: usize = kani::any();
+        kani::assume((1..=MOST_KEPT).contains(&count));
+        let mut kept: [u8; MOST_KEPT] = kani::any();
+        kani::assume(kept.iter().all(u8::is_ascii_digit) && kept[0] != b'0');
+        let next: u8 = kani::any();
+        kani::assume(next.is_ascii_digit());
+        let rest_nonzero: bool = kani::any();
+
+        // The distances from the exact value down to the kept digits and up to one more in their
+        // last place, in twentieths of that place. A nonzero rest adds some ε in (0, 1) to `next`,
+        // and since `next` is whole, every such ε decides as ε = 1/2 does.
+        let below = 2 * (next - b'0') + u8::from(rest_nonzero);
+        let above = 20 - below;
+        let want = add(&kept[..count], above <= below);
+
+        let carried = round_significant(&mut kept[..count], next);
+        // The result in `count + 1` digits: a carry past the first digit is a power of ten.
+        for at in 0..=count {
+            let got = match (carried, at) {
+                (true, at) if at < count => kept[at],
+                (true, _) | (false, 0) => b'0',
+                (false, at) => kept[at - 1],
+            };
+            assert!(got == want[at]);
+        }
+        assert!(kept[0] != b'0' && kept.iter().all(u8::is_ascii_digit));
     }
 }

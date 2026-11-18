@@ -41,9 +41,9 @@ const BREAKS = [
   {
     name: 'treemap format: a tie rounds toward zero',
     test: 'treemap_layout',
-    file: `${treemap}/format.rs`,
-    from: "if digits[first + count] >= b'5' {",
-    to: "if digits[first + count] > b'5' {",
+    file: `${src}/js.rs`,
+    from: "if next < b'5' {",
+    to: "if next <= b'5' {",
   },
   {
     name: 'treemap drawing: a tooltip only where the path names a section',
@@ -128,6 +128,20 @@ const BREAKS = [
     file: `${src}/svg.rs`,
     from: 'out.push_str("><title>");',
     to: 'out.push_str("><title> ");',
+  },
+  {
+    name: 'treemap drawing: a host that leaves padding out gives 8, not the diagramPadding',
+    test: 'treemap_parity',
+    file: `${src}/lib.rs`,
+    from: '            padding: None,\n',
+    to: '            padding: Some(8.0),\n',
+  },
+  {
+    name: "treemap drawing: the diagramPadding wins over the host's padding",
+    test: 'treemap_parity',
+    file: `${treemap}/render.rs`,
+    from: 'cx.options.padding.unwrap_or_else(|| option(cx, "diagramPadding", 8.0, 0.0, 2000.0))',
+    to: 'option(cx, "diagramPadding", 8.0, 0.0, 2000.0)',
   },
 ];
 

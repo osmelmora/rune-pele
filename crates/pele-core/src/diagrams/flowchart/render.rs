@@ -183,7 +183,7 @@ fn draw(
     let narrow = variant.is_some() && tight;
     let wrap_width = js::min(number_option(flow, "wrappingWidth", 200.0), if narrow { 100.0 } else { f64::INFINITY });
     let group_wrap = if narrow { js::max(80.0, fit::title_room(cx.options) / 2.0) } else { 4000.0 };
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let policy = &cx.options.resources;
 
     let mut index: HashMap<&[u16], usize> = HashMap::new();

@@ -422,7 +422,7 @@ fn draw(model: &UsecaseModel, cx: &DrawContext<'_>, turned: bool) -> Result<Scen
     let small = js::round(size * 0.875);
     let tiny = js::round(size * 0.8125);
     let texts = Texts { measure: cx.measure };
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let section = cx.config.get("usecase").and_then(JsValue::as_record);
     let root_dir = if turned { Dir::TB } else { Dir::named(Some(model.direction.name())) };
     let sideways = matches!(root_dir, Dir::LR | Dir::RL);

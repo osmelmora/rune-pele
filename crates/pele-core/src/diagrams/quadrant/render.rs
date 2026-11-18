@@ -85,7 +85,7 @@ pub(super) fn draw(model: &QuadrantModel, cx: &DrawContext<'_>) -> Result<Scene,
     let natural = js::round(js::max(100.0, settings.length("chartWidth", 500.0, 4000.0)));
     let width = js::round(fit::cap_width(cx.options, natural, 280.0, 0.0));
     let height = js::round((js::max(100.0, settings.length("chartHeight", 500.0, 4000.0)) * width) / natural);
-    let outer = settings.length("quadrantPadding", cx.options.padding, 200.0);
+    let outer = settings.length("quadrantPadding", cx.options.padding_or_default(), 200.0);
     let x_pad = settings.length("xAxisLabelPadding", 5.0, 200.0);
     let y_pad = settings.length("yAxisLabelPadding", 5.0, 200.0);
     let has_points = !model.points.is_empty();

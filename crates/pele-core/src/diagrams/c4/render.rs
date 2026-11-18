@@ -171,7 +171,7 @@ fn draw(model: &C4Model, cx: &DrawContext<'_>, tight: bool, gap: f64) -> Result<
     let options = cx.options;
     let size = options.typography.normal.size;
     let small = js::round(size * 0.8125);
-    let pad = options.padding;
+    let pad = options.padding_or_default();
     let texts = Texts { measurer: cx.measure, size, small };
     let room = tight.then(|| js::max(80.0, options.max_width.unwrap_or(320.0) - 2.0 * pad));
     let mut laid = layout::layout(model, &texts, room, gap);

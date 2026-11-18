@@ -200,7 +200,7 @@ fn across(model: &IshikawaModel, cx: &DrawContext<'_>) -> Result<Scene, RenderEr
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let title_text = model.title.as_deref().unwrap_or_default();
     let title = layout_label(title_text, false, measurer, size, 4000.0, Emphasis::BOLD);
     let title_height = if title.height > 0.0 { title.height + 12.0 } else { 0.0 };
@@ -364,7 +364,7 @@ fn vertical_causes(model: &IshikawaModel, cx: &DrawContext<'_>) -> Result<Scene,
     let size = cx.options.typography.normal.size;
     let small = js::round(size * 0.875);
     let measurer = cx.measure;
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let room = js::max(140.0, cx.options.max_width.unwrap_or(320.0) - 2.0 * pad);
     let title_text = model.title.as_deref().unwrap_or_default();
     let title = layout_label(title_text, false, measurer, size, fit::title_room(cx.options), Emphasis::BOLD);

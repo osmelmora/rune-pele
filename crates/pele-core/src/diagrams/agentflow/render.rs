@@ -283,7 +283,7 @@ fn draw(model: &AgentflowModel, cx: &DrawContext<'_>, turned: bool) -> Result<Sc
     let edge_size = js::round(size * 0.875);
     let wrap_width = number_option(section, "wrappingWidth", 120.0);
     let min_width = number_option(section, "minNodeWidth", 120.0);
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let policy = &cx.options.resources;
 
     let mut index: HashMap<&[u16], usize> = HashMap::new();

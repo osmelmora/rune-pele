@@ -99,7 +99,7 @@ fn draw(
     let least = js::round(size * 0.625);
     // Labels shrink with a chart narrowed to fit, as they would if the whole picture were scaled down.
     let mut small = js::max(least, js::round(size * 0.875 * js::min(1.0, chart_width / natural)));
-    let pad = cx.options.padding;
+    let pad = cx.options.padding_or_default();
     let plain = Emphasis::default();
 
     let chart_height = number_option(conf, "height", 400.0, 1.0, 10000.0);
