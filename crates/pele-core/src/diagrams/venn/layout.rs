@@ -2,8 +2,8 @@
 //! Pele's `src/diagrams/venn/layout.ts`.
 //!
 //! Beside `Math.sin` and `Math.cos` this uses `Math.acos` and `Math.atan2`. All four come in
-//! through [`Trig`], so that `tests/venn_layout.rs` can measure what libm's answers do to the
-//! layout against the pinned Node's.
+//! through [`Trig`], so that `tests/venn_layout.rs` can measure what the port's answers do to
+//! the layout against the pinned Node's.
 
 use super::VennSubset;
 use crate::input::JsText;
@@ -16,7 +16,7 @@ use std::f64::consts::PI;
 
 const TAU: f64 = PI * 2.0;
 
-/// The `Math` functions the layout calls that libm does not answer as V8 does on every input.
+/// The `Math` functions the layout calls that the port does not answer as V8 does on every machine.
 pub(crate) trait Trig {
     fn sin(&self, x: f64) -> f64;
     fn cos(&self, x: f64) -> f64;
@@ -24,10 +24,10 @@ pub(crate) trait Trig {
     fn atan2(&self, y: f64, x: f64) -> f64;
 }
 
-/// `js::sin` and `js::cos`, and libm's `acos` and `atan2`, as every other port computes them.
-pub(crate) struct Libm;
+/// `js::sin` and `js::cos` (V8's fdlibm), and libm's `acos` and `atan2`, as every other type computes them.
+pub(crate) struct Ported;
 
-impl Trig for Libm {
+impl Trig for Ported {
     fn sin(&self, x: f64) -> f64 {
         js::sin(x)
     }

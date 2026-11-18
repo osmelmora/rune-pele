@@ -2,7 +2,7 @@
 //! anything is scaled or drawn. Each answers in the words of an oracle op, every number as the
 //! bits of its double, so the types of the port stay private to the crate.
 
-use super::layout::{self, Circle, Libm, OutlineStep, Trig};
+use super::layout::{self, Circle, OutlineStep, Ported, Trig};
 use crate::catalog::{DrawContext, PreparedModel};
 use crate::layout::num::hypot;
 use crate::measure::ArialMetrics;
@@ -13,15 +13,15 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
-/// One call the layout makes of `Math.sin`, `cos`, `acos` or `atan2`, which libm does not answer
-/// as V8 does on every input: its name, and the bits of its arguments.
+/// One call the layout makes of `Math.sin`, `cos`, `acos` or `atan2`, which the port does not answer
+/// as V8 does on every machine: its name, and the bits of its arguments.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TrigCall {
     pub op: &'static str,
     pub args: Vec<u64>,
 }
 
-/// Answers each call from a table of Node's answers, and libm's where the table has none,
+/// Answers each call from a table of Node's answers, and the port's where the table has none,
 /// noting each call it had to answer that way.
 struct Answered<'a> {
     answers: &'a HashMap<TrigCall, f64>,
@@ -43,19 +43,19 @@ impl Answered<'_> {
 
 impl Trig for Answered<'_> {
     fn sin(&self, x: f64) -> f64 {
-        self.answer("sin", &[x], || Libm.sin(x))
+        self.answer("sin", &[x], || Ported.sin(x))
     }
 
     fn cos(&self, x: f64) -> f64 {
-        self.answer("cos", &[x], || Libm.cos(x))
+        self.answer("cos", &[x], || Ported.cos(x))
     }
 
     fn acos(&self, x: f64) -> f64 {
-        self.answer("acos", &[x], || Libm.acos(x))
+        self.answer("acos", &[x], || Ported.acos(x))
     }
 
     fn atan2(&self, y: f64, x: f64) -> f64 {
-        self.answer("atan2", &[y, x], || Libm.atan2(y, x))
+        self.answer("atan2", &[y, x], || Ported.atan2(y, x))
     }
 }
 
@@ -98,7 +98,7 @@ fn written(steps: Option<Vec<OutlineStep>>) -> String {
 /// circles, the circles that cut into it, whether its text goes across them, its spot and its
 /// outline. `None` for a source that is no venn diagram Pele parses.
 pub fn geometry(source: &str) -> Option<String> {
-    geometry_with(source, &Libm)
+    geometry_with(source, &Ported)
 }
 
 /// [`geometry`] with each `Math` call answered from `answers`, which hold Node's answers, and
@@ -212,7 +212,7 @@ pub fn render_answered(
 /// every number as its bits.
 pub fn region(circles: &[[f64; 3]]) -> String {
     let circles: Vec<Circle> = circles.iter().map(|&[x, y, r]| Circle { id: Default::default(), x, y, r }).collect();
-    written(layout::region_path(&circles, &Libm))
+    written(layout::region_path(&circles, &Ported))
 }
 
 /// `Math.acos` as the venn layout computes it.

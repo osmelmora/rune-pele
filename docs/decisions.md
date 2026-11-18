@@ -647,9 +647,9 @@ Five units cleared the follow-ups the review round left, each from `main` at `d2
 - **Interactions** (measured). A flowchart whose icon shapes carry `stroke-width:2p`, `fill:blu` and `opacity:0.` draws natively with the app's icons, each as Pele's SVG draws it without those values, pixel for pixel the drawing without them (`icons`'s `a_value_a_page_drops_leaves_the_app_s_icons_drawn_natively`). `keep_view` still reads 0 prefixes drawn by rune-mermaid on every fixture drawn natively, and `unlowered`'s two. `treemap_parity` holds a `diagramPadding` with no padding and with `padding: 0`. `mise run rune-corpus`'s ten reports are byte-identical to a fresh run of `d254b06`.
 
 **Open.**
-- Port V8's fdlibm `sin` and `cos` into `js.rs`, through the prove-js-numerics skill (proposal 1 of the Intel entry).
-- Move xychart's `log10` and `ten_to` into `js.rs`, and use them in gantt and treemap (proposal 2).
-- A thick dashed stroke on a rounded box: `fix-lengths` measured 12.9 unexplained pixels in 10,000 against resvg, where the limit is 5. Not explained yet.
+- ~~Port V8's fdlibm `sin` and `cos` into `js.rs`, through the prove-js-numerics skill (proposal 1 of the Intel entry).~~ Done: "2026-11-18 V8's trig and log10".
+- ~~Move xychart's `log10` and `ten_to` into `js.rs`, and use them in gantt and treemap (proposal 2).~~ Done: the same entry.
+- ~~A thick dashed stroke on a rounded box: `fix-lengths` measured 12.9 unexplained pixels in 10,000 against resvg, where the limit is 5. Not explained yet.~~ Explained and fixed, except a corner tighter than half the stroke: "2026-11-18 Dashes round corners".
 
 ## 2026-11-18 V8's trig and log10
 
@@ -691,3 +691,23 @@ The other rows of the Intel entry are unchanged. `js::sin`, `js::cos` and `js::l
 **Open.**
 - Whether to match arm64 Node with a fused port, or keep x64's (above).
 - `mise run check` cannot see a last-bit error in the fdlibm port. `mise run intel-trig` can, in about a minute, but needs Rosetta 2 and a download.
+
+## 2026-11-18 Dashes round corners
+
+**Why.** The last open item of "2026-11-18 Follow-ups": `style A stroke-width:6px,stroke-dasharray:5 5` on a rounded flowchart box differed from resvg at its corners. The source behind the recorded 12.9 was not kept; this one reads 14.59 unexplained pixels in 10,000 at 2× on `de2f97b` (measured), against a limit of 5.
+
+**The cause (measured, one change at a time).** Not the dash's start, which is at `(x + rx, y)` as SVG puts it: the dash ends on the top side are resvg's. Not the corners' arc length, whose phase drift after three corners is 0.12 pt, a quarter pixel. The joins inside a dash: Rune strokes a butt-ended polyline as one box per segment, so a dash bent round a corner left a wedge-shaped notch at each joint of the flattened curve, seen as pale spokes. Finer flattening, with more joints, raised it to 57.39; closing the notches took it to 0.00.
+
+**What changed** (`dash-corners`).
+- **Joins.** `stroke.rs` gives each joint inside a butt piece the round join a round stroke has there, as a patch that starts inside both boxes. A joint whose notch covers under a twentieth of a device pixel stays open, so 1× hairlines are unchanged. `stroke()` takes the device pixel in the lines' units in place of a fixed `visible`.
+- **Rect radii.** `rx` and `ry` are each clamped to half their own side, as SVG does, not together. A rect with elliptical corners is drawn as a path; `Figure::boxed` answers `None` for it.
+- **Dashed circles and ellipses** start at three o'clock, where SVG starts them. Undashed ones keep their start, which only moves how Rune splits the fill.
+
+**Measured.** The brief's source: 14.59 → 0.00 at 2×, and 6.74 at 1×, all on the solid node's corners, the known hairline divergence. A widened set of 60 shapes (widths 1, 2, 6, 12; dash arrays `5 5`, `2 8`, `10 3 2 3`; radii 0, 5, 30; circles; ellipses): every 2× row under the limit but the three radius-5, width-12 boxes, at 14.3 to 16.9 (59 to 184 before). `mise run rune-corpus` changes only c4's rows, lower: its external person heads are dashed circles, and their worst 2× patch falls from 8 px to 0. Tests: the new `dash_corners`, 5 tests. Breaks: 8 in `break-lowering.sh`, and one recipe in `rune-view.md`.
+
+**New divergence.** "A dash round a corner tighter than half its stroke": the normals of the flattened curve cross inside it, and each segment's box reaches past them by up to half a segment. Flattening 5 times finer gives 3.1 to 7.7, 25 times finer 1.5 to 5.6 (measured).
+
+**The merge** (`merge-last`). Both branches merged with no conflict. Venn's `Trig` implementation `Libm` is renamed `Ported`, and its comments name the port, since its `sin` and `cos` are V8's now.
+
+**Open.**
+- Flatten a thick stroke's curves by its width, which would close the divergence above and move every thick curved stroke in the corpus.
