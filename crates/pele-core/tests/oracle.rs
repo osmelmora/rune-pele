@@ -280,6 +280,36 @@ fn cos_is_within_one_ulp_of_math_cos() {
     diff_within_one_ulp("cos", &angles(), "", js::cos);
 }
 
+/// ECMAScript's `Number::exponentiate` answers NaN for any base to a NaN power and for ±1 to ±∞,
+/// where C's `pow` answers 1. Each base here meets each special power and each small whole or
+/// half power, and every answer is exact, so the claim is the same bits, NaN as one value.
+#[test]
+fn pow_matches_math_pow_where_it_names_the_answer() {
+    let specials = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 0.0, -0.0];
+    let wholes = [1.0, -1.0, 2.0, -2.0, 3.0, -3.0, 0.5, -0.5];
+    let exact_bases = [1.0, -1.0, 0.25, -0.25, 4.0, -4.0, 5e-324, -5e-324];
+    let wide_bases = [f64::MAX, -f64::MAX, 1f64.next_up(), 1f64.next_down()];
+    let pairs: Vec<(f64, f64)> = specials
+        .iter()
+        .chain(&exact_bases)
+        .flat_map(|&base| specials.iter().chain(&wholes).map(move |&exponent| (base, exponent)))
+        .chain(wide_bases.iter().flat_map(|&base| specials.iter().map(move |&exponent| (base, exponent))))
+        .collect();
+    let requests: Vec<String> = pairs.iter().map(|&(x, y)| format!("pow\t{}\t{}", hex(x), hex(y))).collect();
+    let theirs = oracle(&requests);
+    let mismatches: Vec<String> = pairs
+        .iter()
+        .zip(&theirs)
+        .filter_map(|(&(x, y), want)| {
+            let (got, want) = (js::pow(x, y), double(want));
+            let same = got.to_bits() == want.to_bits() || (got.is_nan() && want.is_nan());
+            (!same).then(|| format!("pow({x:e}, {y:e}): node {want:e}, ours {got:e}"))
+        })
+        .collect();
+    println!("pow where ECMAScript names the answer: {} pairs", pairs.len());
+    assert!(mismatches.is_empty(), "{} of {} differ:\n{}", mismatches.len(), pairs.len(), mismatches.join("\n"));
+}
+
 #[test]
 fn pow_is_within_one_ulp_of_math_pow() {
     let mut rng = Rng(0x1234_5678_9abc_def1);

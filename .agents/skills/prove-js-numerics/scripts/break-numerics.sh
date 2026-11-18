@@ -1,6 +1,7 @@
 #!/bin/sh
-# Breaks the significant digits of `toExponential` and `toPrecision` in crates/pele-core/src/js.rs
-# one way at a time, and shows that the Kani proof or the oracle test of each then fails.
+# Breaks the significant digits of `toExponential` and `toPrecision`, and where `pow` answers as
+# ECMAScript does, in crates/pele-core/src/js.rs one way at a time, and shows that the Kani proof
+# or the oracle test of each then fails.
 # usage: .agents/skills/prove-js-numerics/scripts/break-numerics.sh [name...]   (under `mise exec --`)
 # Each break is one exact edit of js.rs, undone before the next. With names, only those breaks
 # run. Exits 1 if a break does not apply any more, or if its check does not fail with it.
@@ -19,8 +20,8 @@ restore() {
 }
 
 # break_one <name> <kani harness | oracle test> <from> <to>
-# A name ending in `_matches_to_exponential` or `_matches_to_precision` is a test of
-# tests/oracle.rs; any other is a Kani harness.
+# A name ending in `_matches_to_exponential` or `_matches_to_precision`, or starting
+# `pow_matches_math_pow`, is a test of tests/oracle.rs; any other is a Kani harness.
 break_one() {
   name=$1 check=$2 from=$3 to=$4
   if [ -n "$only" ] && ! printf ' %s ' "$only" | grep -q " $name "; then
@@ -35,7 +36,7 @@ break_one() {
     return
   fi
   case $check in
-    *_matches_to_exponential | *_matches_to_precision)
+    *_matches_to_exponential | *_matches_to_precision | pow_matches_math_pow*)
       cargo test -q -p pele-core --test oracle "$check" > "$logs/$name.log" 2>&1
       caught='differ:' ;;
     *)
@@ -44,7 +45,7 @@ break_one() {
   esac
   if grep -q "$caught" "$logs/$name.log"; then
     echo "break $name: $check fails, as it should:"
-    grep -E "Failed Checks|differ:|^(exponential|precision)\(" "$logs/$name.log" | head -3 | sed 's/^/    /'
+    grep -E "Failed Checks|differ:|^(exponential|precision|pow)\(" "$logs/$name.log" | head -3 | sed 's/^/    /'
   else
     echo "break $name: $check does not fail with it; see $logs/$name.log"
     failed=1
@@ -78,5 +79,11 @@ break_one precision-keeps-a-digit-too-many to_precision_matches_to_precision \
 break_one precision-writes-1e-7-without-an-exponent to_precision_matches_to_precision \
   'if exponent < -6 || exponent >= digits as i32 {' \
   'if exponent < -7 || exponent >= digits as i32 {'
+break_one pow-of-one-to-nan-is-one pow_matches_math_pow_where_it_names_the_answer \
+  'if exponent.is_nan() || (base.abs() == 1.0 && exponent.is_infinite()) {' \
+  'if base.abs() == 1.0 && exponent.is_infinite() {'
+break_one pow-of-one-to-infinity-is-one pow_matches_math_pow_where_it_names_the_answer \
+  'if exponent.is_nan() || (base.abs() == 1.0 && exponent.is_infinite()) {' \
+  'if exponent.is_nan() {'
 
 exit "$failed"

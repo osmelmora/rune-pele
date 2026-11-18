@@ -16,11 +16,14 @@ pub fn round(x: f64) -> f64 {
     if rounded == 0.0 && x < 0.0 { -0.0 } else { rounded }
 }
 
-/// `Math.sin`, from fdlibm.
+/// `Math.sin`, from the libm crate, which follows FreeBSD's msun.
 ///
-/// The pinned Node on arm64 answers one ulp away on about 1 input in 80, because its build fuses
-/// multiply-adds inside V8's copy of fdlibm. `num` hides that unless the true value sits within
-/// an ulp of a rounding tie. `tests/oracle.rs` measures the gap.
+/// The pinned Node on arm64 answers one ulp away on about 1 input in 80, for two reasons. V8
+/// computes it with the older fdlibm, which rounds apart from msun in the last bit on some
+/// inputs: Node on x64, which fuses nothing, differs on 0.74% of random inputs. And Node on
+/// arm64 is built to fuse multiply-adds inside that fdlibm. `num` hides the gap unless the true
+/// value sits within an ulp of a rounding tie. `tests/oracle.rs` measures it, and the decision
+/// log of 2026-11-18 has both machines.
 pub fn sin(x: f64) -> f64 {
     libm::sin(x)
 }
@@ -33,8 +36,13 @@ pub fn cos(x: f64) -> f64 {
 /// `Math.pow`, which is also the `**` operator.
 ///
 /// V8 calls the platform's `pow`, so no port matches every engine. Use it only where one ulp
-/// cannot change the output, such as a threshold comparison.
+/// cannot change the output, such as a threshold comparison. Where ECMAScript and C part, it
+/// answers as ECMAScript does: NaN for any base to a NaN power and for ±1 to ±∞, where C's
+/// `pow` answers 1.
 pub fn pow(base: f64, exponent: f64) -> f64 {
+    if exponent.is_nan() || (base.abs() == 1.0 && exponent.is_infinite()) {
+        return f64::NAN;
+    }
     libm::pow(base, exponent)
 }
 
