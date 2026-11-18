@@ -133,6 +133,73 @@ fn the_dashes_along_each_side_of_a_rounded_box_lie_where_resvg_s_do() {
     }
 }
 
+/// A node of `shape` stroked `width` wide in `dash`, and with `radius` a corner radius.
+fn dashed(shape: &str, width: u32, dash: &str, radius: Option<u32>) -> String {
+    let rx = radius.map_or(String::new(), |radius| format!(",rx:{radius}px"));
+    format!("flowchart LR\n  {shape}\n  style A stroke-width:{width}px,stroke-dasharray:{dash}{rx}")
+}
+
+/// The pixels of a dash round a corner tighter than half the stroke are listed and not held:
+/// there the curve's normals cross at its centre inside the stroke, and a box along each chord
+/// of the flattened curve reaches past where they meet, by up to half a chord.
+fn tighter_than_the_stroke(radius: Option<u32>, width: u32) -> bool {
+    radius.is_some_and(|radius| radius > 0 && 2 * radius < width)
+}
+
+#[test]
+fn dashed_boxes_circles_and_ellipses_draw_as_resvg_draws_them() {
+    let capturer = Capturer::new();
+    // A rounded box is 48 points high, so a radius of 30 is over half its height.
+    let shapes: [(&str, &str, &[Option<u32>]); 3] = [
+        ("box", "A(Rounded)", &[Some(0), Some(5), Some(30)]),
+        ("circle", "A((Circle))", &[None]),
+        ("ellipse", "A(-Ellipse-)", &[None]),
+    ];
+    let mut report = String::from("shape   radius width dash        share@1x patch@1x  share@2x patch@2x flat  over\n");
+    let (mut failed, mut listed) = (Vec::new(), 0);
+    for (name, shape, radii) in shapes {
+        for &radius in radii {
+            for width in [1, 2, 6, 12] {
+                for dash in ["5 5", "2 8", "10 3 2 3"] {
+                    let source = dashed(shape, width, dash, radius);
+                    let tight = tighter_than_the_stroke(radius, width);
+                    let (mut cells, mut held, mut flat) = (Vec::new(), Vec::new(), 0);
+                    for scale in [1.0f32, 2.0] {
+                        let (apart, row) = apart(&drawn(&capturer, &source, scale), scale);
+                        let file =
+                            format!("{name}-r{}-w{width}-{}@{scale}x.png", radius.unwrap_or(0), dash.replace(' ', "_"));
+                        common::save_in(RUN, &row, &format!("set/{file}"));
+                        cells.push(format!("{:>8.2} {:>8}", apart.share(), apart.largest_blob));
+                        flat = flat.max(apart.flat_error);
+                        let (sharp, other) = over(&apart, f64::from(scale));
+                        let sharp = if scale < 2.0 || tight { Vec::new() } else { sharp };
+                        held.extend(sharp.into_iter().chain(other).map(|over| format!("{scale}x: {over}")));
+                    }
+                    let radius = radius.map_or("-".to_owned(), |radius| radius.to_string());
+                    let note = if tight {
+                        "listed: a corner tighter than half the stroke".to_owned()
+                    } else {
+                        held.join(", ")
+                    };
+                    let line =
+                        format!("{name:<7} {radius:>6} {width:>5} {dash:<10} {}  {flat:>4}  {note}", cells.join("  "));
+                    println!("{line}");
+                    report.push_str(&line);
+                    report.push('\n');
+                    listed += usize::from(tight);
+                    if !held.is_empty() {
+                        failed.push(format!("{name} radius {radius} width {width} dash {dash}: {}", held.join(", ")));
+                    }
+                }
+            }
+        }
+    }
+    let path = common::out_dir_for(RUN).join("set.txt");
+    std::fs::write(&path, &report).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    assert_eq!(listed, 3, "only the box of radius 5 stroked 12 wide is tighter than its stroke");
+    assert!(failed.is_empty(), "over the limits:\n{}", failed.join("\n"));
+}
+
 #[test]
 fn a_box_with_a_radius_over_half_its_height_has_elliptical_corners_as_svg_clamps_each_radius() {
     let capturer = Capturer::new();

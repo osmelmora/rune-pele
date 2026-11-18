@@ -1154,11 +1154,14 @@ fn zoomed(style: TextStyle, zoom: f64) -> TextStyle {
     TextStyle { size: style.size * zoom as f32, optical_size: OpticalSize::Fixed(style.size), ..style }
 }
 
-/// SVG's `<ellipse>`, and with equal radii its `<circle>`: two half turns from the top.
-fn ellipse([cx, cy]: Point, radii: [f64; 2]) -> Vec<Segment> {
-    let half = |to: Point| Segment::Arc(Arc { radii, rotation: 0.0, large: true, sweep: true, to });
-    let (top, bottom) = ([cx, cy - radii[1]], [cx, cy + radii[1]]);
-    vec![Segment::Move(top), half(bottom), half(top), Segment::Close]
+/// SVG's `<ellipse>`, and with equal radii its `<circle>`: two half turns clockwise. A dashed
+/// one starts at the right, where SVG starts the path and so the dash pattern. One with no
+/// dashes starts at the top: where it starts moves nothing SVG draws, only how Rune cuts its
+/// fill into triangles, and with that the pixels along its edge at 1x.
+fn ellipse([cx, cy]: Point, [rx, ry]: [f64; 2], dashed: bool) -> Vec<Segment> {
+    let half = |to: Point| Segment::Arc(Arc { radii: [rx, ry], rotation: 0.0, large: true, sweep: true, to });
+    let (start, across) = if dashed { ([cx + rx, cy], [cx - rx, cy]) } else { ([cx, cy - ry], [cx, cy + ry]) };
+    vec![Segment::Move(start), half(across), half(start), Segment::Close]
 }
 
 /// The radii of the corners SVG gives a `<rect>` with one corner radius, which is both its
@@ -1332,11 +1335,12 @@ fn lower_draw(
         }
         _ => None,
     };
+    let dashed = style.stroke.as_ref().is_some_and(|stroke| !stroke.dash.is_empty());
     let program = match draw.geometry {
         Geometry::Path(commands) => path(&commands),
         Geometry::Rect { origin, size, radius } => rect(point(origin), [size.width, size.height], radius),
-        Geometry::Circle { centre, radius } => ellipse(point(centre), [radius; 2]),
-        Geometry::Ellipse { centre, radii } => ellipse(point(centre), [radii.width, radii.height]),
+        Geometry::Circle { centre, radius } => ellipse(point(centre), [radius; 2], dashed),
+        Geometry::Ellipse { centre, radii } => ellipse(point(centre), [radii.width, radii.height], dashed),
         Geometry::Polygon(points) => polygon(&points.into_iter().map(point).collect::<Vec<_>>()),
         Geometry::Image { .. } => return Err(Unsupported::Image),
         Geometry::Icon { .. } => unreachable!("an icon's box is a slot"),

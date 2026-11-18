@@ -342,6 +342,14 @@ break_one elliptical-corners-boxed lower.rs a_box_with_a_radius_over_half_its_he
             return None;
         }' \
   dash_corners
+break_one round-join-turned-back stroke.rs dashed_boxes_circles_and_ellipses \
+  'angle.copysign(turn)' \
+  'angle.copysign(-turn)' \
+  dash_corners
+break_one dashed-circle-starts-at-the-top lower.rs dashed_boxes_circles_and_ellipses \
+  'let (start, across) = if dashed {' \
+  'let (start, across) = if !dashed {' \
+  dash_corners
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.
