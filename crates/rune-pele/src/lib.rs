@@ -20,12 +20,29 @@
 //! the drawing a view shows, and [`Engine`] what it can do.
 //!
 //! Layout is cached by source, layout options, device scale and Rune's font epoch, lowering by
-//! layout and zoom, and painting is a `memo` keyed by the lowered drawing and the resolved
-//! colours. So a palette or dark-mode change repaints without parsing, laying out or measuring
-//! anything, and a zoom lowers again without laying out.
+//! layout and zoom, and painting is a `memo` keyed by the lowered drawing, the resolved colours,
+//! and the app's link handler and icons. So a palette or dark-mode change repaints without
+//! parsing, laying out or measuring anything, and a zoom lowers again without laying out.
 //!
 //! [`ViewOptions::fit`] fits a diagram to the width its view has, which it reads from Rune's
 //! layout.
+//!
+//! [`ViewOptions::icons`] gives the view the app's icons, as Pele's host gives Pele its `icons`
+//! resolver. A source names icons such as `logos:aws` for an architecture service or a treeview
+//! row. Pele's SVG leaves such a box empty for its page, and the view draws the [`Icon`] the app
+//! gives for the name in it: SVG path data on a view box, as an Iconify icon is, lowered as every
+//! other shape is.
+//!
+//! ```ignore
+//! fn icons(name: &str) -> Option<Icon> {
+//!     let grid = Icon::new([0.0, 0.0, 24.0, 24.0]).ok()?;
+//!     match name {
+//!         "app:bolt" => grid.stroke("M13 2 4 14h7l-1 8 9-12h-7z", 2.0, IconPaint::Current).ok(),
+//!         _ => None,
+//!     }
+//! }
+//! let options = ViewOptions::fit().icons(icons);
+//! ```
 //!
 //! While a source fails after one that drew, as a source still streaming in does, the view
 //! shows the last source that drew, in the [`KeptLook`] its options name, and
@@ -38,6 +55,7 @@ pub mod capture;
 pub mod fill;
 mod fit;
 pub mod geometry;
+mod icon;
 mod kept;
 pub mod lower;
 pub mod stroke;
@@ -52,13 +70,14 @@ use pele_core::scene::{Rgba, ThemeSeries};
 use pele_core::{DiagramKind, LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
 use rune::{Color, Cx, El, Env, Tx, el, memo, tok};
 
+pub use icon::{Icon, IconError, IconPaint};
 pub use kept::KeptLook;
 /// Where a link in a diagram leads.
 pub use pele_core::scene::LinkRef as Link;
 pub use pele_core::scene::Role;
 pub use text::FontCatalog;
 
-use lower::{Drawing, Handler, Unsupported};
+use lower::{Drawing, Handler, Icons, Unsupported};
 use text::RuneMeasure;
 
 /// What a diagram tells the app that shows it.
@@ -127,8 +146,8 @@ impl Palette {
 /// How one view of a diagram is drawn.
 ///
 /// A drawing rune-mermaid draws ([`Engine::RuneMermaid`]) follows only the width and the kept
-/// look of these options. It ignores the palette, the font size, the zoom and a fit's smallest
-/// text, and is drawn in Rune's neutral light or dark colours.
+/// look of these options. It ignores the palette, the font size, the zoom, a fit's smallest
+/// text and the app's icons, and is drawn in Rune's neutral light or dark colours.
 #[derive(Clone, Debug)]
 pub struct ViewOptions {
     layout: LayoutOptions,
@@ -138,6 +157,7 @@ pub struct ViewOptions {
     /// How many times its laid-out size the diagram is drawn, after any fit.
     zoom: f32,
     fit: Option<Fit>,
+    icons: Option<Icons>,
 }
 
 /// How a view fits the width it has: see [`ViewOptions::fit`].
@@ -178,7 +198,15 @@ impl ViewOptions {
         // ids to share, so it lays out under Pele's own default prefix, which also seeds a
         // cynefin's boundaries as Pele does without one.
         let layout = LayoutOptions { id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()), ..LayoutOptions::default() };
-        ViewOptions { layout, palette: None, metrics: Metrics::Drawn, kept: KeptLook::default(), zoom: 1.0, fit: None }
+        ViewOptions {
+            layout,
+            palette: None,
+            metrics: Metrics::Drawn,
+            kept: KeptLook::default(),
+            zoom: 1.0,
+            fit: None,
+            icons: None,
+        }
     }
 
     /// A view as wide as its parent, which fits the diagram to that width. A diagram that fits
@@ -267,6 +295,29 @@ impl ViewOptions {
     /// [`KeptLook::DimmedWithError`], as Pele's `mount` does, unless set.
     pub fn kept_look(mut self, look: KeptLook) -> Self {
         self.kept = look;
+        self
+    }
+
+    /// The app's icons: `icons` gives the icon it draws for a name, or `None` for a name it does
+    /// not know, as Pele's host answers its `icons` resolver. The view draws the icon in the box
+    /// the diagram leaves for it: an architecture service's or group's, a treeview row's, a
+    /// flowchart icon shape's and a usecase icon actor's. An icon replaces Pele's built-in glyph
+    /// for its name, such as architecture's `database` or treeview's folder, and a name `icons`
+    /// gives none for is drawn as without it. Pele's SVG is not changed. An icon with a fill
+    /// whose contours cross each other is not drawn, and its box is left empty: the lowering does
+    /// not work out what such a fill covers, and draws an icon whole or not at all.
+    ///
+    /// The name is the source's with its entity codes decoded, such as `logos:aws`. The diagram is
+    /// laid out as Pele lays it out for a host with no icons, so a label's `fa:fa-car`, a
+    /// mindmap's icon and a kanban card's icon leave no room and are not drawn.
+    ///
+    /// The view calls `icons` when it paints, so another function paints again and lays nothing
+    /// out. The view paints again only when the function, the drawing or its colours change, so
+    /// `icons` gives a name the same icon every time. It is a plain function, as a link's handler
+    /// is: an app that loads its icons keeps them where the function reads them, such as a
+    /// `static` `LazyLock`.
+    pub fn icons(mut self, icons: fn(&str) -> Option<Icon>) -> Self {
+        self.icons = Some(icons);
         self
     }
 
@@ -662,11 +713,11 @@ impl Diagram {
         };
         let palette = options.palette.clone().unwrap_or_else(|| Palette::from_tokens(&tok::theme(env.system_dark)));
         self.session.borrow_mut().drawn = Some(Drawn::Pele { natural: sized.natural, lowered: lowered.clone() });
-        Ok(self.paint(&lowered, drawing, &palette, env.system_dark, on_event))
+        Ok(self.paint(&lowered, drawing, &palette, env.system_dark, on_event, options.icons))
     }
 
-    /// `lowered`'s `drawing` in `palette`, painted again only when the drawing, the colours or
-    /// the handler change.
+    /// `lowered`'s `drawing` in `palette` with the app's `icons`, painted again only when the
+    /// drawing, the colours, the handler or the icons change.
     fn paint<S: 'static>(
         &self,
         lowered: &Lowered,
@@ -674,13 +725,15 @@ impl Diagram {
         palette: &Palette,
         dark: bool,
         on_event: Option<Handler<S>>,
+        icons: Option<Icons>,
     ) -> El {
         let paints = lowered.layout.scene.resolve_paints_with(palette.core(), dark, palette.theme);
-        // The handler is part of what is painted, so another one paints again.
+        // The handler and the icons are part of what is painted, so another of either paints again.
         let handler = on_event.map(|handler| handler as usize);
-        memo(self.id.as_str(), (lowered.id, &paints, handler), || {
+        let drawer = icons.map(|icons| icons as usize);
+        memo(self.id.as_str(), (lowered.id, &paints, handler, drawer), || {
             let started = Instant::now();
-            let painted = drawing.el(&paints, on_event).key(self.id.as_str());
+            let painted = drawing.el(&paints, on_event, icons).key(self.id.as_str());
             let mut session = self.session.borrow_mut();
             session.stats.paints += 1;
             session.times.paint = started.elapsed();

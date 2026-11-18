@@ -58,8 +58,8 @@ break_one stroke-blended-twice lower.rs a_translucent_stroke \
   'let once = coat.overlaps && colour.a < 1.0;' \
   'let once = false && coat.overlaps && colour.a < 1.0;'
 break_one group-faded-piecewise lower.rs a_group_fades \
-  'self.frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);' \
-  'self.frame.placed(el().key(self.key.as_str()), origin).children(children).dim(self.opacity);'
+  'frame.placed(el().key(self.key.as_str()), origin).children(children).layer_opacity(self.opacity);' \
+  'frame.placed(el().key(self.key.as_str()), origin).children(children).dim(self.opacity);'
 break_one text-turned-the-other-way lower.rs turned_text_turns \
   'element.rotate(turn.radians).origin(pivot[0], pivot[1])' \
   'element.rotate(-turn.radians).origin(pivot[0], pivot[1])'
@@ -250,6 +250,55 @@ break_one calc-of-no-length-applied ../../pele-core/src/scene/css.rs a_length_ty
   'LENGTH_UNITS.contains(&unit) || degrees(1.0, unit).is_some() || OTHER_UNITS.contains(&unit)' \
   'true' \
   invalid_value
+
+break_one icon-not-drawn lower.rs an_icon_the_app_gives \
+  'Some(Some(icon)) => icon.el(brush.paints, origin, &slot.key, slot.opacity),' \
+  'Some(Some(_)) => None,' \
+  icons
+break_one icon-fitted-to-cover icon.rs an_icon_the_app_gives \
+  'let scale = (size.width / of.width).min(size.height / of.height);' \
+  'let scale = (size.width / of.width).max(size.height / of.height);' \
+  icons
+break_one icon-uncentred icon.rs an_icon_the_app_gives \
+  'let top = origin.y + (size.height - of.height * scale) / 2.0 - from.y * scale;' \
+  'let top = origin.y - from.y * scale;' \
+  icons
+break_one icon-current-not-foreground lower.rs an_icon_the_app_gives \
+  'IconPaint::Current => paints.get(Paint::Role(Role::Foreground)).map(colour),' \
+  'IconPaint::Current => paints.get(Paint::Role(Role::Muted)).map(colour),' \
+  icons
+break_one icon-arc-unturned icon.rs an_icon_the_app_gives \
+  'if arc.rotation == 0.0 || rx == ry {' \
+  'if true {' \
+  icons
+break_one icon-unknown-name-drops-glyph lower.rs a_name_the_app_has_no_icon \
+  'drawn[slot.index] = icons(&slot.name).map(|icon| slot.drawn(&icon));' \
+  'drawn[slot.index] = Some(icons(&slot.name).map_or(DrawnIcon { frame: None, coats: Vec::new() }, |icon| slot.drawn(&icon)));' \
+  icons
+break_one icon-stroke-unzoomed lower.rs an_icon_follows_the_zoom \
+  'width: width * self.zoom,' \
+  'width,' \
+  icons
+break_one icons-not-in-the-memo-key lib.rs another_icons_function \
+  'memo(self.id.as_str(), (lowered.id, &paints, handler, drawer), || {' \
+  'memo(self.id.as_str(), (lowered.id, &paints, handler, drawer.map(|_| 0)), || {' \
+  icons
+break_one icon-outside-its-link lower.rs a_link_and_a_tooltip_are_found \
+  'let frame = self.frame.into_iter().chain(icons.iter().copied()).reduce(union)?;' \
+  'let frame = self.frame.into_iter().reduce(union)?;' \
+  icons
+break_one icon-off-the-tooltip-s-spots lower.rs a_link_and_a_tooltip_are_found \
+  'None if tooltip.is_some() => self.spots.iter().chain(&icons).copied().collect(),' \
+  'None if tooltip.is_some() => self.spots.clone(),' \
+  icons
+break_one icon-smooth-handle-unmirrored icon.rs path_data_is_read \
+  'Some((handle, _)) => [2.0 * here[0] - handle[0], 2.0 * here[1] - handle[1]],' \
+  'Some((handle, _)) => handle,' \
+  icons
+break_one icon-subpath-after-close-unmoved icon.rs path_data_is_read \
+  'if closed && upper != b'"'"'M'"'"' && upper != b'"'"'Z'"'"' {' \
+  'if false && closed && upper != b'"'"'M'"'"' && upper != b'"'"'Z'"'"' {' \
+  icons
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.
