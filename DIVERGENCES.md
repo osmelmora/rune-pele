@@ -2,6 +2,8 @@
 
 Parity mode (`pele_core::render`, `pele parity`) is byte-identical to Pele 1.13.0 and has no divergences.
 
+Which Pele: the one on the Node `mise.toml` pins, built for Apple Silicon. Pele's own maths depends on the machine. Its `Math.sin`, `cos`, `acos`, `asin`, `atan2`, `pow` and `log10` round apart in the last bit on up to 0.5% of random inputs between Node for arm64 and for x64, and the port's libm rounds apart from both. Measured by `mise run intel-trig`: Pele draws the corpus and every fixture source alike on both machines, and `pele parity` on x64 Node also reads `522 522 0 0 0`. A drawing that carries a last bit into its coordinates can still differ from Pele on either machine, as 2 of 3,000 random venn diagrams do on arm64 and 1 on x64. The decision log of 2026-11-18 has the numbers.
+
 Product mode (`rune_pele::Diagram::view`) draws the same Scene natively in Rune. Each deliberate difference from Pele's look is listed here with its reason. A difference that is not listed is a bug.
 
 Every one of Pele 1.13.0's 33 types is drawn this way: `rune_pele::lower::NATIVE` lists them all. A source that the last table lists is drawn by Rune's own `rune-mermaid` instead.

@@ -576,3 +576,53 @@ An adversarial review of `main` at `e44a742` found 16 defects. Four units fixed 
 - **An invalid colour keeps the attribute's colour, as a browser does.** A page's CSS drops a declaration it cannot parse. resvg instead paints such a fill black and draws no such stroke. The browser is Pele's host, and resvg is only the reference the tests draw Pele's SVG with, so the view follows the browser. The unit brief's "as resvg does" was wrong. `invalid_colour` compares with resvg's drawing of Pele's SVG with the declaration taken out, and `DIVERGENCES.md` notes the choice.
 
 **Open.** A half-typed length, such as `stroke-width:2p`, is a style the walk does not read, so that prefix still falls back to rune-mermaid while it streams. `keep_view`'s flowchart row counts it: 1 prefix drawn by rune-mermaid.
+
+## 2026-11-18 Pele on Intel measured: the same drawings, other trig
+
+**Why.** The venn entry of 2026-11-16 inferred that Pele on an Intel Mac matches libm, and kept libm. Nobody had measured it. A user who runs Pele on an Intel Mac makes the SVG this port must match.
+
+**How.** `mise run intel-node` installs Node 26.13.1 for x64 through mise (`MISE_ARCH=x64`, its own data folder under `out/intel-node`). mise checks the tarball against nodejs.org's `SHASUMS256.txt` and that file's signature. The script checks the tarball against `SHASUMS256.txt` again. Rosetta 2 runs it. `MISE_NODE_VERSION=path:<that folder>` makes the oracle and the doctor run it, with no change to the oracle. The oracle still refuses any other version (exit 70), `pele parity` prints the path it ran, and the doctor now prints the Node's architecture and names the variable when it is set. `mise run intel-trig [-- <seed> <count>]` runs it all and writes `out/verify/intel-trig/`.
+
+**The maths (measured, seed `0x1e7e1`, 10,000,000 random inputs a function).** Each cell counts answers that differ in any bit. Every difference is one ulp, except log10's random ones, which are at most two.
+
+| JS | port | x64 vs port | arm64 vs port | x64 vs arm64 |
+| --- | --- | --- | --- | --- |
+| `Math.sin` | `js::sin` (libm) | 73,939 | 117,165 | 48,228 |
+| `Math.cos` | `js::cos` (libm) | 78,052 | 113,466 | 39,946 |
+| `Math.acos` | `libm::acos` (venn) | 0 | 19,458 | 19,458 |
+| `Math.asin` | `libm::asin` (block) | 0 | 46,882 | 46,882 |
+| `Math.atan2` | `libm::atan2`, the 8,003,040 with y/x within ±2^60 | 0 | 2,278 | 2,278 |
+| `Math.atan2` | `libm::atan2`, the other 1,996,960 | 22,262 | 22,262 | 0 |
+| `Math.pow` | `js::pow` (libm) | 519,564 | 526,908 | 8,016 |
+| `Math.log10` | `libm::log10` (gantt, treemap) | 201,150 | 200,405 | 11,348 |
+| `Math.log10` | `xychart_ticks::log10` | 0 | 11,348 | 11,348 |
+| `Math.log2` | `libm::log2` (packet) | 0 | 0 | 0 |
+| `Math.hypot` | `layout::num::hypot` | 0 | 0 | 0 |
+| `Math.sqrt` | `f64::sqrt` | 0 | 0 | 0 |
+
+The edge inputs, grouped by the call that takes them, are in `math.md`. Each Node run with `--jitless` gives its own answers on every edge input, so the interpreter and the compilers agree.
+
+**Conclusions (measured).**
+- **Intel Pele matches libm** for `acos`, `asin`, `log2`, and for `atan2` wherever y/x is within ±2^60. It also matches the port's own `hypot` and xychart's `log10`. arm64 Pele matches libm for `log2`, `hypot` and `sqrt` only.
+- **Intel Pele matches neither libm nor arm64 Pele** for `sin` and `cos`. The inference of 2026-11-16 held for `acos`, `asin` and `atan2`, and was wrong for `sin` and `cos`. The libm crate follows FreeBSD's later msun (its sources say so), and V8 follows the older fdlibm, so they round apart even without fused multiply-adds. arm64's fused operations add more. xychart's port of V8's `log10` matching x64 Node on all 10,108,438 inputs shows the same thing from the other side.
+- **`pow` is the platform's.** V8's `--use-std-math-pow` is on by default, and `math::pow` calls `_pow`, with fdlibm's behind the flag (read from both binaries). On every power Pele's own code takes, Intel and arm64 Pele agree: sRGB channels to 2.4, 0.99 to a pass, 10, 2 and 0.5 to a whole power, and squares. On random powers they part in 8 of 10,000. libm's `pow` is off from both on 5% of random powers, on 0.99^19 and 100 of 0.99^0..1000, and on 10^k for 64 of k = -330..330, among them -5, -11 and 29. Sankey takes 0.99^0..5, which all agree. xychart takes 10^k through `ten_to`, which agrees on all 661. Gantt takes `js::pow(10, k)`, which agrees for k = -4..28.
+- **Pele's `ink` in parity mode.** `scene.rs` raises sRGB channels to 2.4 with `js::pow`, which is off from both Nodes on 34 of the 256 channel values of a `#rrggbb` colour. It picks Pele's ink for all 16,777,216 such colours on both Nodes. The closest luminance to the turn between the two inks is 3.5e-8 away, and an ulp moves it by about 1e-16.
+- **`log10`.** libm's `log10` is off from both Nodes on 2% of inputs. Within three ulps of every power of ten it is off on 4, and none of them crosses a whole number, so gantt's `floor` holds.
+
+**What reaches a drawing (measured).**
+- `pele parity` with x64 Node as the oracle reads `522 522 0 0 0`.
+- Pele's own answers are byte-identical on x64 and arm64 Node for 379,778 of 379,779 sources: the corpus's 522 and every source of every fixture. The one that differs is `venn_layout`'s unsettled relaxation, which the port draws like neither.
+- Random venn diagrams, made by the tests: 1,880 of 2,000 geometries are bit-equal to Pele on x64, against 1,848 on arm64. 1 of 3,000 drawings differs only by libm's last bit on x64, against 2 on arm64. `acos` and `atan2` are bit-equal to x64 Node on all of venn's 600,009 and 600,020 inputs. In the oracle test, `sin` is bit-equal on 302,127 of 304,334 on x64, against 300,834 on arm64.
+
+**Caveats.**
+- Rosetta 2 stands in for an Intel Mac (inferred). V8's fdlibm is plain SSE2 arithmetic, which Rosetta computes exactly.
+- Rosetta reports SSE4.2 and no AVX or FMA, so Apple's x86 `pow` ran the path for such a CPU. An Intel Mac with FMA may take another path in Apple's libm (guess).
+- Pele on Linux or Windows calls another `pow` (not measured).
+
+**Decision.** None yet: trig stays on libm. These are proposed, not made:
+1. Port V8's fdlibm `sin` and `cos` into `js.rs`, as `xychart_ticks::log10` ports its `log10`. Expected (inferred from `log10`): Intel Pele bit for bit, and arm64 Pele apart only where its fused operations round (0.48% of random `sin` inputs, against 1.17% now). This goes through the prove-js-numerics skill.
+2. Move xychart's `log10` and `ten_to` into `js.rs`, and use them in gantt and treemap.
+3. `js::pow(±1, ±∞)` and `js::pow(1, NaN)` return 1, where `Math.pow` returns NaN. No call passes them (read from the port's eleven calls). One guard fixes it.
+- `js::sin`'s doc gives fused multiply-adds as the reason for the gap. That is only part of it.
+
+**Checks.** `mise run intel-trig` fails if a port marked equal to x64 Node (`same_on_x64`) stops being so, if the port picks another ink than Pele for a `#rrggbb` colour, or if Pele draws a corpus or fixture source apart on the two Nodes. The recipe and its breaks are in `features/numerics.md`.

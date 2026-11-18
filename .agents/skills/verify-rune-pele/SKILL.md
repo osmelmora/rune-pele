@@ -36,6 +36,8 @@ Run `.agents/skills/verify-rune-pele/scripts/doctor.sh` first, and again wheneve
 
 It ends with `doctor: ok` or stops at the first `doctor: FAIL <reason>` with the fix. Do not drive a checkout the doctor fails.
 
+The Node line names the Node's architecture, `arm64` for the pinned one. When `MISE_NODE_VERSION` is set, the next line says that it, not `mise.toml`, names the Node. `mise run intel-trig` sets it on purpose to run the oracle on the same version built for x64. Anywhere else, unset it.
+
 ## Drive
 
 Drive the CLI. Each command is a user path.
