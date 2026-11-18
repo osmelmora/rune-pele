@@ -30,3 +30,6 @@ run = "scripts/consumer.sh"
 description = "Install the pinned Node built for x86-64 under out/intel-node, beside the arm64 one, and print its path"
 run = "scripts/intel-node.sh"
 
+[tasks.intel-trig]
+description = "Compare Pele's maths and answers on x86-64 Node with arm64 Node and the port, and run parity on x86-64; tables in out/verify/intel-trig"
+run = "scripts/intel-trig.sh"
