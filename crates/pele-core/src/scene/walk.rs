@@ -128,7 +128,8 @@ pub enum Geometry {
         size: Size,
         fit: ImageFit,
     },
-    /// The box of an icon the host draws by name, in the colour of the text around it.
+    /// The box of an icon the host draws by name, in `currentColor`: the foreground, which Pele's
+    /// root sets as the colour every icon box inherits.
     Icon {
         name: String,
         origin: Point,

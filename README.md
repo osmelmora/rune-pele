@@ -50,6 +50,8 @@ accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4
 
 Make one `Diagram` per diagram and keep it in the app's state. In the view, `diagram.view_with(cx, &source, ViewOptions::fit(), on_event)` draws the source as wide as its parent, and `on_event` hears a link pressed. A source the native lowering cannot draw, which `DIVERGENCES.md` lists, is drawn by Rune's rune-mermaid, which draws no links or tooltips and ignores the zoom. `diagram.engine()` says which drew the drawing shown, and what it can do.
 
+A source can name icons, such as `logos:aws` for an architecture service or a treeview row. Pele draws them only for a page that gives it icons, so its SVG leaves such a box empty, and the view does too until the app gives it icons of its own: `ViewOptions::fit().icons(icons)`, where `icons` is a plain `fn(&str) -> Option<Icon>`. An `Icon` is SVG path data on a view box, filled or stroked, as an Iconify icon is: `Icon::new([0.0, 0.0, 24.0, 24.0])?.stroke("M4 12h16", 2.0, IconPaint::Current)?`. `IconPaint::Current` is the diagram's foreground, as `currentColor` is in Pele's SVG, and `IconPaint::Fixed` an icon's own colour. A name the function has no icon for is drawn as without icons. `examples/diagram.rs` gives three.
+
 `examples/consumer` is such an app, in a workspace of its own. `mise run consumer` builds it, runs its tests, and checks that its patches and this section's match the workspace's, and `mise run check` runs it too. On Linux, Rune also needs the system libraries its README lists under "Linux".
 
 ## Verification

@@ -20,12 +20,29 @@
 //! the drawing a view shows, and [`Engine`] what it can do.
 //!
 //! Layout is cached by source, layout options, device scale and Rune's font epoch, lowering by
-//! layout and zoom, and painting is a `memo` keyed by the lowered drawing and the resolved
-//! colours. So a palette or dark-mode change repaints without parsing, laying out or measuring
-//! anything, and a zoom lowers again without laying out.
+//! layout and zoom, and painting is a `memo` keyed by the lowered drawing, the resolved colours,
+//! and the app's link handler and icons. So a palette or dark-mode change repaints without
+//! parsing, laying out or measuring anything, and a zoom lowers again without laying out.
 //!
 //! [`ViewOptions::fit`] fits a diagram to the width its view has, which it reads from Rune's
 //! layout.
+//!
+//! [`ViewOptions::icons`] gives the view the app's icons, as Pele's host gives Pele its `icons`
+//! resolver. A source names icons such as `logos:aws` for an architecture service or a treeview
+//! row. Pele's SVG leaves such a box empty for its page, and the view draws the [`Icon`] the app
+//! gives for the name in it: SVG path data on a view box, as an Iconify icon is, lowered as every
+//! other shape is.
+//!
+//! ```ignore
+//! fn icons(name: &str) -> Option<Icon> {
+//!     let grid = Icon::new([0.0, 0.0, 24.0, 24.0]).ok()?;
+//!     match name {
+//!         "app:bolt" => grid.stroke("M13 2 4 14h7l-1 8 9-12h-7z", 2.0, IconPaint::Current).ok(),
+//!         _ => None,
+//!     }
+//! }
+//! let options = ViewOptions::fit().icons(icons);
+//! ```
 //!
 //! While a source fails after one that drew, as a source still streaming in does, the view
 //! shows the last source that drew, in the [`KeptLook`] its options name, and
