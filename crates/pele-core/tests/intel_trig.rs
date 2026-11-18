@@ -154,18 +154,19 @@ fn pairs(xs: &[f64], ys: &[f64]) -> Vec<[f64; 2]> {
     xs.iter().flat_map(|&x| ys.iter().map(move |&y| [x, y])).collect()
 }
 
-/// The angles of `tests/oracle.rs` and the hundredths and eighths it samples, each with its
-/// neighbours: where the pinned Node on arm64 was seen one ulp away from libm.
+#[path = "js/fdlibm_edges.rs"]
+mod fdlibm_edges;
+
+/// One-argument groups as `Edges`.
+fn unary_groups(groups: fdlibm_edges::Groups) -> Edges {
+    groups.into_iter().map(|(name, inputs)| (name, unary(inputs))).collect()
+}
+
+/// Where V8's fdlibm changes course in `sin` and `cos`, the groups `tests/oracle.rs` holds to the
+/// pinned Node: among them the angles, hundredths and eighths where arm64 Node and libm were seen
+/// apart from x64 Node.
 fn angle_edges() -> Edges {
-    let degrees = (-720..=720).flat_map(|k| around(f64::from(k) * std::f64::consts::PI / 180.0, 1));
-    let quarters = (-4000..=4000).flat_map(|k| around(f64::from(k) * std::f64::consts::FRAC_PI_4, 1));
-    let hundredths = (-4000..=4000).flat_map(|k| around(f64::from(k) / 200.0, 1).chain([f64::from(k) / 8.0]));
-    vec![
-        ("special values", unary(SPECIAL.into_iter().chain([-1e22, 1e-10]))),
-        ("whole degrees to ±720°, ±1 ulp", unary(degrees)),
-        ("multiples of π/4 to ±1000π, ±1 ulp", unary(quarters)),
-        ("hundredths and eighths to ±20 and ±500, ±1 ulp", unary(hundredths)),
-    ]
+    unary_groups(fdlibm_edges::trig())
 }
 
 /// Cosines and their neighbours, as venn's overlap and block's arrow heads take them.
@@ -210,16 +211,11 @@ fn pow_edges() -> Edges {
     ]
 }
 
-/// Each power of ten as JavaScript parses it, with three neighbours a side, whole numbers and
-/// hundredths: an axis's step and a treemap's crowding.
+/// Where V8's fdlibm changes course in `log10`, the groups `tests/oracle.rs` holds to the pinned
+/// Node: among them powers of ten, whole numbers and hundredths, an axis's step and a treemap's
+/// crowding.
 fn log10_edges() -> Edges {
-    let tens = (-323..=308).flat_map(|k| around(format!("1e{k}").parse().expect("a power of ten"), 3));
-    vec![
-        ("special values", unary(SPECIAL)),
-        ("powers of ten, ±3 ulps", unary(tens)),
-        ("whole numbers to 100000", unary((1..=100_000).map(f64::from))),
-        ("hundredths to 20", unary((1..=4000).map(|k| f64::from(k) / 200.0))),
-    ]
+    unary_groups(fdlibm_edges::log10())
 }
 
 /// Each power of two with three neighbours a side, and whole numbers: a packet's bit count.

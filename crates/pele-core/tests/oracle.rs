@@ -280,6 +280,65 @@ fn cos_is_within_one_ulp_of_math_cos() {
     diff_within_one_ulp("cos", &angles(), "", js::cos);
 }
 
+#[path = "js/fdlibm_edges.rs"]
+mod fdlibm_edges;
+
+/// How many doubles apart two answers are, or `None` when only one is NaN.
+fn ulps_apart(a: f64, b: f64) -> Option<u64> {
+    let ordered = |x: f64| {
+        let bits = x.to_bits() as i64;
+        if bits < 0 { i64::MIN.wrapping_sub(bits) } else { bits }
+    };
+    (a.is_nan() == b.is_nan()).then(|| if a.is_nan() { 0 } else { ordered(a).abs_diff(ordered(b)) })
+}
+
+/// Holds `ours` to Node's `op` on every group: bit for bit where `exact` says no rounding of the
+/// port's takes part in the answer, and elsewhere within `ulps`, because the pinned Node on arm64
+/// fuses multiply-adds inside the same fdlibm. Node on x64 fuses nothing, and `mise run
+/// intel-trig` holds the port to it bit for bit on the same groups. A `floor` of the answer is
+/// Node's everywhere. Prints how many of each group are bit-equal.
+fn diff_fdlibm(op: &str, groups: &fdlibm_edges::Groups, ulps: u64, exact: fn(f64) -> bool, ours: fn(f64) -> f64) {
+    let mut far = Vec::new();
+    for (name, inputs) in groups {
+        let requests: Vec<String> = inputs.iter().map(|&x| format!("{op}\t{}", hex(x))).collect();
+        let theirs = oracle(&requests);
+        let mut equal = 0;
+        for (&x, want) in inputs.iter().zip(&theirs) {
+            let (got, want) = (ours(x), double(want));
+            let apart = ulps_apart(got, want);
+            equal += usize::from(apart == Some(0));
+            let allowed = if exact(x) { 0 } else { ulps };
+            if !apart.is_some_and(|n| n <= allowed) || got.floor().to_bits() != want.floor().to_bits() {
+                far.push(format!("{op}({x:e}) [{}] in {name}: node {}, ours {}", hex(x), hex(want), hex(got)));
+            }
+        }
+        println!("{op}, {name}: {equal} of {} bit-equal to Node", inputs.len());
+    }
+    assert!(far.is_empty(), "{} differ:\n{}", far.len(), far[..far.len().min(20)].join("\n"));
+}
+
+/// The arguments `sin` and `cos` answer with no rounding: NaN for one that is not finite, and `x`
+/// or 1 under 2^-27.
+fn trig_exact(x: f64) -> bool {
+    !x.is_finite() || x.abs() < f64::from_bits(0x3e40_0000_0000_0000)
+}
+
+#[test]
+fn sin_matches_math_sin_where_fdlibm_changes_course() {
+    diff_fdlibm("sin", &fdlibm_edges::trig(), 1, trig_exact, js::sin);
+}
+
+#[test]
+fn cos_matches_math_cos_where_fdlibm_changes_course() {
+    diff_fdlibm("cos", &fdlibm_edges::trig(), 1, trig_exact, js::cos);
+}
+
+#[test]
+fn log10_matches_math_log10_where_fdlibm_changes_course() {
+    let exact = |x: f64| x.is_nan() || x <= 0.0 || x == 1.0 || x == f64::INFINITY;
+    diff_fdlibm("log10", &fdlibm_edges::log10(), 1, exact, js::log10);
+}
+
 /// ECMAScript's `Number::exponentiate` answers NaN for any base to a NaN power and for ±1 to ±∞,
 /// where C's `pow` answers 1. Each base here meets each special power and each small whole or
 /// half power, and every answer is exact, so the claim is the same bits, NaN as one value.
