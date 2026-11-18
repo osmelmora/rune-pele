@@ -25,3 +25,8 @@ run = "cargo kani -p pele-core -j --output-format terse"
 [tasks.consumer]
 description = "Build and test examples/consumer, an app in its own workspace that depends on rune-pele as the README says"
 run = "scripts/consumer.sh"
+
+[tasks.intel-node]
+description = "Install the pinned Node built for x86-64 under out/intel-node, beside the arm64 one, and print its path"
+run = "scripts/intel-node.sh"
+
