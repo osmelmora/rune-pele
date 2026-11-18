@@ -133,6 +133,19 @@ fn the_dashes_along_each_side_of_a_rounded_box_lie_where_resvg_s_do() {
     }
 }
 
+#[test]
+fn a_box_with_a_radius_over_half_its_height_has_elliptical_corners_as_svg_clamps_each_radius() {
+    let capturer = Capturer::new();
+    for width in [1, 2, 6] {
+        let source = format!("flowchart LR\n  A(Rounded)\n  style A stroke-width:{width}px,rx:30px");
+        let (apart, row) = apart(&drawn(&capturer, &source, 2.0), 2.0);
+        common::save_in(RUN, &row, &format!("solid-r30-w{width}@2x.png"));
+        println!("solid radius 30 width {width}@2x: {}", summary(&apart));
+        let over = over_limits(&apart, 2.0);
+        assert!(over.is_empty(), "solid radius 30 width {width}@2x: {over:?}");
+    }
+}
+
 /// Whether `p` lies inside `polygon`, and how far it is from the polygon's nearest side.
 fn inside(polygon: &[Point], p: Point) -> (bool, f64) {
     let n = polygon.len();

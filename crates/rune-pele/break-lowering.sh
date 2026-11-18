@@ -311,6 +311,37 @@ break_one hairline-notch-filled stroke.rs a_dash_round_a_curve \
   'if self.half * self.half * turn / 2.0 >= VISIBLE * self.pixel * self.pixel {' \
   'if self.half * self.half * turn / 2.0 > 0.0 {' \
   dash_corners
+break_one dash-starts-at-the-corner lower.rs the_dashes_along_each_side \
+  'Segment::Move([x + rx, y]),
+        Segment::Line([x + w - rx, y]),
+        arc([x + w, y + ry]),
+        Segment::Line([x + w, y + h - ry]),
+        arc([x + w - rx, y + h]),
+        Segment::Line([x + rx, y + h]),
+        arc([x, y + h - ry]),
+        Segment::Line([x, y + ry]),
+        arc([x + rx, y]),' \
+  'Segment::Move([x, y + ry]),
+        arc([x + rx, y]),
+        Segment::Line([x + w - rx, y]),
+        arc([x + w, y + ry]),
+        Segment::Line([x + w, y + h - ry]),
+        arc([x + w - rx, y + h]),
+        Segment::Line([x + rx, y + h]),
+        arc([x, y + h - ry]),' \
+  dash_corners
+break_one corner-radii-clamped-together lower.rs a_box_with_a_radius_over_half_its_height \
+  '[r.min(w / 2.0), r.min(h / 2.0)]' \
+  '[r.min(w / 2.0).min(h / 2.0); 2]' \
+  dash_corners
+break_one elliptical-corners-boxed lower.rs a_box_with_a_radius_over_half_its_height \
+  'if radius != ry {
+            return None;
+        }' \
+  'if radius != ry && false {
+            return None;
+        }' \
+  dash_corners
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.

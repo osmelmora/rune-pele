@@ -794,7 +794,8 @@ impl Figure {
     }
 
     /// SVG's `<rect>` at `origin` with one corner radius, or with a radius of half its side its
-    /// `<circle>`, as one box. Nothing, where the border is dashed: a box's border is solid.
+    /// `<circle>`, as one box. Nothing, where the border is dashed, or where the corners are
+    /// elliptical: a box's border is solid and its corners round.
     pub fn boxed(
         origin: Point,
         size: [f64; 2],
@@ -806,7 +807,10 @@ impl Figure {
         if look.is_some_and(|look| !look.dash.is_empty()) {
             return None;
         }
-        let radius = radius.max(0.0).min(size[0] / 2.0).min(size[1] / 2.0);
+        let [radius, ry] = corner_radii(size, radius);
+        if radius != ry {
+            return None;
+        }
         let half = look.map_or(0.0, |look| look.width / 2.0);
         let frame = Frame {
             at: [(origin[0] - half) as f32, (origin[1] - half) as f32],
@@ -1157,23 +1161,31 @@ fn ellipse([cx, cy]: Point, radii: [f64; 2]) -> Vec<Segment> {
     vec![Segment::Move(top), half(bottom), half(top), Segment::Close]
 }
 
-/// SVG's `<rect>` with one corner radius, which it clamps to half of each side.
+/// The radii of the corners SVG gives a `<rect>` with one corner radius, which is both its
+/// `rx` and its `ry`: each clamped to half of its own side, so that a radius over half the
+/// shorter side makes the corners elliptical.
+fn corner_radii([w, h]: [f64; 2], radius: f64) -> [f64; 2] {
+    let r = radius.max(0.0);
+    [r.min(w / 2.0), r.min(h / 2.0)]
+}
+
+/// SVG's `<rect>` with one corner radius, from `(x + rx, y)` round clockwise.
 fn rect([x, y]: Point, [w, h]: [f64; 2], radius: f64) -> Vec<Segment> {
-    let r = radius.max(0.0).min(w / 2.0).min(h / 2.0);
-    if r == 0.0 {
+    let [rx, ry] = corner_radii([w, h], radius);
+    if rx == 0.0 || ry == 0.0 {
         return polygon(&[[x, y], [x + w, y], [x + w, y + h], [x, y + h]]);
     }
-    let arc = |to: Point| Segment::Arc(Arc { radii: [r, r], rotation: 0.0, large: false, sweep: true, to });
+    let arc = |to: Point| Segment::Arc(Arc { radii: [rx, ry], rotation: 0.0, large: false, sweep: true, to });
     vec![
-        Segment::Move([x + r, y]),
-        Segment::Line([x + w - r, y]),
-        arc([x + w, y + r]),
-        Segment::Line([x + w, y + h - r]),
-        arc([x + w - r, y + h]),
-        Segment::Line([x + r, y + h]),
-        arc([x, y + h - r]),
-        Segment::Line([x, y + r]),
-        arc([x + r, y]),
+        Segment::Move([x + rx, y]),
+        Segment::Line([x + w - rx, y]),
+        arc([x + w, y + ry]),
+        Segment::Line([x + w, y + h - ry]),
+        arc([x + w - rx, y + h]),
+        Segment::Line([x + rx, y + h]),
+        arc([x, y + h - ry]),
+        Segment::Line([x, y + ry]),
+        arc([x + rx, y]),
         Segment::Close,
     ]
 }
