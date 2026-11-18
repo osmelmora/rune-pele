@@ -1,6 +1,7 @@
 //! The app's icons: an icon `ViewOptions::icons` gives for a name is drawn in the box the diagram
 //! leaves for it, as Pele's SVG draws its host's icon there, at every zoom and in a fit. A name it
 //! gives none for is drawn as without it, and another function paints again and lays nothing out.
+//! A style value a page drops leaves the diagram native, with its icons.
 //!
 //! Pele's SVG with the same icons is Pele's own SVG, from the oracle, with each icon's markup in
 //! its box, where Pele's `iconSlot` and `iconSvg` put what the host's `icons` resolver answers.
@@ -14,7 +15,7 @@ use pele_oracle::PeleRender;
 use rune::color::hex;
 use rune::{Color, Cx, El, Env, el};
 use rune_pele::capture::{Capturer, Pixels, Window};
-use rune_pele::{Diagram, Event, FontCatalog, Icon, IconError, IconPaint, Palette, ViewOptions};
+use rune_pele::{Diagram, Event, FontCatalog, Icon, IconError, IconPaint, Palette, RenderStatus, ViewOptions};
 
 const RUN: &str = "rune-graph";
 const SCALE: f32 = 2.0;
@@ -319,6 +320,24 @@ fn a_name_the_app_has_no_icon_for_is_drawn_as_without_icons() {
         }
     }
     assert_eq!(slots.len(), 5, "the group's box and four services'");
+}
+
+#[test]
+fn a_value_a_page_drops_leaves_the_app_s_icons_drawn_natively() {
+    let capturer = Capturer::new();
+    let dropped = format!("{FLOWCHART}\n    style S stroke-width:2p,fill:blu\n    style A opacity:0.");
+    let (svg, size) = pele(FLOWCHART);
+    assert_eq!(pele(&dropped).1, size, "Pele lays the source out as without the values a page drops");
+    let mut native = window(&capturer, &dropped, as_pele().icons(app_icons), size);
+    let ours = native.capture();
+    let diagram = &native.state().diagram;
+    assert_eq!(diagram.status(), RenderStatus::Pele, "drawn natively, not {:?}", diagram.fallback());
+    let slots = slots(diagram);
+    let theirs = rasterise(&page(&svg), SCALE);
+    let compared = as_pele_draws_each_icon("flowchart-dropped", &ours, &theirs, &slots, 1.0);
+    assert_eq!(compared, ["app:bolt", "app:badge", "app:badge"], "each icon, held to Pele's SVG as a page draws it");
+    let clean = window(&capturer, FLOWCHART, as_pele().icons(app_icons), size).capture();
+    assert!(ours.rgba == clean.rgba, "the values a page drops change nothing drawn");
 }
 
 /// How wide the bolt's foot, a level stroke 2 units of its 24 wide, is drawn in `image` at `zoom`,
