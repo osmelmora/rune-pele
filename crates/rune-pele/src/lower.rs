@@ -128,9 +128,6 @@ const FLATNESS: f64 = 0.25;
 /// nothing where its sides meet, as a stroke's do.
 const BARE_FLATNESS: f64 = 0.05;
 
-/// The least distance worth drawing, in device pixels: see [`stroke`].
-const VISIBLE: f64 = 0.05;
-
 /// Half the width of the sliver over a hole's slit, in device pixels: see [`fill`].
 const SLIVER: f64 = 0.75;
 
@@ -771,7 +768,7 @@ impl Figure {
         look: Option<&StrokeLook>,
         scale: f64,
     ) -> Option<Figure> {
-        let strokes = look.map(|look| stroke(lines, look, VISIBLE / scale)).unwrap_or_default();
+        let strokes = look.map(|look| stroke(lines, look, 1.0 / scale)).unwrap_or_default();
         let width = look.map_or(0.0, |look| look.width);
         let [low, high] = extent(pieces, &strokes, width / 2.0)?;
         // A point of room, so that an antialiased edge is not cut off at the box.

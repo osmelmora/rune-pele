@@ -299,6 +299,18 @@ break_one icon-subpath-after-close-unmoved icon.rs path_data_is_read \
   'if closed && upper != b'"'"'M'"'"' && upper != b'"'"'Z'"'"' {' \
   'if false && closed && upper != b'"'"'M'"'"' && upper != b'"'"'Z'"'"' {' \
   icons
+break_one butt-joints-left-open stroke.rs a_thick_dashed_stroke_on_a_rounded_box \
+  'if self.half * self.half * turn / 2.0 >= VISIBLE * self.pixel * self.pixel {' \
+  'if false && self.half * self.half * turn / 2.0 >= VISIBLE * self.pixel * self.pixel {' \
+  dash_corners
+break_one butt-joint-patched-from-the-point stroke.rs a_dash_round_a_curve \
+  'along(at, inner, reach)' \
+  'along(at, inner, 0.0 * reach)' \
+  dash_corners
+break_one hairline-notch-filled stroke.rs a_dash_round_a_curve \
+  'if self.half * self.half * turn / 2.0 >= VISIBLE * self.pixel * self.pixel {' \
+  'if self.half * self.half * turn / 2.0 > 0.0 {' \
+  dash_corners
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.
