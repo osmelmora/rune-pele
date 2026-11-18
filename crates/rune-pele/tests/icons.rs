@@ -127,9 +127,10 @@ const ARCHITECTURE: &str = "architecture-beta\n    group cloud(app:badge)[Cloud]
                             service web(server)[Web] in cloud\n    service queue(app:unknown)[Queue] in cloud\n    \
                             api:R -- L:db";
 
-/// A flowchart's icon shapes, framed and not, one a link and one with a tooltip.
+/// A flowchart's icon shapes, framed and not, one a link and one with a tooltip. The tooltip's
+/// label is two runs, so the pointer finds the tooltip in a box round each.
 const FLOWCHART: &str = "flowchart LR\n    S@{ icon: \"app:bolt\", form: \"square\", label: \"Square\" }\n    \
-                         A@{ icon: \"app:badge\", label: \"Linked\" }\n    B@{ icon: \"app:badge\", label: \"Tipped\" }\n    \
+                         A@{ icon: \"app:badge\", label: \"Linked\" }\n    B@{ icon: \"app:badge\", label: \"Tipped<br>badge\" }\n    \
                          S --> A --> B\n    click A \"https://example.com/badge\"\n    click B callback \"Badge tip\"";
 
 /// A treeview row with an icon of the app's in place of the file glyph Pele draws for a name it
@@ -315,6 +316,21 @@ fn a_name_the_app_has_no_icon_for_is_drawn_as_without_icons() {
     assert_eq!(slots.len(), 5, "the group's box and four services'");
 }
 
+/// How wide the bolt's foot, a level stroke 2 units of its 24 wide, is drawn in `image` at `zoom`,
+/// in device pixels: the coverage of the column of pixels across it, summed, from the fill behind
+/// it to the foreground. It holds with the comparison below 2 pixels a point, where the corpus's
+/// rules let a stroke a pixel too wide pass.
+fn foot_width(image: &Pixels, slots: &[Slot], zoom: f64) -> (f64, f64) {
+    let bolt = slots.iter().find(|slot| slot.name == "app:bolt").expect("the bolt");
+    // From under the bolt's slanted side, which comes within a unit of the foot above it, to
+    // the fill under the foot.
+    let (x, top) = bolt.pixel([7.5 / 24.0, 12.5 / 24.0], zoom);
+    let (_, bottom) = bolt.pixel([7.5 / 24.0, 17.0 / 24.0], zoom);
+    let (behind, ink) = (f64::from(image.at(x, bottom)[0]), f64::from(levels(INK)[0]));
+    let width = (top..bottom).map(|y| ((behind - f64::from(image.at(x, y)[0])) / (behind - ink)).clamp(0.0, 1.0)).sum();
+    (width, 2.0 / 24.0 * bolt.side * zoom * f64::from(SCALE))
+}
+
 #[test]
 fn an_icon_follows_the_zoom_and_the_fit() {
     let capturer = Capturer::new();
@@ -326,9 +342,12 @@ fn an_icon_follows_the_zoom_and_the_fit() {
         let ours = window.capture();
         assert_eq!(window.state().diagram.zoom(), Some(zoom));
         let theirs = rasterise(&natural, SCALE * zoom);
-        let compared =
-            as_pele_draws_each_icon("zoom", &ours, &theirs, &slots(&window.state().diagram), f64::from(zoom));
+        let slots = slots(&window.state().diagram);
+        let compared = as_pele_draws_each_icon("zoom", &ours, &theirs, &slots, f64::from(zoom));
         assert_eq!(compared.len(), 3, "the bolt, and the badge twice: {compared:?}");
+        let (width, want) = foot_width(&ours, &slots, f64::from(zoom));
+        println!("zoom {zoom}: the bolt's foot is {width:.2} px wide, for {want} px");
+        assert!((width - want).abs() < 0.35, "zoom {zoom}: the bolt's foot is {width:.2} px wide, for {want}");
     }
     // A fit narrower than the diagram lays it out narrower, as Pele lays it out for a `maxWidth`,
     // and draws what is still too wide smaller. 128 points is one of the fit's steps, which are
@@ -347,8 +366,12 @@ fn an_icon_follows_the_zoom_and_the_fit() {
     assert_eq!(scene.size().width, *width, "laid out as Pele lays it out for {room} points");
     assert!(*width < f64::from(size.0) && zoom < 1.0, "laid out narrower, and drawn smaller: {width} at {zoom}");
     let theirs = rasterise(&page(svg), SCALE * zoom);
-    let compared = as_pele_draws_each_icon("fit", &ours, &theirs, &slots(diagram), f64::from(zoom));
+    let slots = slots(diagram);
+    let compared = as_pele_draws_each_icon("fit", &ours, &theirs, &slots, f64::from(zoom));
     assert_eq!(compared.len(), 3, "{compared:?}");
+    let (width, want) = foot_width(&ours, &slots, f64::from(zoom));
+    println!("fitted at {zoom}: the bolt's foot is {width:.2} px wide, for {want} px");
+    assert!((width - want).abs() < 0.35, "fitted at {zoom}: the bolt's foot is {width:.2} px wide, for {want}");
 }
 
 #[test]

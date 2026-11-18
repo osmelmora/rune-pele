@@ -254,5 +254,54 @@ break_doc doc-private-link lower.rs \
   'or wider where that is more than
     /// [`MOST_BANDS`].'
 
+break_one icon-not-drawn lower.rs an_icon_the_app_gives \
+  'Some(Some(icon)) => icon.el(brush.paints, origin, &slot.key, slot.opacity),' \
+  'Some(Some(_)) => None,' \
+  icons
+break_one icon-fitted-to-cover icon.rs an_icon_the_app_gives \
+  'let scale = (size.width / of.width).min(size.height / of.height);' \
+  'let scale = (size.width / of.width).max(size.height / of.height);' \
+  icons
+break_one icon-uncentred icon.rs an_icon_the_app_gives \
+  'let top = origin.y + (size.height - of.height * scale) / 2.0 - from.y * scale;' \
+  'let top = origin.y - from.y * scale;' \
+  icons
+break_one icon-current-not-foreground lower.rs an_icon_the_app_gives \
+  'IconPaint::Current => paints.get(Paint::Role(Role::Foreground)).map(colour),' \
+  'IconPaint::Current => paints.get(Paint::Role(Role::Muted)).map(colour),' \
+  icons
+break_one icon-arc-unturned icon.rs an_icon_the_app_gives \
+  'if arc.rotation == 0.0 || rx == ry {' \
+  'if true {' \
+  icons
+break_one icon-unknown-name-drops-glyph lower.rs a_name_the_app_has_no_icon \
+  'drawn[slot.index] = icons(&slot.name).map(|icon| slot.drawn(&icon));' \
+  'drawn[slot.index] = Some(icons(&slot.name).map_or(DrawnIcon { frame: None, coats: Vec::new() }, |icon| slot.drawn(&icon)));' \
+  icons
+break_one icon-stroke-unzoomed lower.rs an_icon_follows_the_zoom \
+  'width: width * self.zoom,' \
+  'width,' \
+  icons
+break_one icons-not-in-the-memo-key lib.rs another_icons_function \
+  'memo(self.id.as_str(), (lowered.id, &paints, handler, drawer), || {' \
+  'memo(self.id.as_str(), (lowered.id, &paints, handler, drawer.map(|_| 0)), || {' \
+  icons
+break_one icon-outside-its-link lower.rs a_link_and_a_tooltip_are_found \
+  'let frame = self.frame.into_iter().chain(icons.iter().copied()).reduce(union)?;' \
+  'let frame = self.frame.into_iter().reduce(union)?;' \
+  icons
+break_one icon-off-the-tooltip-s-spots lower.rs a_link_and_a_tooltip_are_found \
+  'None if tooltip.is_some() => self.spots.iter().chain(&icons).copied().collect(),' \
+  'None if tooltip.is_some() => self.spots.clone(),' \
+  icons
+break_one icon-smooth-handle-unmirrored icon.rs path_data_is_read \
+  'Some((handle, _)) => [2.0 * here[0] - handle[0], 2.0 * here[1] - handle[1]],' \
+  'Some((handle, _)) => handle,' \
+  icons
+break_one icon-subpath-after-close-unmoved icon.rs path_data_is_read \
+  'if closed && upper != b'"'"'M'"'"' && upper != b'"'"'Z'"'"' {' \
+  'if false && closed && upper != b'"'"'M'"'"' && upper != b'"'"'Z'"'"' {' \
+  icons
+
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
