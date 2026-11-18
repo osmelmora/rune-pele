@@ -961,4 +961,56 @@ mod proofs {
         }
         assert!(kept[0] != b'0' && kept.iter().all(u8::is_ascii_digit));
     }
+
+    /// 2^-27, under which fdlibm's kernels answer without the polynomial.
+    const TINY: f64 = f64::from_bits(0x3e40_0000_0000_0000);
+
+    /// The largest double fdlibm hands to its kernels as it is, about π/4.
+    const QUARTER: u64 = 0x3fe9_21fb_ffff_ffff;
+
+    // Every loop of the port is in `__kernel_rem_pio2` and the large branch of
+    // `__ieee754_rem_pio2`, which no argument of these harnesses reaches. So they unwind once,
+    // and Kani's unwinding checks, on by default, prove that no loop runs.
+
+    #[kani::proof]
+    #[kani::unwind(1)]
+    fn sin_and_cos_are_nan_for_nan_and_the_infinities() {
+        let x: f64 = kani::any();
+        kani::assume(!x.is_finite());
+        assert!(sin(x).is_nan() && cos(x).is_nan());
+    }
+
+    #[kani::proof]
+    #[kani::unwind(1)]
+    fn under_2_to_the_minus_27_sin_is_x_and_cos_is_one() {
+        let x: f64 = kani::any();
+        kani::assume(x.abs() < TINY);
+        assert!(sin(x).to_bits() == x.to_bits());
+        assert!(cos(x).to_bits() == 1f64.to_bits());
+    }
+
+    #[kani::proof]
+    #[kani::unwind(1)]
+    fn up_to_a_quarter_turn_sin_and_cos_lie_in_minus_one_to_one() {
+        let x: f64 = kani::any();
+        kani::assume(x.abs().to_bits() <= QUARTER);
+        assert!((-1.0..=1.0).contains(&sin(x)) && (-1.0..=1.0).contains(&cos(x)));
+    }
+
+    #[kani::proof]
+    #[kani::unwind(1)]
+    fn log10_answers_ecmascript_at_its_special_values() {
+        let x: f64 = kani::any();
+        kani::assume(x.is_nan() || x < 0.0 || x == 0.0 || x == 1.0 || x == f64::INFINITY);
+        let got = log10(x);
+        if x.is_nan() || x < 0.0 {
+            assert!(got.is_nan());
+        } else if x == 0.0 {
+            assert!(got == f64::NEG_INFINITY);
+        } else if x == 1.0 {
+            assert!(got.to_bits() == 0);
+        } else {
+            assert!(got == f64::INFINITY);
+        }
+    }
 }
