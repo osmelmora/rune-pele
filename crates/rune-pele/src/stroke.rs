@@ -6,12 +6,14 @@
 //! joint is left notched. Neither is SVG's default of butt ends and mitred corners. So a stroke
 //! is drawn round, and what SVG adds or takes away at a corner or an end is drawn beside it: the
 //! tip of a mitre as a patch, a butt end as a box where a round stroke stops short of the end.
+//! A butt end that bends, as a dash round a curve does, is a box to each segment, and the round
+//! join a round stroke would have between two of them is a patch too.
 //!
 //! Every piece of one stroke is one colour, and pieces overlap where they meet. So a translucent
 //! stroke is drawn opaque and faded once as a whole. Pieces never lie along one another, though:
 //! each is antialiased on its own, and two edges drawn over each other come out bolder than one.
 
-use crate::geometry::{Point, Polyline};
+use crate::geometry::{Point, Polyline, unit};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cap {
@@ -47,6 +49,10 @@ pub struct Strokes {
 
 /// SVG's `stroke-miterlimit` default.
 const MITER_LIMIT: f64 = 4.0;
+
+/// The least worth drawing, as a share of a device pixel: a distance this share of a pixel
+/// across, or an area this share of a pixel's.
+const VISIBLE: f64 = 0.05;
 
 /// The most dashes one stroke is cut into. A pattern finer than that draws solid.
 pub const MOST_DASHES: f64 = 20_000.0;
@@ -185,6 +191,8 @@ struct Stroker<'a> {
     look: &'a StrokeLook,
     /// Half the stroke's width.
     half: f64,
+    /// A device pixel, in the lines' units.
+    pixel: f64,
     /// The least distance worth drawing: a mitre that reaches less far past a round join than
     /// this is left round.
     visible: f64,
@@ -194,7 +202,7 @@ struct Stroker<'a> {
 /// What SVG draws at a corner, past the round join Rune draws there.
 #[derive(Clone, Copy, PartialEq)]
 enum Corner {
-    /// Nothing that shows.
+    /// Nothing that shows where the stroke is round. Between two boxes, the round join itself.
     Round,
     Miter,
     Bevel,
@@ -218,7 +226,8 @@ impl Stroker<'_> {
     }
 
     /// The patch at a corner: from the centre line out to the stroke's outer edges, a little
-    /// way back along each, and between them the mitre's tip or the bevel's straight cut.
+    /// way back along each, and between them the mitre's tip, the bevel's straight cut or the
+    /// round join's arc.
     fn patch(&mut self, before: Point, at: Point, after: Point, [d1, d2]: [Point; 2], corner: Corner) {
         let turn = d1[0] * d2[1] - d1[1] * d2[0];
         // The outer side of the corner, as a factor on each segment's left normal.
@@ -227,15 +236,62 @@ impl Stroker<'_> {
         let back = self.half.min(length(before, at));
         let on = self.half.min(length(at, after));
         let (a, b) = (along(at, n1, 1.0), along(at, n2, 1.0));
-        let mut patch = vec![at, along(a, d1, -back)];
-        if corner == Corner::Miter {
-            let k = 1.0 / (1.0 + d1[0] * d2[0] + d1[1] * d2[1]);
-            patch.push([at[0] + (n1[0] + n2[0]) * k, at[1] + (n1[1] + n2[1]) * k]);
-        } else {
-            patch.extend([a, b]);
+        // Two boxes meet edge to edge at the point, and where both edges are soft a pixel comes
+        // out pale. So a patch between boxes starts on the inner side, inside both, and covers it.
+        let apex = match corner {
+            Corner::Round => {
+                let inner = unit([n1[0] + n2[0], n1[1] + n2[1]], [0.0; 2]).unwrap_or([-d1[0], -d1[1]]);
+                // Half a width in, short of where it would leave either box: the way in leans
+                // back along one segment and on along the other by the sine of half the turn.
+                let lean = length(d1, d2) / 2.0;
+                let reach = self.half.min(length(before, at) / lean).min(length(at, after) / lean);
+                along(at, inner, reach)
+            }
+            Corner::Miter | Corner::Bevel => at,
+        };
+        let mut patch = vec![apex, along(a, d1, -back)];
+        match corner {
+            Corner::Miter => {
+                let k = 1.0 / (1.0 + d1[0] * d2[0] + d1[1] * d2[1]);
+                patch.push([at[0] + (n1[0] + n2[0]) * k, at[1] + (n1[1] + n2[1]) * k]);
+            }
+            Corner::Bevel => patch.extend([a, b]),
+            Corner::Round => {
+                // Steps short enough that each chord stays within `visible` of the arc.
+                let angle = (d1[0] * d2[0] + d1[1] * d2[1]).clamp(-1.0, 1.0).acos();
+                let widest = 2.0 * (1.0 - self.visible / self.half).max(-1.0).acos();
+                let steps = (angle / widest).ceil().max(1.0) as usize;
+                // The normals turn as the path does.
+                let (sin, cos) = (angle.copysign(turn) / steps as f64).sin_cos();
+                let mut arm = n1;
+                patch.push(a);
+                for _ in 1..steps {
+                    arm = [arm[0] * cos - arm[1] * sin, arm[0] * sin + arm[1] * cos];
+                    patch.push(along(at, arm, 1.0));
+                }
+                patch.push(b);
+            }
         }
         patch.push(along(b, d2, on));
         self.out.patches.push(patch);
+    }
+
+    /// An open stretch with butt ends, which Rune strokes as a box to each segment. Where two
+    /// boxes meet at an angle they leave a notch on the outer side, which shows on a dash round
+    /// a curve as a pale spoke at every point the curve was cut at. A patch fills it with the
+    /// round join a round stroke has there, where the notch takes enough of a pixel to show: on
+    /// a stroke a pixel wide, a patch would darken more than the notch lightens.
+    fn butt(&mut self, points: Vec<Point>) {
+        for i in 1..points.len().saturating_sub(1) {
+            let (before, at, after) = (points[i - 1], points[i], points[i + 1]);
+            let (Some(d1), Some(d2)) = (unit(before, at), unit(at, after)) else { continue };
+            let turn = (d1[0] * d2[0] + d1[1] * d2[1]).clamp(-1.0, 1.0).acos();
+            // The notch is the slice of a disc half the stroke's width across that the turn spans.
+            if self.half * self.half * turn / 2.0 >= VISIBLE * self.pixel * self.pixel {
+                self.patch(before, at, after, [d1, d2], Corner::Round);
+            }
+        }
+        self.out.butt.push(points);
     }
 
     /// An open run. A straight one with two butt ends is one box. Any other is round between
@@ -251,15 +307,15 @@ impl Stroker<'_> {
         let from = if ends[0] == End::Butt { self.half } else { 0.0 };
         let to = total - if ends[1] == End::Butt { self.half } else { 0.0 };
         if (points.len() == 2 && ends == [End::Butt; 2]) || to <= from {
-            self.out.butt.push(points);
+            self.butt(points);
             return;
         }
         self.out.round.push(round(trim(&points, from, to)));
         if ends[0] == End::Butt {
-            self.out.butt.push(trim(&points, 0.0, from));
+            self.butt(trim(&points, 0.0, from));
         }
         if ends[1] == End::Butt {
-            self.out.butt.push(trim(&points, to, total));
+            self.butt(trim(&points, to, total));
         }
     }
 
@@ -308,10 +364,11 @@ impl Stroker<'_> {
     }
 }
 
-/// The stroke of `lines` in `look`. `visible` is the least distance worth drawing, in the
-/// lines' units: a twentieth of a device pixel, say.
-pub fn stroke(lines: &[Polyline], look: &StrokeLook, visible: f64) -> Strokes {
-    let mut stroker = Stroker { look, half: look.width / 2.0, visible, out: Strokes::default() };
+/// The stroke of `lines` in `look`, for a window where a device pixel is `pixel` in the lines'
+/// units. What would change less than a twentieth of a pixel is left out.
+pub fn stroke(lines: &[Polyline], look: &StrokeLook, pixel: f64) -> Strokes {
+    let (half, visible) = (look.width / 2.0, VISIBLE * pixel);
+    let mut stroker = Stroker { look, half, pixel, visible, out: Strokes::default() };
     if look.width.is_nan() || look.width <= 0.0 {
         return stroker.out;
     }
@@ -428,7 +485,7 @@ mod tests {
 
     #[test]
     fn a_round_stroke_is_one_round_polyline() {
-        let strokes = stroke(&[open(&SQUARE)], &look(2.0, Cap::Round, Join::Round), 0.05);
+        let strokes = stroke(&[open(&SQUARE)], &look(2.0, Cap::Round, Join::Round), 1.0);
         assert_eq!(strokes, Strokes { round: vec![smooth(&SQUARE, false)], ..Strokes::default() });
         assert!(strokes.overlaps(), "its segments meet at joints");
     }
@@ -436,14 +493,14 @@ mod tests {
     #[test]
     fn a_straight_line_with_butt_ends_is_one_box() {
         let line = [[0.0, 0.0], [10.0, 0.0]];
-        let strokes = stroke(&[open(&line)], &look(2.0, Cap::Butt, Join::Miter), 0.05);
+        let strokes = stroke(&[open(&line)], &look(2.0, Cap::Butt, Join::Miter), 1.0);
         assert_eq!(strokes, Strokes { butt: vec![line.to_vec()], ..Strokes::default() });
         assert!(!strokes.overlaps());
     }
 
     #[test]
     fn a_mitred_square_is_round_with_a_tip_at_each_corner() {
-        let strokes = stroke(&[closed(&SQUARE)], &look(2.0, Cap::Butt, Join::Miter), 0.05);
+        let strokes = stroke(&[closed(&SQUARE)], &look(2.0, Cap::Butt, Join::Miter), 1.0);
         assert_eq!(strokes.round, [smooth(&SQUARE, true)]);
         assert!(strokes.butt.is_empty());
         assert_eq!(strokes.patches.len(), 4);
@@ -459,14 +516,14 @@ mod tests {
     #[test]
     fn a_gentle_bend_stays_round_and_a_needle_is_cut_off_straight() {
         let bend = [[0.0, 0.0], [10.0, 0.0], [20.0, 0.5]];
-        let strokes = stroke(&[open(&bend)], &look(1.0, Cap::Round, Join::Miter), 0.05);
+        let strokes = stroke(&[open(&bend)], &look(1.0, Cap::Round, Join::Miter), 1.0);
         assert_eq!(strokes, Strokes { round: vec![smooth(&bend, false)], ..Strokes::default() });
 
         // 20 degrees between the two legs: past the miter limit of 4.
         let tip = [10.0, 0.0];
         let back = [10.0 - 10.0 * 20f64.to_radians().cos(), 10.0 * 20f64.to_radians().sin()];
         let needle = open(&[[0.0, 0.0], tip, back]);
-        let strokes = stroke(&[needle], &look(2.0, Cap::Round, Join::Miter), 0.05);
+        let strokes = stroke(&[needle], &look(2.0, Cap::Round, Join::Miter), 1.0);
         let [patch] = &strokes.patches[..] else { panic!("one bevel: {strokes:?}") };
         assert_eq!(patch.len(), 5, "a centre, an edge, the cut's two ends, an edge");
         let cut = [patch[2], patch[3]];
@@ -480,24 +537,24 @@ mod tests {
     #[test]
     fn butt_ends_on_a_bent_line_are_boxes_at_the_ends_of_a_shorter_round_stroke() {
         let line = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0]];
-        let strokes = stroke(&[open(&line)], &look(2.0, Cap::Butt, Join::Round), 0.05);
+        let strokes = stroke(&[open(&line)], &look(2.0, Cap::Butt, Join::Round), 1.0);
         assert_eq!(strokes.round, [smooth(&[[1.0, 0.0], [10.0, 0.0], [10.0, 9.0]], false)]);
         assert_eq!(strokes.butt, [vec![[0.0, 0.0], [1.0, 0.0]], vec![[10.0, 9.0], [10.0, 10.0]]]);
         assert!(strokes.patches.is_empty());
         let short = [[0.0, 0.0], [1.0, 0.0], [1.0, 0.5]];
-        let strokes = stroke(&[open(&short)], &look(2.0, Cap::Butt, Join::Round), 0.05);
+        let strokes = stroke(&[open(&short)], &look(2.0, Cap::Butt, Join::Round), 1.0);
         assert_eq!((strokes.butt, strokes.round), (vec![short.to_vec()], vec![]), "too short for a round middle");
     }
 
     #[test]
     fn a_point_where_a_curve_was_cut_is_no_corner_however_sharp_the_chords_meet() {
         let cut = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0]];
-        let strokes = stroke(&[smooth(&cut, false)], &look(4.0, Cap::Round, Join::Miter), 0.05);
+        let strokes = stroke(&[smooth(&cut, false)], &look(4.0, Cap::Round, Join::Miter), 1.0);
         assert_eq!(strokes, Strokes { round: vec![smooth(&cut, false)], ..Strokes::default() });
         // A line that runs into a curve the way the curve starts: the corner is by the tangents.
         let mut smooth_join = open(&cut);
         smooth_join.corners[1] = Some([[1.0, 0.0], [1.0, 0.0]]);
-        let strokes = stroke(&[smooth_join], &look(4.0, Cap::Round, Join::Miter), 0.05);
+        let strokes = stroke(&[smooth_join], &look(4.0, Cap::Round, Join::Miter), 1.0);
         assert!(strokes.patches.is_empty(), "{strokes:?}");
     }
 
@@ -505,16 +562,16 @@ mod tests {
     fn dashes_take_the_strokes_caps() {
         let line = open(&[[0.0, 0.0], [20.0, 0.0]]);
         let dashed = |cap| StrokeLook { dash: vec![6.0, 4.0], ..look(1.0, cap, Join::Miter) };
-        let butt = stroke(std::slice::from_ref(&line), &dashed(Cap::Butt), 0.05);
+        let butt = stroke(std::slice::from_ref(&line), &dashed(Cap::Butt), 1.0);
         assert_eq!(butt.butt, [vec![[0.0, 0.0], [6.0, 0.0]], vec![[10.0, 0.0], [16.0, 0.0]]]);
         assert!(butt.round.is_empty());
-        let round = stroke(&[line], &dashed(Cap::Round), 0.05);
+        let round = stroke(&[line], &dashed(Cap::Round), 1.0);
         assert_eq!(round.round.len(), 2);
         assert!(round.butt.is_empty());
     }
 
     #[test]
     fn no_width_draws_nothing() {
-        assert!(stroke(&[open(&SQUARE)], &look(0.0, Cap::Round, Join::Round), 0.05).is_empty());
+        assert!(stroke(&[open(&SQUARE)], &look(0.0, Cap::Round, Join::Round), 1.0).is_empty());
     }
 }

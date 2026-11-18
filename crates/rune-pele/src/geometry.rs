@@ -64,7 +64,7 @@ pub struct Polyline {
     pub corners: Vec<Option<[Point; 2]>>,
 }
 
-fn unit(from: Point, to: Point) -> Option<Point> {
+pub(crate) fn unit(from: Point, to: Point) -> Option<Point> {
     let d = (to[0] - from[0]).hypot(to[1] - from[1]);
     (d > 0.0).then(|| [(to[0] - from[0]) / d, (to[1] - from[1]) / d])
 }

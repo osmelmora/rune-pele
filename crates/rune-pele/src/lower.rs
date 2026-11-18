@@ -128,9 +128,6 @@ const FLATNESS: f64 = 0.25;
 /// nothing where its sides meet, as a stroke's do.
 const BARE_FLATNESS: f64 = 0.05;
 
-/// The least distance worth drawing, in device pixels: see [`stroke`].
-const VISIBLE: f64 = 0.05;
-
 /// Half the width of the sliver over a hole's slit, in device pixels: see [`fill`].
 const SLIVER: f64 = 0.75;
 
@@ -771,7 +768,7 @@ impl Figure {
         look: Option<&StrokeLook>,
         scale: f64,
     ) -> Option<Figure> {
-        let strokes = look.map(|look| stroke(lines, look, VISIBLE / scale)).unwrap_or_default();
+        let strokes = look.map(|look| stroke(lines, look, 1.0 / scale)).unwrap_or_default();
         let width = look.map_or(0.0, |look| look.width);
         let [low, high] = extent(pieces, &strokes, width / 2.0)?;
         // A point of room, so that an antialiased edge is not cut off at the box.
@@ -797,7 +794,8 @@ impl Figure {
     }
 
     /// SVG's `<rect>` at `origin` with one corner radius, or with a radius of half its side its
-    /// `<circle>`, as one box. Nothing, where the border is dashed: a box's border is solid.
+    /// `<circle>`, as one box. Nothing, where the border is dashed, or where the corners are
+    /// elliptical: a box's border is solid and its corners round.
     pub fn boxed(
         origin: Point,
         size: [f64; 2],
@@ -809,7 +807,10 @@ impl Figure {
         if look.is_some_and(|look| !look.dash.is_empty()) {
             return None;
         }
-        let radius = radius.max(0.0).min(size[0] / 2.0).min(size[1] / 2.0);
+        let [radius, ry] = corner_radii(size, radius);
+        if radius != ry {
+            return None;
+        }
         let half = look.map_or(0.0, |look| look.width / 2.0);
         let frame = Frame {
             at: [(origin[0] - half) as f32, (origin[1] - half) as f32],
@@ -1153,30 +1154,41 @@ fn zoomed(style: TextStyle, zoom: f64) -> TextStyle {
     TextStyle { size: style.size * zoom as f32, optical_size: OpticalSize::Fixed(style.size), ..style }
 }
 
-/// SVG's `<ellipse>`, and with equal radii its `<circle>`: two half turns from the top.
-fn ellipse([cx, cy]: Point, radii: [f64; 2]) -> Vec<Segment> {
-    let half = |to: Point| Segment::Arc(Arc { radii, rotation: 0.0, large: true, sweep: true, to });
-    let (top, bottom) = ([cx, cy - radii[1]], [cx, cy + radii[1]]);
-    vec![Segment::Move(top), half(bottom), half(top), Segment::Close]
+/// SVG's `<ellipse>`, and with equal radii its `<circle>`: two half turns clockwise. A dashed
+/// one starts at the right, where SVG starts the path and so the dash pattern. One with no
+/// dashes starts at the top: where it starts moves nothing SVG draws, only how Rune cuts its
+/// fill into triangles, and with that the pixels along its edge at 1x.
+fn ellipse([cx, cy]: Point, [rx, ry]: [f64; 2], dashed: bool) -> Vec<Segment> {
+    let half = |to: Point| Segment::Arc(Arc { radii: [rx, ry], rotation: 0.0, large: true, sweep: true, to });
+    let (start, across) = if dashed { ([cx + rx, cy], [cx - rx, cy]) } else { ([cx, cy - ry], [cx, cy + ry]) };
+    vec![Segment::Move(start), half(across), half(start), Segment::Close]
 }
 
-/// SVG's `<rect>` with one corner radius, which it clamps to half of each side.
+/// The radii of the corners SVG gives a `<rect>` with one corner radius, which is both its
+/// `rx` and its `ry`: each clamped to half of its own side, so that a radius over half the
+/// shorter side makes the corners elliptical.
+fn corner_radii([w, h]: [f64; 2], radius: f64) -> [f64; 2] {
+    let r = radius.max(0.0);
+    [r.min(w / 2.0), r.min(h / 2.0)]
+}
+
+/// SVG's `<rect>` with one corner radius, from `(x + rx, y)` round clockwise.
 fn rect([x, y]: Point, [w, h]: [f64; 2], radius: f64) -> Vec<Segment> {
-    let r = radius.max(0.0).min(w / 2.0).min(h / 2.0);
-    if r == 0.0 {
+    let [rx, ry] = corner_radii([w, h], radius);
+    if rx == 0.0 || ry == 0.0 {
         return polygon(&[[x, y], [x + w, y], [x + w, y + h], [x, y + h]]);
     }
-    let arc = |to: Point| Segment::Arc(Arc { radii: [r, r], rotation: 0.0, large: false, sweep: true, to });
+    let arc = |to: Point| Segment::Arc(Arc { radii: [rx, ry], rotation: 0.0, large: false, sweep: true, to });
     vec![
-        Segment::Move([x + r, y]),
-        Segment::Line([x + w - r, y]),
-        arc([x + w, y + r]),
-        Segment::Line([x + w, y + h - r]),
-        arc([x + w - r, y + h]),
-        Segment::Line([x + r, y + h]),
-        arc([x, y + h - r]),
-        Segment::Line([x, y + r]),
-        arc([x + r, y]),
+        Segment::Move([x + rx, y]),
+        Segment::Line([x + w - rx, y]),
+        arc([x + w, y + ry]),
+        Segment::Line([x + w, y + h - ry]),
+        arc([x + w - rx, y + h]),
+        Segment::Line([x + rx, y + h]),
+        arc([x, y + h - ry]),
+        Segment::Line([x, y + ry]),
+        arc([x + rx, y]),
         Segment::Close,
     ]
 }
@@ -1323,11 +1335,12 @@ fn lower_draw(
         }
         _ => None,
     };
+    let dashed = style.stroke.as_ref().is_some_and(|stroke| !stroke.dash.is_empty());
     let program = match draw.geometry {
         Geometry::Path(commands) => path(&commands),
         Geometry::Rect { origin, size, radius } => rect(point(origin), [size.width, size.height], radius),
-        Geometry::Circle { centre, radius } => ellipse(point(centre), [radius; 2]),
-        Geometry::Ellipse { centre, radii } => ellipse(point(centre), [radii.width, radii.height]),
+        Geometry::Circle { centre, radius } => ellipse(point(centre), [radius; 2], dashed),
+        Geometry::Ellipse { centre, radii } => ellipse(point(centre), [radii.width, radii.height], dashed),
         Geometry::Polygon(points) => polygon(&points.into_iter().map(point).collect::<Vec<_>>()),
         Geometry::Image { .. } => return Err(Unsupported::Image),
         Geometry::Icon { .. } => unreachable!("an icon's box is a slot"),
