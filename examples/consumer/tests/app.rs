@@ -2,9 +2,10 @@
 //! manifest it needs, held to the one rune-pele is built with.
 
 use std::collections::BTreeSet;
+use std::process::Command;
 
-use rune::Env;
 use rune_pele::capture::Capturer;
+use rune_pele::rune::Env;
 use rune_pele::{Engine, RenderStatus};
 use rune_pele_consumer::{init, view};
 
@@ -75,4 +76,15 @@ fn the_app_pins_and_patches_rune_as_rune_pele_does_and_the_readme_says() {
     for (name, text) in [("Cargo.toml", &workspace), ("the app", &app), ("README.md", &readme)] {
         assert_eq!(revs(text), pinned, "{name} names the rev rune-pele pins");
     }
+}
+
+#[test]
+fn the_app_s_rune_has_the_features_it_turns_on_through_rune_pele_and_no_others() {
+    let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+    let args = ["tree", "--offline", "--manifest-path", manifest, "-p", "rune", "--depth", "0", "-e", "normal"];
+    let tree = Command::new(env!("CARGO")).args(args).args(["-f", "{f}"]).output().expect("cargo runs");
+    assert!(tree.status.success(), "cargo tree: {}", String::from_utf8_lossy(&tree.stderr));
+    let features = String::from_utf8(tree.stdout).expect("cargo prints UTF-8");
+    let features: Vec<&str> = features.trim().split(',').collect();
+    assert_eq!(features, ["embedded-fonts"], "the app's Rune, as Cargo resolves it");
 }

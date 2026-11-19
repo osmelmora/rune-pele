@@ -70,6 +70,11 @@ use pele_core::scene::{Rgba, ThemeSeries};
 use pele_core::{DiagramKind, LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
 use rune::{Color, Cx, El, Env, Tx, el, memo, tok};
 
+/// The Rune rune-pele is built with, at the revision it pins. A view takes this Rune's `Cx` and
+/// gives its `El`, so an app that uses Rune as `rune_pele::rune` always has rune-pele's Rune: no
+/// `rune` dependency of its own to keep at the same revision.
+pub use rune;
+
 pub use icon::{Icon, IconError, IconPaint};
 pub use kept::KeptLook;
 /// Where a link in a diagram leads.

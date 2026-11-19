@@ -2119,7 +2119,6 @@ dependencies = [
 name = "rune-pele-consumer"
 version = "0.0.0"
 dependencies = [
- "rune",
  "rune-pele",
 ]
 

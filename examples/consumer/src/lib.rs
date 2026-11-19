@@ -1,7 +1,7 @@
 //! A Rune app that draws one Mermaid diagram with rune-pele, fitted to its window. `cargo run`
 //! opens the window, and the tests draw the same view headless.
 
-use rune::{Cx, El, Tx, col, text, tok};
+use rune_pele::rune::{Cx, El, Tx, col, text, tok};
 use rune_pele::{Diagram, Event, FontCatalog, Link, ViewOptions};
 
 pub const SOURCE: &str = "flowchart LR

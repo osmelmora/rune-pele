@@ -1,4 +1,4 @@
-use rune::AppSpec;
+use rune_pele::rune::{self, AppSpec};
 use rune_pele_consumer::{init, view};
 
 fn main() {

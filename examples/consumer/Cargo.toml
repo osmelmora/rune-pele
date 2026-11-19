@@ -10,13 +10,13 @@ publish = false
 [workspace]
 
 [dependencies]
-rune-pele = { path = "../../crates/rune-pele" }
-# The rev rune-pele pins: rune-pele takes this rev's `Cx` and gives its `El`. rune-pele turns
-# Rune's default features off, so the app chooses them. `embedded-fonts` gives text Inter, which
+# The app takes Rune as `rune_pele::rune`, so it always has the Rune rune-pele pins, whose `Cx`
+# rune-pele takes and whose `El` it gives, and names no `rune` of its own. rune-pele turns Rune's
+# default features off. Its `embedded-fonts` turns on Rune's, which gives text Inter, the font
 # `FontCatalog::rune()` measures with.
-rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts"] }
+rune-pele = { path = "../../crates/rune-pele", features = ["embedded-fonts"] }
 
-# Rune's own patches, from the same rev. Without them `rune` does not resolve.
+# Rune's own patches, from the rev rune-pele pins. Without them `rune` does not resolve.
 [patch.crates-io]
 winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
 parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }

@@ -384,5 +384,48 @@ break_doc doc-private-link lower.rs \
   'or wider where that is more than
     /// [`MOST_BANDS`].'
 
+break_one rune-not-re-exported lib.rs an_app_on_rune_pele_s_rune \
+  'pub use rune;' \
+  '' \
+  rune_reexport
+
+# break_use <name> <test command> <file> <from> <to> [<file> <from> <to>]...: how an app builds
+# with rune-pele, broken by exact edits of files named from the workspace root, undone together.
+# The command must pass before the edits and fail with them.
+break_use() {
+  name=$1 command=$2
+  chosen "$name" || return
+  shift 2
+  if ! sh -c "$command" > "$logs/$name.unbroken.log" 2>&1; then
+    echo "break $name: FAILS UNBROKEN, so the break cannot be told apart (see $logs/$name.unbroken.log)"
+    failed=1
+    return
+  fi
+  edited= applied=1
+  while [ $# -ge 3 ]; do
+    [ -e "$1.unbroken" ] || { cp "$1" "$1.unbroken"; edited="$edited $1"; }
+    FROM=$2 TO=$3 perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$1" ||
+      applied=0
+    shift 3
+  done
+  if [ "$applied" = 0 ]; then
+    echo "break $name: NOT APPLIED, the text to break is gone"
+    failed=1
+  elif sh -c "$command" > "$logs/$name.log" 2>&1; then
+    echo "break $name: tests still PASS with it; $command does not catch it"
+    failed=1
+  else
+    echo "break $name: $command fails, as it should:"
+    grep -E "panicked|^error|assertion" "$logs/$name.log" | head -4 | sed 's/^/    /'
+  fi
+  for file in $edited; do
+    restore "$file"
+  done
+}
+
+consumer='cargo test -q --manifest-path examples/consumer/Cargo.toml --target-dir target'
+break_use fonts-not-forwarded "$consumer the_app_s_rune_has_the_features" \
+  crates/rune-pele/Cargo.toml 'embedded-fonts = ["rune/embedded-fonts"]' 'embedded-fonts = []'
+
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

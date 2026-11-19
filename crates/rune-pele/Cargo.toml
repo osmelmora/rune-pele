@@ -7,6 +7,11 @@ license.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
+[features]
+# Rune's embedded Inter, which `FontCatalog::rune()` measures with, for an app that takes Rune
+# as `rune_pele::rune`, with no `rune` dependency of its own to turn it on.
+embedded-fonts = ["rune/embedded-fonts"]
+
 [dependencies]
 # Rune's default features (Metal backend, D-Bus, Ogg audio, embedded Inter, SVG images) are the
 # app's choice. rune-mermaid depends on Rune the same way.
