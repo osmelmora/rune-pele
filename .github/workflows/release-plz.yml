@@ -24,7 +24,7 @@ jobs:
       - &linux-libs
         run: sudo apt-get update -q && sudo apt-get install -yq libxkbcommon-dev libwayland-dev
       - &tools
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@v5
         with:
           install_args: rust release-plz github:obi1kenobi/cargo-semver-checks
       - run: release-plz release --git-token "$GITHUB_TOKEN"
