@@ -57,6 +57,11 @@ fn a_source_the_native_view_does_not_draw_is_an_error_with_nothing_drawn_before_
     let diagram = &window.state().diagram;
     assert_eq!(window.state().error.borrow().clone(), Some(unlowered()), "the view is the error");
     assert_eq!(diagram.error(), Some(unlowered()));
+    assert!(
+        !unlowered().to_string().contains("rune-mermaid"),
+        "the message names no fallback the build lacks: {}",
+        unlowered()
+    );
     assert_eq!((diagram.status(), diagram.engine(), diagram.fallback()), (RenderStatus::Unrendered, None, None));
 }
 

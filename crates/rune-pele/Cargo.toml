@@ -25,7 +25,8 @@ rune-mermaid = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5
 pele-core = { path = "../pele-core" }
 
 [dev-dependencies]
-# Headless tests need fonts: without `embedded-fonts` and without app fonts, text draws nothing.
+# Headless tests measure and draw text in Inter, which `embedded-fonts` embeds. Without it Rune
+# draws in a system font, whose widths differ from the ones the tests expect.
 # `tooling` keeps the example's `--snap` in release builds too; debug builds always have it.
 rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts", "tooling"] }
 # Rasterises Pele's own SVG beside the native drawing. The version Rune's `svg` feature uses.

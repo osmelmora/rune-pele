@@ -349,13 +349,20 @@ pub enum ViewError {
     Geometry(Unsupported),
 }
 
+/// What a [`ViewError`] adds when the native view cannot draw a source: that rune-mermaid could
+/// not either, or nothing in a build without it.
+#[cfg(feature = "fallback")]
+const FALLBACK_FAILED: &str = ", and rune-mermaid cannot draw it";
+#[cfg(not(feature = "fallback"))]
+const FALLBACK_FAILED: &str = "";
+
 impl std::fmt::Display for ViewError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ViewError::Core(error) => write!(f, "{error}"),
-            ViewError::NoFallback => f.write_str("this diagram type is not ported, and rune-mermaid cannot draw it"),
+            ViewError::NoFallback => write!(f, "this diagram type is not ported{FALLBACK_FAILED}"),
             ViewError::Option(name) => write!(f, "the {name} must be a positive number"),
-            ViewError::Geometry(unsupported) => write!(f, "{unsupported}, and rune-mermaid cannot draw it"),
+            ViewError::Geometry(unsupported) => write!(f, "{unsupported}{FALLBACK_FAILED}"),
         }
     }
 }
