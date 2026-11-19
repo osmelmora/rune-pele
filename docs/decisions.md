@@ -48,13 +48,13 @@ The full record is `docs/design/scene/design.md` ("Synthesis decision"), with bo
 
 The two units touch disjoint crates, so each runs as its own leaf worker in its own worktree.
 
-- **Pie at byte parity through the Scene.** Branch `pie-parity`, worktree `../rune-pele-wt/pie-parity`, role `hardest tasks` (Claude Fable 5.2).
+- **Pie at byte parity through the Scene.** Branch `pie-parity`, role `hardest tasks` (Claude Fable 5.2).
   - Done when `pele parity --type pie` shows 2 of 2 identical.
   - Also done when a harvested differential test of every pie source in Pele's test suite is byte-equal.
-- **Rune adapter spike.** Branch `rune-spike`, worktree `../rune-pele-wt/rune-spike`, role `feature, refactoring` (Claude Opus 5.5).
+- **Rune adapter spike.** Branch `rune-spike`, role `feature, refactoring` (Claude Opus 5.5).
   - It settles three risks: Rune builds as a dependency on Rust 1.100, text lands on a baseline from public metrics, and a headless PNG can be captured.
 
-The briefs are in the session scratch area (`briefs/`). The parent reviews each diff and reruns each done check before merging.
+Each diff is reviewed and each done check rerun before merging.
 
 ## 2026-11-14 Rune spike merged: all three risks verified
 
