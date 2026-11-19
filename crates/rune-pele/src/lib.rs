@@ -153,8 +153,9 @@ impl Palette {
 /// How one view of a diagram is drawn.
 ///
 /// A drawing rune-mermaid draws ([`Engine::RuneMermaid`], only with the `fallback` feature)
-/// follows only the width and the kept look of these options. It ignores the palette, the font size, the zoom, a fit's smallest
-/// text and the app's icons, and is drawn in Rune's neutral light or dark colours.
+/// follows only the width and the kept look of these options. It ignores the palette, the font
+/// size, the zoom, a fit's smallest text and the app's icons, and is drawn in Rune's neutral
+/// light or dark colours.
 #[derive(Clone, Debug)]
 pub struct ViewOptions {
     layout: LayoutOptions,
@@ -603,8 +604,8 @@ impl Session {
 /// layouts and measurer its views reuse.
 ///
 /// A source the lowering cannot draw is drawn by rune-mermaid instead, with the `fallback`
-/// feature, which draws no links or tooltips and ignores the zoom. After each view, [`Diagram::engine`] says who drew the
-/// drawing shown, and so what it can do.
+/// feature, which draws no links or tooltips and ignores the zoom. After each view,
+/// [`Diagram::engine`] says who drew the drawing shown, and so what it can do.
 pub struct Diagram {
     id: String,
     fonts: FontCatalog,
@@ -620,8 +621,9 @@ impl Diagram {
     }
 
     /// `source` drawn as native elements for this window, with its links inert. A source that
-    /// is not drawn natively is drawn by rune-mermaid, with the `fallback` feature. A source that fails after one that drew
-    /// shows that drawing, as [`ViewOptions::kept_look`] says. Any other failure is an error.
+    /// is not drawn natively is drawn by rune-mermaid, with the `fallback` feature. A source that
+    /// fails after one that drew shows that drawing, as [`ViewOptions::kept_look`] says. Any
+    /// other failure is an error.
     pub fn view<S: 'static>(&self, cx: &mut Cx<S>, source: &str, options: ViewOptions) -> Result<El, ViewError> {
         self.draw(cx, source, options, None)
     }
