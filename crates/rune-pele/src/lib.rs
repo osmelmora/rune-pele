@@ -17,7 +17,9 @@
 //! [`lower::NATIVE`] lists the diagram types drawn this way. Any other type, and any source whose
 //! Scene asks for something the lowering does not draw, is drawn by Rune's own rune-mermaid.
 //! That drawing has no links or tooltips and ignores the zoom: [`Diagram::engine`] says who drew
-//! the drawing a view shows, and [`Engine`] what it can do.
+//! the drawing a view shows, and [`Engine`] what it can do. rune-mermaid draws only with the
+//! `fallback` feature, which is on by default. Without it such a source is an error,
+//! [`ViewError::NoFallback`] or [`ViewError::Geometry`], and the app builds without rune-mermaid.
 //!
 //! Layout is cached by source, layout options, device scale and Rune's font epoch, lowering by
 //! layout and zoom, and painting is a `memo` keyed by the lowered drawing, the resolved colours,
@@ -150,8 +152,8 @@ impl Palette {
 
 /// How one view of a diagram is drawn.
 ///
-/// A drawing rune-mermaid draws ([`Engine::RuneMermaid`]) follows only the width and the kept
-/// look of these options. It ignores the palette, the font size, the zoom, a fit's smallest
+/// A drawing rune-mermaid draws ([`Engine::RuneMermaid`], only with the `fallback` feature)
+/// follows only the width and the kept look of these options. It ignores the palette, the font size, the zoom, a fit's smallest
 /// text and the app's icons, and is drawn in Rune's neutral light or dark colours.
 #[derive(Clone, Debug)]
 pub struct ViewOptions {
@@ -336,12 +338,13 @@ impl ViewOptions {
 pub enum ViewError {
     /// pele-core rejected the source, with Pele's message. No other grammar is tried.
     Core(RenderError),
-    /// The diagram type is not ported, and rune-mermaid cannot draw the source either.
+    /// The diagram type is not ported, and rune-mermaid cannot draw the source either, or
+    /// rune-pele is built without the `fallback` feature.
     NoFallback,
     /// A view option is not a positive number.
     Option(&'static str),
     /// The Scene asks for something that is not drawn natively, and rune-mermaid cannot draw
-    /// the source either.
+    /// the source either, or rune-pele is built without the `fallback` feature.
     Geometry(Unsupported),
 }
 
@@ -366,7 +369,7 @@ pub enum RenderStatus {
     /// rune-pele, from pele-core's Scene.
     Pele,
     /// Rune's own rune-mermaid, for a source that is not drawn natively. [`Diagram::fallback`]
-    /// says why.
+    /// says why. Only with the `fallback` feature.
     RuneMermaid,
     /// The source failed, and the view showed the last drawing that drew, in the options'
     /// [`KeptLook`]. [`Diagram::error`] says why the source failed. [`Diagram::fallback`] and
@@ -374,7 +377,8 @@ pub enum RenderStatus {
     Kept,
 }
 
-/// Why the last view was left to rune-mermaid.
+/// Why the last view was left to rune-mermaid. Only with the `fallback` feature: without it, the
+/// view is the matching [`ViewError`] instead.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fallback {
     /// pele-core has no port of the diagram type.
@@ -392,7 +396,7 @@ pub enum Engine {
     Pele,
     /// Rune's own rune-mermaid, for a source that is not drawn natively: [`Diagram::fallback`]
     /// says why. It draws no links or tooltips, and of the view's options follows only the
-    /// width and the kept look, as [`ViewOptions`] says.
+    /// width and the kept look, as [`ViewOptions`] says. Only with the `fallback` feature.
     RuneMermaid,
 }
 
@@ -598,8 +602,8 @@ impl Session {
 /// One diagram on screen. Make one per diagram instance and keep it across views: it holds the
 /// layouts and measurer its views reuse.
 ///
-/// A source the lowering cannot draw is drawn by rune-mermaid instead, which draws no links or
-/// tooltips and ignores the zoom. After each view, [`Diagram::engine`] says who drew the
+/// A source the lowering cannot draw is drawn by rune-mermaid instead, with the `fallback`
+/// feature, which draws no links or tooltips and ignores the zoom. After each view, [`Diagram::engine`] says who drew the
 /// drawing shown, and so what it can do.
 pub struct Diagram {
     id: String,
@@ -616,7 +620,7 @@ impl Diagram {
     }
 
     /// `source` drawn as native elements for this window, with its links inert. A source that
-    /// is not drawn natively is drawn by rune-mermaid. A source that fails after one that drew
+    /// is not drawn natively is drawn by rune-mermaid, with the `fallback` feature. A source that fails after one that drew
     /// shows that drawing, as [`ViewOptions::kept_look`] says. Any other failure is an error.
     pub fn view<S: 'static>(&self, cx: &mut Cx<S>, source: &str, options: ViewOptions) -> Result<El, ViewError> {
         self.draw(cx, source, options, None)
@@ -848,7 +852,8 @@ impl Diagram {
         lowered
     }
 
-    /// Why the drawing the last view showed was left to rune-mermaid, where it was.
+    /// Why the drawing the last view showed was left to rune-mermaid, where it was. Always `None`
+    /// without the `fallback` feature.
     pub fn fallback(&self) -> Option<Fallback> {
         match self.session.borrow().shown() {
             Some(Drawn::RuneMermaid(drawing)) => Some(drawing.why.clone()),
@@ -1006,12 +1011,19 @@ impl Diagram {
         Ok(drawn)
     }
 
+    #[cfg(feature = "fallback")]
     fn by_rune_mermaid(&self, source: &str, dark: bool, max_width: Option<f32>) -> Option<El> {
         let mut style = rune_mermaid::DiagramStyle::neutral(dark);
         if let Some(width) = max_width {
             style.max_width = width;
         }
         Some(rune_mermaid::render(source, &style)?.key(self.id.as_str()))
+    }
+
+    /// Nothing: without the `fallback` feature there is no rune-mermaid to draw with.
+    #[cfg(not(feature = "fallback"))]
+    fn by_rune_mermaid(&self, _: &str, _: bool, _: Option<f32>) -> Option<El> {
+        None
     }
 
     /// A kept rune-mermaid drawing, drawn again only for a change of dark mode or width:

@@ -3,6 +3,8 @@
 //! draws has no links or tooltips and ignores the zoom, whether the source drew it or the view
 //! kept it.
 
+#![cfg(feature = "fallback")]
+
 use rune::{Color, Cx, El, Env, el};
 use rune_pele::capture::{Capturer, Window};
 use rune_pele::{Diagram, Engine, Event, FontCatalog, Link, RenderStatus, ViewOptions};

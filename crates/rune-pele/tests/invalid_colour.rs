@@ -7,6 +7,9 @@
 //! the drawing is held to resvg's drawing of Pele's SVG with the declaration dropped, as a page
 //! reads that SVG.
 
+// What only the tests that need rune-mermaid use is unused without `fallback`.
+#![cfg_attr(not(feature = "fallback"), allow(dead_code, unused_imports))]
+
 mod common;
 
 use common::{
@@ -106,6 +109,7 @@ fn a_colour_no_css_reads_is_dropped_and_the_diagram_is_drawn_natively() {
     }
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn a_colour_only_a_page_can_resolve_still_leaves_the_diagram_to_rune_mermaid() {
     let capturer = Capturer::new();

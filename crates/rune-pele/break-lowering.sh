@@ -401,7 +401,11 @@ break_use() {
     failed=1
     return
   fi
-  edited= applied=1
+  # A broken manifest resolves the locks again, so they are put back with the edited files.
+  edited=" Cargo.lock examples/consumer/Cargo.lock" applied=1
+  for lock in $edited; do
+    cp "$lock" "$lock.unbroken"
+  done
   while [ $# -ge 3 ]; do
     [ -e "$1.unbroken" ] || { cp "$1" "$1.unbroken"; edited="$edited $1"; }
     FROM=$2 TO=$3 perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$1" ||
@@ -426,6 +430,18 @@ break_use() {
 consumer='cargo test -q --manifest-path examples/consumer/Cargo.toml --target-dir target'
 break_use fonts-not-forwarded "$consumer the_app_s_rune_has_the_features" \
   crates/rune-pele/Cargo.toml 'embedded-fonts = ["rune/embedded-fonts"]' 'embedded-fonts = []'
+break_use fallback-off-by-default "$consumer on_rune_pele_s_default_features" \
+  crates/rune-pele/Cargo.toml 'default = ["fallback"]' 'default = []'
+break_use fallback-ungated 'cargo test -q --release -p rune-pele --no-default-features --test without_fallback' \
+  crates/rune-pele/Cargo.toml 'fallback = ["dep:rune-mermaid"]' 'fallback = []' \
+  crates/rune-pele/Cargo.toml ', optional = true }' ' }' \
+  crates/rune-pele/src/lib.rs '#[cfg(feature = "fallback")]
+    fn by_rune_mermaid' 'fn by_rune_mermaid' \
+  crates/rune-pele/src/lib.rs '#[cfg(not(feature = "fallback"))]
+    fn by_rune_mermaid' '#[cfg(any())]
+    fn by_rune_mermaid'
+break_use without-fallback-test-run-with-it 'cargo test -q --release -p rune-pele --test without_fallback' \
+  crates/rune-pele/tests/without_fallback.rs '#![cfg(not(feature = "fallback"))]' ''
 
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed

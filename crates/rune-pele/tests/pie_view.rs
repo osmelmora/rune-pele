@@ -1,6 +1,9 @@
 //! Pie drawn natively through rune-pele's public API, captured headless and measured in pixels
 //! against the Scene's own geometry, and against Pele's SVG rasterised by resvg.
 
+// What only the tests that need rune-mermaid use is unused without `fallback`.
+#![cfg_attr(not(feature = "fallback"), allow(dead_code, unused_imports))]
+
 mod common;
 
 use std::cell::RefCell;
@@ -405,6 +408,7 @@ fn keys_follow_what_is_drawn_not_the_id_prefix_or_the_values() {
     assert_eq!(window.state().diagram.stats().layouts, 3, "each of the three inputs laid out once");
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn only_a_source_the_view_does_not_lower_falls_back_to_rune_mermaid() {
     let capturer = Capturer::new();

@@ -459,6 +459,7 @@ fn one(kind: &str) -> &'static str {
     FIXTURES.iter().find(|(name, ..)| *name == kind).expect("a fixture of the type").1
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn what_is_not_drawn_natively_is_drawn_by_rune_mermaid_and_says_why() {
     use rune_pele::Fallback;

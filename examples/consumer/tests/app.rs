@@ -37,6 +37,18 @@ fn the_app_draws_its_diagram_natively_within_a_phone_and_a_desktop() {
     }
 }
 
+#[test]
+fn on_rune_pele_s_default_features_rune_mermaid_draws_what_the_native_view_does_not() {
+    let mut app = init();
+    app.source.push_str("  style A text-decoration:line-through\n");
+    let capturer = Capturer::new();
+    let mut window = capturer.window(app, view, (720.0, 480.0), Env::new(false, 1.0));
+    window.capture();
+    let diagram = &window.state().diagram;
+    assert_eq!(diagram.status(), RenderStatus::RuneMermaid, "{:?}", diagram.error());
+    assert_eq!(diagram.engine(), Some(Engine::RuneMermaid));
+}
+
 /// The entries of every `[patch.crates-io]` table in a manifest, or in a README's TOML blocks.
 fn patches(text: &str) -> Vec<String> {
     let mut within = false;

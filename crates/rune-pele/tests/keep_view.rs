@@ -2,6 +2,9 @@
 //! of every fixture, in both looks, after a fallback to rune-mermaid, through a palette or
 //! dark-mode change, and until a source draws again.
 
+// What only the tests that need rune-mermaid use is unused without `fallback`.
+#![cfg_attr(not(feature = "fallback"), allow(dead_code, unused_imports))]
+
 mod common;
 
 use std::cell::RefCell;
@@ -135,6 +138,7 @@ fn broken(source: &str) -> String {
     format!("{}\n    Z -->", source.trim_end())
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn every_prefix_of_each_fixture_after_its_first_drawing_draws_one() {
     let listed: Vec<String> = FIXTURES.iter().map(|name| format!("{name}.mmd")).collect();
@@ -351,6 +355,7 @@ fn the_unchanged_look_shows_the_kept_drawing_as_it_was() {
     assert_eq!(paths(&window), drawn, "the same elements, under the same key paths");
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn a_source_that_falls_back_to_rune_mermaid_and_then_fails_keeps_that_drawing() {
     let capturer = Capturer::new();
@@ -378,6 +383,7 @@ fn inked(pixels: &Pixels) -> usize {
     pixels.rgba.chunks(4).filter(|px| px[..3] != [255, 255, 255]).count()
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn a_palette_or_dark_mode_change_repaints_the_kept_drawing_without_laying_out() {
     let capturer = Capturer::new();

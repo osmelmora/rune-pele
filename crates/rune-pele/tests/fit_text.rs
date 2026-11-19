@@ -3,6 +3,9 @@
 //! the plain size or larger at its own size is drawn under the smallest text size, and a diagram
 //! that runs across turns to run down where across would scroll.
 
+// What only the tests that need rune-mermaid use is unused without `fallback`.
+#![cfg_attr(not(feature = "fallback"), allow(dead_code, unused_imports))]
+
 mod common;
 
 use std::collections::HashMap;
@@ -95,6 +98,7 @@ fn shown(least: &Option<Least>) -> String {
 /// at a time as a window's edge is dragged. A run the fixture draws at the plain size or larger at
 /// its own size is plain text, and is never drawn under the smallest text size: not by the zoom,
 /// and not by a narrower layout that sets it smaller.
+#[cfg(feature = "fallback")]
 #[test]
 fn fitted_text_keeps_to_the_smallest_size_at_every_width() {
     let mut names: Vec<String> = std::fs::read_dir(pele_oracle::root().join("tests/fixtures/rune"))

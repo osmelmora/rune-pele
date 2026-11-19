@@ -7,6 +7,9 @@
 //! As in `invalid_colour`, resvg is not a page: a dropped declaration is held to resvg's drawing
 //! of Pele's SVG with the declaration taken out, as a page reads that SVG.
 
+// What only the tests that need rune-mermaid use is unused without `fallback`.
+#![cfg_attr(not(feature = "fallback"), allow(dead_code, unused_imports))]
+
 mod common;
 
 use common::{
@@ -186,6 +189,7 @@ fn every_prefix_of_each_value_the_corpus_writes_is_in_the_table() {
     }
 }
 
+#[cfg(feature = "fallback")]
 #[test]
 fn a_value_its_property_does_not_take_is_dropped_and_the_rest_is_drawn_as_a_page_draws_it() {
     let capturer = Capturer::new();

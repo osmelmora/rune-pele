@@ -8,6 +8,10 @@ version.workspace = true
 rust-version.workspace = true
 
 [features]
+default = ["fallback"]
+# Rune's rune-mermaid draws a source the native view does not. Off, such a source is an error,
+# and an app builds without rune-mermaid.
+fallback = ["dep:rune-mermaid"]
 # Rune's embedded Inter, which `FontCatalog::rune()` measures with, for an app that takes Rune
 # as `rune_pele::rune`, with no `rune` dependency of its own to turn it on.
 embedded-fonts = ["rune/embedded-fonts"]
@@ -16,8 +20,8 @@ embedded-fonts = ["rune/embedded-fonts"]
 # Rune's default features (Metal backend, D-Bus, Ogg audio, embedded Inter, SVG images) are the
 # app's choice. rune-mermaid depends on Rune the same way.
 rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false }
-# Draws the diagram types pele-core has not ported yet. Same rev as `rune`.
-rune-mermaid = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+# Draws, with `fallback`, a source the native view does not. Same rev as `rune`.
+rune-mermaid = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", optional = true }
 pele-core = { path = "../pele-core" }
 
 [dev-dependencies]
