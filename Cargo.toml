@@ -5,7 +5,7 @@ members = ["crates/pele-core", "crates/pele-oracle", "crates/pele-cli", "crates/
 [workspace.package]
 edition = "2024"
 license = "MIT"
-version = "0.0.0"
+version = "0.1.0"
 rust-version = "1.100"
 
 [workspace.lints.rust]
