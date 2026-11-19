@@ -1,0 +1,49 @@
+# On every push to main: `release` tags a version that has no tag yet (and makes its GitHub
+# release); `release-pr` opens or updates the pull request that bumps the version and writes
+# CHANGELOG.md. The tools come from mise.toml, as they do locally.
+name: Release-plz
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - &checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Rune links these on Linux, and cargo-semver-checks builds rune-pele's docs.
+      - &linux-libs
+        run: sudo apt-get update -q && sudo apt-get install -yq libxkbcommon-dev libwayland-dev
+      - &tools
+        uses: jdx/mise-action@v3
+        with:
+          install_args: rust release-plz github:obi1kenobi/cargo-semver-checks
+      - run: release-plz release --git-token "$GITHUB_TOKEN"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-pr:
+    name: Release pull request
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - *checkout
+      - *linux-libs
+      - *tools
+      - run: release-plz release-pr --git-token "$GITHUB_TOKEN"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

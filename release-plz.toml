@@ -1,0 +1,36 @@
+# Releases are git tags on GitHub, not crates.io (git_only). pele-core and rune-pele share one
+# version and one tag, `v{{ version }}`, which apps pin; the root CHANGELOG.md covers both.
+[workspace]
+git_only = true
+git_tag_enable = false
+git_release_enable = false
+changelog_update = false
+dependencies_update = false
+semver_check = true
+pr_labels = ["release"]
+
+[[package]]
+name = "rune-pele"
+version_group = "rune-pele"
+git_tag_name = "v{{ version }}"
+git_tag_enable = true
+git_release_enable = true
+changelog_update = true
+changelog_path = "./CHANGELOG.md"
+changelog_include = ["pele-core"]
+
+[[package]]
+name = "pele-core"
+version_group = "rune-pele"
+git_tag_name = "v{{ version }}"
+
+[[package]]
+name = "pele-cli"
+release = false
+
+[[package]]
+name = "pele-oracle"
+release = false
+
+[changelog]
+protect_breaking_commits = true

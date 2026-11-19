@@ -12,3 +12,6 @@ cd "$root/harness"
 npm ci --silent --no-audit --no-fund
 node build.mjs
 echo "pele $(git -C "$root/vendor/pele" describe --tags) at $pin, oracle at harness/dist/oracle.mjs"
+
+cd "$root"
+hk install --mise

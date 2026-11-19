@@ -20,8 +20,8 @@ The goal is Pele's output, byte for byte, in a parity mode that uses Pele's own 
 ## Start
 
 ```sh
-mise install        # Rust 1.100.0, Node 26.13.1, Kani 0.68.0
-mise run setup      # Pele at the pin, then the oracle bundle
+mise install        # Rust, Node, Kani, hk, release-plz and cargo-semver-checks, pinned in mise.toml
+mise run setup      # Pele at the pin, the oracle bundle, and the git hooks
 mise run check      # fmt, clippy, tests, and the differential tests against Pele
 mise exec -- cargo run -q -p pele-cli -- parity
 ```
@@ -30,11 +30,11 @@ mise exec -- cargo run -q -p pele-cli -- parity
 
 ## Using rune-pele in your app
 
-rune-pele is not on crates.io. An app depends on it by path, here from a checkout beside the app, and on Rune at the revision rune-pele pins, with Rune's patches:
+rune-pele is not on crates.io. An app depends on it from git at a release tag, the newest on the Releases page, and on Rune at the revision rune-pele pins, with Rune's patches:
 
 ```toml
 [dependencies]
-rune-pele = { path = "../rune-pele/crates/rune-pele" }
+rune-pele = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.1.0" }
 rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts"] }
 
 [patch.crates-io]
@@ -53,6 +53,16 @@ Make one `Diagram` per diagram and keep it in the app's state. In the view, `dia
 A source can name icons, such as `logos:aws` for an architecture service or a treeview row. Pele draws them only for a page that gives it icons, so its SVG leaves such a box empty, and the view does too until the app gives it icons of its own: `ViewOptions::fit().icons(icons)`, where `icons` is a plain `fn(&str) -> Option<Icon>`. An `Icon` is SVG path data on a view box, filled or stroked, as an Iconify icon is: `Icon::new([0.0, 0.0, 24.0, 24.0])?.stroke("M4 12h16", 2.0, IconPaint::Current)?`. `IconPaint::Current` is the diagram's foreground, as `currentColor` is in Pele's SVG, and `IconPaint::Fixed` an icon's own colour. A name the function has no icon for is drawn as without icons. `examples/diagram.rs` gives three.
 
 `examples/consumer` is such an app, in a workspace of its own. `mise run consumer` builds it, runs its tests, and checks that its patches and this section's match the workspace's, and `mise run check` runs it too. On Linux, Rune also needs the system libraries its README lists under "Linux".
+
+## Releases
+
+`pele-core` and `rune-pele` share one version and one tag, `v<version>`. Releases are made by [release-plz](https://release-plz.ieni.dev) from git tags, not crates.io:
+
+- Each push to `main` updates a release pull request, which bumps the version and writes `CHANGELOG.md`. Merging it tags the release and makes its GitHub release.
+- The bump comes from the commit messages, which follow [Conventional Commits](https://www.conventionalcommits.org): `fix:` is a patch, `feat:` a minor version, and `feat!:` or `fix!:` a breaking one. cargo-semver-checks also compares the public API with the last release and makes any breaking change a breaking bump. Before 1.0, a breaking bump moves the minor version.
+- A commit that moves the Rune pin is `build(rune): ...`, because apps must move their Rune with it.
+
+`mise run setup` installs the git hooks from `hk.pkl`. They check each commit message, and before each commit they run `cargo fmt` and keep each crate's `LICENSE` and `NOTICE` equal to the root's.
 
 ## Verification
 

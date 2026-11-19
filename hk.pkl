@@ -1,0 +1,22 @@
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Builtins.pkl"
+
+// `check`, `fix` and `pre-commit` run these. Clippy and the tests stay in `mise run check`,
+// which takes minutes.
+steps {
+  ["cargo_fmt"] = Builtins.cargo_fmt
+  ["notices"] {
+    glob = List("LICENSE", "NOTICE", "crates/*/LICENSE", "crates/*/NOTICE")
+    check = "scripts/notices.sh"
+    fix = "scripts/notices.sh --fix"
+  }
+}
+
+hooks {
+  // release-plz reads the version bump and the changelog from Conventional Commits.
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = Builtins.check_conventional_commit
+    }
+  }
+}
