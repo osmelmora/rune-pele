@@ -444,9 +444,10 @@ fn a_palette_change_repaints_every_opened_type_without_laying_out_or_measuring()
             "{kind:<12} before {laid_out:?}\n{kind:<12} after  {after:?}, {changed} px changed of {drawn} drawn"
         )
         .unwrap();
+        let mut painted_once_more = laid_out;
+        painted_once_more.paints += 1;
         assert_eq!(
-            after,
-            rune_pele::ViewStats { paints: laid_out.paints + 1, ..laid_out },
+            after, painted_once_more,
             "{kind}: a palette change paints once more and lays out and measures nothing"
         );
         assert!(2 * changed > drawn, "{kind}: most of the drawing changed colour: {changed} of {drawn} pixels");
@@ -898,11 +899,9 @@ fn a_palette_change_recolours_a_gradient_without_laying_out_or_measuring() {
     let want = half_way(red, blue);
     assert!(close(at(&repainted), want), "half way along, in the new colours: {:?} for {want:?}", at(&repainted));
     let after = window.state().diagram.stats();
-    assert_eq!(
-        after,
-        rune_pele::ViewStats { paints: laid_out.paints + 1, ..laid_out },
-        "a palette change paints once more and lays out and measures nothing"
-    );
+    let mut painted_once_more = laid_out;
+    painted_once_more.paints += 1;
+    assert_eq!(after, painted_once_more, "a palette change paints once more and lays out and measures nothing");
     let report = format!(
         "half way along the link from Gas to Power: {:?} in Pele's palette, {:?} in the other\nbefore {laid_out:?}\nafter  {after:?}\n",
         at(&first),

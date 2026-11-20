@@ -12,8 +12,11 @@ const SETTLE_FRAMES: usize = 8;
 
 /// Device pixels, sRGB-encoded RGBA8, rows top to bottom.
 pub struct Pixels {
+    /// Across, in device pixels.
     pub width: u32,
+    /// Down, in device pixels.
     pub height: u32,
+    /// Four bytes a pixel, red, green, blue and alpha, a row after another.
     pub rgba: Vec<u8>,
 }
 

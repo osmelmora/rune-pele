@@ -37,6 +37,7 @@ pub(crate) struct IconCoat {
 
 /// The colour of an icon's fill or stroke.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum IconPaint {
     /// SVG's `currentColor`. Pele's SVG sets the diagram's foreground as the colour every icon box
     /// inherits, so this is the palette's [`Role::Foreground`](crate::Role::Foreground), in light
@@ -49,13 +50,17 @@ pub enum IconPaint {
 
 /// Why an icon could not be read.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IconError {
     /// The view box's width or height is not a positive number.
     ViewBox,
     /// A stroke's width is not a positive number.
     StrokeWidth,
-    /// The path data is not SVG's: it goes wrong at this byte.
-    PathData { at: usize },
+    /// The path data is not SVG's: it goes wrong at byte `at`.
+    PathData {
+        /// The byte of the path data where it goes wrong.
+        at: usize,
+    },
 }
 
 impl std::fmt::Display for IconError {

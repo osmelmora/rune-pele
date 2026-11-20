@@ -15,7 +15,7 @@ use pele_core::Scene;
 use pele_core::scene::{AnchorKind, Facet, Geometry, Paint, PaintVisit, PathCommand, ResolvedPaints, Rgba};
 use rune::{Color, Cx, El, Env, el};
 use rune_pele::capture::{Capturer, Pixels, Window};
-use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewError, ViewOptions, ViewStats};
+use rune_pele::{Diagram, FontCatalog, Palette, RenderStatus, ViewError, ViewOptions};
 
 const RUN: &str = "pie-rune";
 const PETS: &str = include_str!("../../../tests/fixtures/pie-pets.mmd");
@@ -380,11 +380,9 @@ fn a_palette_change_repaints_without_parsing_laying_out_or_measuring() {
     );
     print!("{report}");
     write_report("theme-change.txt", &report);
-    assert_eq!(
-        after,
-        ViewStats { paints: laid_out.paints + 1, ..laid_out },
-        "a palette change paints once more and lays out and measures nothing"
-    );
+    let mut painted_once_more = laid_out;
+    painted_once_more.paints += 1;
+    assert_eq!(after, painted_once_more, "a palette change paints once more and lays out and measures nothing");
     assert!(changed > 10_000, "the slices changed colour: {changed} pixels");
 }
 

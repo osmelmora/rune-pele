@@ -80,6 +80,7 @@ pub const NATIVE: &[DiagramKind] = &[
 
 /// Why a Scene is not drawn here.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Unsupported {
     /// The diagram type is not among [`NATIVE`].
     Kind(DiagramKind),
@@ -170,6 +171,7 @@ pub struct Drawing {
 
 /// How much a drawing asks of Rune.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Census {
     /// Keyed elements: one per drawing, and one per group that is an element.
     pub elements: usize,

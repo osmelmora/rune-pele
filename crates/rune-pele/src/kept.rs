@@ -5,6 +5,7 @@ use rune::{Color, El, TextStyle, col, el, text};
 
 /// How a view shows the last drawing that drew while its source fails.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum KeptLook {
     /// As Pele's `mount` shows it: the drawing faded to 0.4 opacity as one layer, with the
     /// error's first and last lines over its bottom edge in the palette's critical colour, and

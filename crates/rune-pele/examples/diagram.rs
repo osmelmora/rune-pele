@@ -122,6 +122,7 @@ fn view(s: &State, cx: &mut Cx<State>) -> El {
             format!("The last drawing that drew, kept{size}: {}", error.lines().next().unwrap_or_default())
         }
         RenderStatus::Unrendered => "Not drawn".to_owned(),
+        other => format!("{other:?}"),
     };
     let by = match &s.followed {
         Some(href) => format!("{by}. Last link: {href}"),

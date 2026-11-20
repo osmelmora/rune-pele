@@ -234,6 +234,7 @@ fn every_prefix_of_each_fixture_after_its_first_drawing_draws_one() {
                     }
                     before += 1;
                 }
+                other => panic!("{kind} {prefix:?}: a status this test does not know: {other:?}"),
             }
         }
         let whole_native = window.state().diagram.status() == RenderStatus::Pele;

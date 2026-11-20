@@ -59,6 +59,8 @@ mod fit;
 /// Not part of the API: public for the workspace's tests and examples.
 #[doc(hidden)]
 pub mod geometry;
+#[cfg(doctest)]
+mod grows;
 mod icon;
 mod kept;
 pub mod lower;
@@ -350,7 +352,9 @@ impl ViewOptions {
     }
 }
 
+/// Why a view drew nothing, or why a view kept an earlier drawing.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ViewError {
     /// pele-core rejected the source, with Pele's message. No other grammar is tried.
     Core(RenderError),
@@ -386,6 +390,7 @@ impl std::error::Error for ViewError {}
 
 /// Who drew the last view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RenderStatus {
     /// Nothing: the view was an error, or there has been none.
     Unrendered,
@@ -403,6 +408,7 @@ pub enum RenderStatus {
 /// Why the last view was left to rune-mermaid. Only with the `fallback` feature: without it, the
 /// view is the matching [`ViewError`] instead.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Fallback {
     /// pele-core has no port of the diagram type.
     NotPorted,
@@ -413,6 +419,7 @@ pub enum Fallback {
 /// Who drew the drawing a view shows, and so what that drawing can do. [`Diagram::engine`]
 /// reads it after a view, whether the view's source drew or the view kept an earlier drawing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Engine {
     /// rune-pele, from pele-core's Scene: its links are live, it shows tooltips, and it follows
     /// every view option.
@@ -458,6 +465,7 @@ impl Engine {
 
 /// How much work a diagram has done, for tests and profiling.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ViewStats {
     /// Parse and layout runs.
     pub layouts: u64,
@@ -471,6 +479,7 @@ pub struct ViewStats {
 
 /// How long the last layout and the last paint took, for profiling.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ViewTimes {
     /// Parsing the source and laying it out, with the text measured.
     pub layout: Duration,
