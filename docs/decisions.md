@@ -747,8 +747,8 @@ The other rows of the Intel entry are unchanged. `js::sin`, `js::cos` and `js::l
 
 **Why.** Nothing ran the tests in CI: `release-plz.yml` released on pushes to main and `commits.yml` checked commit messages. The repository is to be made public, and contributors need the checks to run on their pull requests.
 
-**What runs** (`oss-ci`). Each job runs one script, which a developer runs the same way.
-- `CI` (`ci.yml`), on pull requests and pushes to main. **Linux x64** every time: `mise run ci-linux` (`scripts/ci-linux.sh`) lints the workflows, runs `scripts/setup.sh` and `scripts/check.sh`, and holds `pele parity` on a fresh folder to `522 522 0 0 0`. **macOS arm64** on pull requests labelled `macos`, weekly on main, by hand, and on pushes to main once the repository is public: `mise run ci-macos` (`scripts/ci-macos.sh`) runs rune-pele's tests and `mise run rune-corpus`, and keeps the corpus reports for 14 days. A newer run cancels an older one of the same pull request, or of main for the same event. Pele's checkout is cached by its pin, Cargo's registry and the dependencies in `target/` by rust-cache, saved from main only.
+**What runs** (`oss-ci`). The tests run locally on macOS and in CI on ordinary Linux runners, the user's choice (2026-11-20) for a project with few users so far; wider testing waits until it has more. The job runs one script, which a developer runs the same way.
+- `CI` (`ci.yml`), on every pull request, every push to main, and by hand, on `ubuntu-24.04-arm`: `mise run ci` (`scripts/ci.sh`) lints the workflows, runs `scripts/setup.sh` and `scripts/check.sh`, and holds `pele parity` on a fresh folder to `522 522 0 0 0`. arm64 rather than x64: the whole job was measured passing on arm64 Linux, drawing tests included, while on x64 they were never seen to draw (below), and Pele's maths on arm64 matches the Node every measurement here was made with. A newer run cancels an older one of the same pull request, or of main for the same event. Pele's checkout is cached by its pin, Cargo's registry and the dependencies in `target/` by rust-cache, saved from main only.
 - `Prove` (`prove.yml`), weekly and by hand: `mise run prove`.
 - `Release-plz` takes a token from the release GitHub App when `RELEASE_APP_ID` is set, and `GITHUB_TOKEN` while it is not. A step's `if` cannot read `secrets`, so a workflow-wide `RELEASE_APP: ${{ secrets.RELEASE_APP_ID != '' }}` gates the token step, and release-plz gets `${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}`. Measured with act on a copy of the two expressions with the token step stubbed: without the secrets the step is skipped and release-plz gets `GITHUB_TOKEN`; with them it gets the App's token.
 - actionlint 1.7.12 and ShellCheck 0.11.0 are pinned, and `mise run actionlint` lints every workflow. `scripts/break-ci.sh` has two breaks, each caught.
@@ -770,7 +770,7 @@ The other rows of the Intel entry are unchanged. `js::sin`, `js::cos` and `js::l
 
 On macOS the GPU is Metal and the font is `/System/Library/Fonts/Supplemental/Arial.ttf`. On Linux the GPU is Vulkan, which Mesa's lavapipe provides in software (`mesa-vulkan-drivers`), and the font Liberation Sans (`fonts-liberation`), which `tests/common` already looks for. Rune links xkbcommon and Wayland.
 
-**Linux (measured, Ubuntu 24.04 containers under OrbStack).**
+**Linux (measured, Ubuntu 24.04 containers under OrbStack, before the user ruled out local Linux containers).**
 - x64, under Rosetta: every build and check passes, `pele parity` reads `522 522 0 0 0`, and every test of pele-cli and pele-oracle passes. Eight tests of pele-core fail because Pele answers differently there, none because of a drawing, and are ignored on that platform with the reason:
   - x64 Node sets the sign bit of a NaN it computes, where arm64 Node and the port do not: `common`'s `cap_width_matches_pele`, `sankey_layout`'s random flows, `xychart_ticks`' value axes, and `oracle`'s `sin` and `cos` of the infinities. JavaScript shows no NaN's bits.
   - Node on Linux takes glibc's `pow`, which rounds 10^23, 10^126 and 10^210 a bit apart from Apple's, which the port matches: `xychart_ticks`' powers of ten (3 of 806) and tick steps (357 of 38,875). 10^23 lies halfway between two doubles.
@@ -779,7 +779,7 @@ On macOS the GPU is Metal and the font is `/System/Library/Fonts/Supplemental/Ar
 - arm64, where Mesa gives lavapipe float16 on any CPU: all 25 rune-pele test binaries pass on lavapipe. `scripts/ci-linux.sh` runs to the end on 2 CPUs in 1,429 s with the test dependencies built: 876 passed, 0 failed, 21 ignored, parity `522 522 0 0 0`.
 - Disk: a runner has 14 GB. After `cargo test`, `target/` held 32 GB with debug info (x64), 18 GB with line tables only and 4.8 GB with none (arm64). With none, the whole Linux job left 7.8 GB, besides the consumer's build, which was not measured apart. CI builds with `CARGO_PROFILE_DEV_DEBUG=0`. A panic still names its file and line, and debug assertions stay on.
 
-**Budget (GitHub's docs, read 2026-11-20).** A private repository on the Free plan gets $12 of compute a month for all its jobs: Linux x64 (2 CPUs, 8 GB) at $0.006 a minute, about 2,000 minutes, and macOS arm64 (3 M1 cores, 7 GB) at $0.062, about 193. Standard runners are free for public repositories. Estimated, not measured: a Linux run takes 35 to 60 minutes on 2 runner CPUs (1,429 s on 2 M3 cores, times 1.5 to 2.5), so three pushes a day, 90 runs, cost 3,150 to 5,400 minutes, more than the allowance; a macOS run about 15 minutes ($0.93). Weekly, macOS costs about 65 minutes ($4) a month, and `Prove` about 60 Linux minutes.
+**Budget (GitHub's docs, read 2026-11-20).** A private repository on the Free plan gets $12 of compute a month for all its jobs: Linux arm64 at $0.005 a minute, about 2,400 minutes, and x64 at $0.006. Standard runners are free for public repositories. Estimated, not measured: a run takes 35 to 60 minutes on 2 runner CPUs (1,429 s on 2 M3 cores, times 1.5 to 2.5), so 40 to 70 runs a month fit while private. Past the allowance, with no payment method, jobs stop until the next month. `Prove`, weekly, takes about 60 Linux minutes a month.
 
 **Findings.**
 - `mise run <task>` installs every tool `mise.toml` pins that is missing, Kani's among them. CI sets `MISE_TASK_RUN_AUTO_INSTALL=false`; `mise exec rust@1.95`, which `mise run msrv` runs, still installs only that Rust.
@@ -788,5 +788,5 @@ On macOS the GPU is Metal and the font is `/System/Library/Fonts/Supplemental/Ar
 - mise 2026.11.10 calls `actionlint` deprecated in favour of `jactionlint`, jdx's fork; actionlint 1.7.12, of 2026-03-30, is its latest release.
 
 **Open.**
-- Compare a NaN with any NaN in the differential tests (`common.rs`, `sankey_layout.rs`, `oracle.rs`, `xychart_ticks.rs`), so that the five NaN tests run on x64 again.
-- Only GitHub can show: lavapipe drawing on an x64 runner; Metal and Arial on a macOS runner; glibc's `pow` with FMA there; the job times; the disk left; the release App's token.
+- Compare a NaN with any NaN in the differential tests (`common.rs`, `sankey_layout.rs`, `oracle.rs`, `xychart_ticks.rs`), so that the five NaN tests would run on x64 too.
+- Only GitHub can show: lavapipe and Liberation Sans on the arm64 runner, the job's time and the disk left, and the release App's token end to end.

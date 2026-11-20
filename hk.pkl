@@ -5,6 +5,7 @@ import "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Builtin
 // which takes minutes.
 steps {
   ["cargo_fmt"] = Builtins.cargo_fmt
+  ["actionlint"] = Builtins.actionlint
   ["notices"] {
     glob = List("LICENSE", "NOTICE", "crates/*/LICENSE", "crates/*/NOTICE")
     check = "scripts/notices.sh"

@@ -1,28 +1,23 @@
-# Each job runs one script, which a developer runs the same way: `mise run ci-linux` and
-# `mise run ci-macos`. Linux runs on every pull request and every push to main. macOS runs on
-# pull requests labelled `macos` (adding the label runs CI again), weekly on main, when started
-# by hand, and on every push to main once the repository is public. While it is private, a
-# macOS minute costs ten Linux minutes, out of the same monthly allowance.
+# CI runs the tests on Linux arm64, in one job that runs one script, `mise run ci`, which a
+# developer runs the same way. Locally the tests run on macOS. It runs on every pull request and
+# every push to main, and when started by hand.
 name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
-  schedule:
-    - cron: "47 4 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  # A runner has 14 GB of disk. With debug info, `cargo test` left 32 GB in target/ on Linux,
-  # and 18 GB with line tables only; with none, 4.8 GB. A panic still names its file and line,
-  # and debug assertions stay on, so the same tests run and the same ones are skipped.
+  # A runner has 14 GB of disk. With debug info, `cargo test` left 32 GB in target/, 18 GB with
+  # line tables only, and 4.8 GB with none (measured on Linux). A panic still names its file
+  # and line, and debug assertions stay on, so the same tests run.
   CARGO_PROFILE_DEV_DEBUG: "0"
-  # `mise run` installs every tool mise.toml pins that is missing, Kani's among them. Each job
+  # `mise run` installs every tool mise.toml pins that is missing, Kani's among them. The job
   # installs the ones it uses.
   MISE_TASK_RUN_AUTO_INSTALL: "false"
 
@@ -33,12 +28,13 @@ concurrency:
 
 jobs:
   linux:
-    name: Linux x64
-    runs-on: ubuntu-latest
+    name: Linux arm64
+    # arm64 Linux, where the whole job was measured passing, drawing tests included; Pele's maths
+    # there matches the arm64 Node every measurement in this repository was made with.
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
-      - &checkout
-        uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       # Rune links xkbcommon and Wayland. lavapipe is a Vulkan GPU in software, for the tests that
@@ -50,44 +46,23 @@ jobs:
       - uses: jdx/mise-action@v5.2.10
         with:
           install_args: rust node hk actionlint shellcheck
-      - &pele
-        uses: actions/cache@v6.1.0
+      - uses: actions/cache@v6.1.0
         with:
           path: vendor/pele
           key: pele-${{ hashFiles('scripts/pele-pin.txt') }}
       # Cargo's registry, Rune's git checkout and the dependencies built in target/. Saved from
       # main only, so pull requests restore main's and add no caches of their own.
-      - &cargo
-        uses: Swatinem/rust-cache@v2.9.3
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: scripts/ci-linux.sh
+      - run: scripts/ci.sh
       # rust-cache keeps each dependency's folder in target/*/build, and takes rune-pele's for
-      # Rune's, a name followed by a part it drops. It holds this workspace's test binaries,
-      # 11 GB on macOS, so it is removed before the cache is saved.
-      - &prune
-        run: rm -rf target/*/build/rune-pele target/*/*/build/rune-pele
-
-  macos:
-    name: macOS arm64
-    if: >-
-      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && !github.event.repository.private) ||
-      contains(github.event.pull_request.labels.*.name, 'macos')
-    runs-on: macos-latest
-    timeout-minutes: 90
-    steps:
-      - *checkout
-      - uses: jdx/mise-action@v5.2.10
-        with:
-          install_args: rust node hk
-      - *pele
-      - *cargo
-      - run: scripts/ci-macos.sh
-      - *prune
+      # Rune's, a name followed by a part it drops. It holds this workspace's test binaries, so it
+      # is removed before the cache is saved.
+      - run: rm -rf target/*/build/rune-pele target/*/*/build/rune-pele
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: rune-graph
-          path: out/verify/rune-graph/*.txt
+          name: parity
+          path: out/ci/parity.txt
           retention-days: 14
