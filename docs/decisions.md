@@ -790,3 +790,20 @@ On macOS the GPU is Metal and the font is `/System/Library/Fonts/Supplemental/Ar
 **Open.**
 - Compare a NaN with any NaN in the differential tests (`common.rs`, `sankey_layout.rs`, `oracle.rs`, `xychart_ticks.rs`), so that the five NaN tests would run on x64 too.
 - Only GitHub can show: lavapipe and Liberation Sans on the arm64 runner, the job's time and the disk left, and the release App's token end to end.
+
+## 2026-11-21 Optimised test builds
+
+**Why.** `mise run check` took about 17 minutes warm, and CI's first run 54 minutes. Timing each of the 135 test programs alone showed the parity tests against Pele, not the drawing tests, taking most of it, in the port's own code built unoptimised: `agentflow_parity` ran 129 s on one core.
+
+**Change.** The workspace's `Cargo.toml` builds tests with `[profile.dev] opt-level = 1` and dependencies with `[profile.dev.package."*"] opt-level = 3`. Debug assertions and overflow checks stay on. Apps that depend on the crates are not affected: Cargo reads profiles from the app's own workspace.
+
+**Measured (M3 Pro, each program run alone).**
+
+| Build | Build time | Test run |
+| --- | --- | --- |
+| Unoptimised, as before | 84 s | 771 s |
+| Dependencies at `opt-level = 3` | 154 s | 652 s |
+| That, and the workspace at `opt-level = 1` | 162 s | 227 s |
+
+All 135 programs pass in each. `agentflow_parity` went from 129 s to 5.5 s, `graph_view` from 36.8 s to 2.5 s. `mise run ci` then took 810 s from a clean build and 216 s warm, with `pele parity` reading `522 522 0 0 0`; before, it took 848 s warm with `mise run rune-corpus`, which it no longer runs.
+

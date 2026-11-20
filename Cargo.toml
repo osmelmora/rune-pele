@@ -11,6 +11,16 @@ rust-version = "1.100"
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 
+# Test builds. The tests spend their time in the port's own layout code and in resvg and wgpu, and
+# unoptimised they ran 771 s; with these settings, 227 s (measured, M3 Pro). Debug assertions and
+# overflow checks stay on, and the parity tests still match Pele byte for byte. An app that
+# depends on these crates does not read this: Cargo takes profiles from the app's workspace only.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
 # Rune patches these four crates in its own workspace, and a dependency's `[patch]` does not reach
 # the workspace that depends on it (vendor/rune/crates/rune/README.md, "Depending on Rune"). Keep
 # the rev equal to rune-pele's `rune` rev.
