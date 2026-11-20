@@ -89,8 +89,8 @@ break_one gradient-bands-misplaced lower.rs a_fill_along \
   'places.push(((band.middle - from) / (to - from)).clamp(0.0, 1.0) as f32);' \
   'places.push(((band.middle - from) / (to - from)).clamp(0.0, 0.5) as f32);'
 break_one gradients-only-with-a-prefix lib.rs a_sankey_fills_its_links \
-  'id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()),' \
-  'id_prefix: None,'
+  'LayoutOptions::default().id_prefix(DEFAULT_ID_PREFIX);' \
+  'LayoutOptions::default();'
 break_one kept-drawing-dropped lib.rs the_unchanged_look_shows \
   '_ => self.session.borrow().drawn.clone(),' \
   '_ => None,' \
@@ -188,16 +188,16 @@ break_one frame-keyed-from-the-id lib.rs a_fitted_view_reads_its_own_frame \
         Box::leak(format!("{}~fit", self.id).into_boxed_str())' \
   view_identity
 break_one pele-metrics-pin-the-clock lib.rs pele_metrics_measure_text \
-  'now: options.now.or_else(|| Some(system_now()))' \
-  'now: options.now.or_else(|| Some(system_now()).filter(|_| false))' \
+  'options.clone().now(options.now.unwrap_or_else(system_now));' \
+  'options.clone();' \
   view_identity
 break_one fit-under-the-smallest-drawn-text lib.rs fitted_text_keeps_to_the_smallest_size \
   'if shrink >= least {' \
   'if shrink >= 0.0 {' \
   fit_text
 break_one fit-turns-only-under-640 lib.rs a_fitted_flowchart_that_runs_across \
-  'turn_wider_than: Some(step / least),' \
-  'turn_wider_than: None,' \
+  '.max_width(step).turn_wider_than(step / least);' \
+  '.max_width(step);' \
   fit_text
 
 break_one zero-radius-drawn lower.rs a_point_of_radius_zero \
@@ -379,10 +379,8 @@ break_doc() {
 }
 
 break_doc doc-private-link lower.rs \
-  'or wider so that at most 128 lie along
-    /// the gradient.' \
-  'or wider where that is more than
-    /// [`MOST_BANDS`].'
+  'neither is cut into the upright bands a gradient is drawn in.' \
+  'neither is cut into the [`MOST_BANDS`] bands a gradient is drawn in.'
 
 break_one rune-not-re-exported lib.rs an_app_on_rune_pele_s_rune \
   'pub use rune;' \
