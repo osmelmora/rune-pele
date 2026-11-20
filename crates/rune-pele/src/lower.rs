@@ -42,7 +42,7 @@ use crate::text::{Anchor, BaselinePoint, Baselines, style as text_style};
 
 /// The kinds whose Scenes are drawn here. A kind pele-core ports joins the list once its Scenes
 /// have been drawn side by side with Pele's.
-pub const NATIVE: [DiagramKind; 33] = [
+pub const NATIVE: &[DiagramKind] = &[
     DiagramKind::Pie,
     DiagramKind::Flowchart,
     DiagramKind::Class,
@@ -155,7 +155,9 @@ const HALO_COPIES: usize = 12;
 const SUB_SHIFT: f64 = 0.3;
 const SUPER_SHIFT: f64 = -0.45;
 
-/// A Scene as Rune elements to be, with its paints still to resolve.
+/// A Scene as Rune elements to be, with its paints still to resolve. Not part of the API:
+/// public for the workspace's tests and examples.
+#[doc(hidden)]
 pub struct Drawing {
     size: [f32; 2],
     items: Vec<Item>,
@@ -249,7 +251,8 @@ fn frame(low: Point, high: Point, scale: f64) -> Frame {
 }
 
 /// One SVG shape as what Rune draws, in a box of its own with its geometry relative to the box.
-/// Its colours come when it is painted.
+/// Its colours come when it is painted. Not part of the API: public for the workspace's tests.
+#[doc(hidden)]
 pub struct Figure {
     frame: Frame,
     shape: FigureShape,
@@ -357,7 +360,8 @@ enum Op {
 }
 
 /// One run of text as what Rune draws, placed as SVG places it. Its colours come when it is
-/// painted.
+/// painted. Not part of the API: public for the workspace's tests.
+#[doc(hidden)]
 pub struct TextRun {
     content: String,
     style: TextStyle,
@@ -425,7 +429,9 @@ fn is_element(group: &Group) -> bool {
 
 /// The map from `group`'s coordinates to those outside it: its move, then its turn. The turn's
 /// centre is outside the group, so a group that does both turns about the point it moves its
-/// drawing to, as SVG's `translate(x,y) rotate(degrees)` does.
+/// drawing to, as SVG's `translate(x,y) rotate(degrees)` does. Not part of the API: public for
+/// the workspace's tests.
+#[doc(hidden)]
 pub fn group_map(group: &Group) -> Affine {
     let moved = Affine::translate([group.translate.x, group.translate.y]);
     match group.rotate {

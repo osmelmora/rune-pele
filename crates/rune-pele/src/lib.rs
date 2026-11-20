@@ -52,15 +52,22 @@
 //! Pele's `mount` draws its last parsed text again for a new width: from the caches when nothing
 //! changed, at a new zoom lowered again, and at a new step of a fit laid out at that step.
 
-pub mod bands;
+mod bands;
 pub mod capture;
-pub mod fill;
+mod fill;
 mod fit;
+/// Not part of the API: public for the workspace's tests and examples.
+#[doc(hidden)]
 pub mod geometry;
 mod icon;
 mod kept;
 pub mod lower;
+/// Not part of the API: public for the workspace's tests and examples.
+#[doc(hidden)]
 pub mod stroke;
+/// Not part of the API: public for the workspace's tests and examples. An app takes
+/// [`FontCatalog`] from the crate's root.
+#[doc(hidden)]
 pub mod text;
 
 use std::cell::{OnceCell, RefCell};
@@ -77,11 +84,16 @@ use rune::{Color, Cx, El, Env, Tx, el, memo, tok};
 /// `rune` dependency of its own to keep at the same revision.
 pub use rune;
 
+/// The pele-core rune-pele is built with: the types of its errors and Scenes, such as
+/// [`pele_core::RenderError`] in [`ViewError::Core`] and [`pele_core::Scene`] from
+/// [`Diagram::scene`], so an app needs no `pele-core` dependency of its own to name them.
+pub use pele_core;
+
 pub use icon::{Icon, IconError, IconPaint};
 pub use kept::KeptLook;
 /// Where a link in a diagram leads.
-pub use pele_core::scene::LinkRef as Link;
-pub use pele_core::scene::Role;
+pub use pele_core::LinkRef as Link;
+pub use pele_core::Role;
 pub use text::FontCatalog;
 
 use lower::{Drawing, Handler, Icons, Unsupported};
@@ -145,6 +157,9 @@ impl Palette {
         Palette { core: self.core.with_series(position, rgba(colour)), theme: ThemeSeries::Palette }
     }
 
+    /// The colours as pele-core resolves a Scene's paints with. Not part of the API: public for
+    /// the workspace's tests.
+    #[doc(hidden)]
     pub fn core(&self) -> &pele_core::scene::Palette {
         &self.core
     }
