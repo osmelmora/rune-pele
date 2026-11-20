@@ -10,7 +10,7 @@ rune-pele is a port, so Pele 1.13.0 decides what is right: its syntax, its layou
 
 Where it works:
 
-- Every measurement in this repository was made on macOS on Apple Silicon, and the tests run there. Nothing in the repository records a run of `mise run check` on Linux or Windows.
+- Every measurement in this repository was made on macOS on Apple Silicon, and the tests run there locally. CI runs them on Linux arm64. They are not run on Windows.
 - The view's tests draw headless, without a window, but they need a GPU adapter.
 - The pixel tests draw Pele's SVG with resvg in Arial or a face with Arial's metrics: Arial on macOS or Windows, Liberation Sans on Linux, or the face `RUNE_PELE_RESVG_FONT` names. Without one they stop with `an Arial-compatible font, or RUNE_PELE_RESVG_FONT naming one`.
 - On Linux, Rune needs the system libraries its README lists under "Linux".
@@ -99,7 +99,14 @@ No procedure is written down beyond this. The revision is in four files, which m
 
 ## CI
 
-What CI runs, and on which runners.
+GitHub Actions runs four workflows:
+
+- **CI** (`.github/workflows/ci.yml`) runs the tests on Linux arm64 (`ubuntu-24.04-arm`), on every pull request, every push to `main`, and when started by hand. Its one job runs `mise run ci`: the workflows linted, everything `mise run check` runs, and `pele parity` held to 522 of 522 identical. On Linux the tests that draw use Mesa's lavapipe, a Vulkan GPU in software, and draw Pele's SVG in Liberation Sans, which has Arial's metrics. Eight pele-core tests are skipped on Linux, because Node gives different answers there; each names its reason. A newer push cancels the run it replaces.
+- **Commit messages** (`commits.yml`) checks, on pull requests, that each commit follows Conventional Commits.
+- **Prove** (`prove.yml`) runs the Kani proofs, `mise run prove`, weekly and when started by hand.
+- **Release-plz** (`release-plz.yml`) tags new versions and opens the release pull request on pushes to `main`, as the release GitHub App when its secrets are set.
+
+Each job runs one command, which you run the same way after `mise run setup`: `mise run ci`, `mise run prove`, or `mise run actionlint` for the workflows alone. The hk pre-commit hook lints a workflow you change. On Linux, install `mesa-vulkan-drivers`, `fonts-liberation`, `libxkbcommon-dev` and `libwayland-dev` first (Debian and Ubuntu names).
 
 ## Licence of contributions
 
