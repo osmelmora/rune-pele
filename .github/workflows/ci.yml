@@ -14,10 +14,10 @@ permissions:
   contents: read
 
 env:
-  # With full debug info the test binaries fill more disk than a runner has: target/ held 32 GB
-  # on Linux, rune-pele's tests 500 to 600 MB each. Line tables keep a panic's file and line.
-  # Debug assertions stay on, so the same tests run and the same ones are skipped.
-  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # A runner has 14 GB of disk. With debug info, `cargo test` left 32 GB in target/ on Linux,
+  # and 18 GB with line tables only; with none, 4.8 GB. A panic still names its file and line,
+  # and debug assertions stay on, so the same tests run and the same ones are skipped.
+  CARGO_PROFILE_DEV_DEBUG: "0"
   # `mise run` installs every tool mise.toml pins that is missing, Kani's among them. Each job
   # installs the ones it uses.
   MISE_TASK_RUN_AUTO_INSTALL: "false"
