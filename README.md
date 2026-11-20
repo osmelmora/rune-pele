@@ -69,7 +69,7 @@ A source can name icons, such as `logos:aws` for an architecture service or a tr
 `pele-core` and `rune-pele` share one version and one tag, `v<version>`. Releases are made by [release-plz](https://release-plz.ieni.dev) from git tags, not crates.io:
 
 - Each push to `main` updates a release pull request, which bumps the version and writes `CHANGELOG.md`. Merging it tags the release and makes its GitHub release.
-- The bump comes from the commit messages, which follow [Conventional Commits](https://www.conventionalcommits.org): `fix:` is a patch, `feat:` a minor version, and `feat!:` or `fix!:` a breaking one. cargo-semver-checks also compares the public API with the last release and makes any breaking change a breaking bump. Before 1.0, a breaking bump moves the minor version.
+- The bump comes from the commit messages, which follow [Conventional Commits](https://www.conventionalcommits.org): `fix:` and `feat:` are compatible changes, and `feat!:` or `fix!:` a breaking one. cargo-semver-checks also compares the public API with the last release and makes any breaking change a breaking bump. Before 1.0 a compatible change moves the patch version and a breaking one the minor version: 0.1.0 becomes 0.1.1 or 0.2.0.
 - A commit that moves the Rune pin is `build(rune): ...`, because apps must move their Rune with it.
 
 `mise run setup` installs the git hooks from `hk.pkl`. They check each commit message, and before each commit they run `cargo fmt` and keep each crate's `LICENSE` and `NOTICE` equal to the root's.

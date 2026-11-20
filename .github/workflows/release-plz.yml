@@ -27,6 +27,10 @@ jobs:
         uses: jdx/mise-action@v5
         with:
           install_args: rust release-plz github:obi1kenobi/cargo-semver-checks
+      # cargo-semver-checks builds rune-pele in a project of its own, which the workspace's
+      # [patch] does not reach; Cargo's home config does.
+      - &patches
+        run: scripts/cargo-home-patches.sh
       - run: release-plz release --git-token "$GITHUB_TOKEN"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,6 +48,7 @@ jobs:
       - *checkout
       - *linux-libs
       - *tools
+      - *patches
       - run: release-plz release-pr --git-token "$GITHUB_TOKEN"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
