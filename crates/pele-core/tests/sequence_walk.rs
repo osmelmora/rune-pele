@@ -50,7 +50,7 @@ const CHAT: &str = "sequenceDiagram\ntitle Chat\nautonumber\nbox Aqua Team\npart
 
 #[test]
 fn every_drawing_has_a_key_of_its_own() {
-    for layout in [LayoutOptions::default(), LayoutOptions { max_width: Some(200.0), ..LayoutOptions::default() }] {
+    for layout in [LayoutOptions::default(), LayoutOptions::default().max_width(200.0)] {
         let drawn = drawings(&scene(CHAT, &layout));
         let mut seen = HashSet::new();
         let repeated: Vec<&String> = drawn.iter().map(|(key, _)| key).filter(|key| !seen.insert(*key)).collect();
@@ -98,7 +98,7 @@ fn a_key_survives_what_is_written_before_and_inside_it() {
 
 #[test]
 fn the_host_sets_only_the_messages_in_mono() {
-    let mono = LayoutOptions { monospace: vec![MonospacePart::Messages], ..LayoutOptions::default() };
+    let mono = LayoutOptions::default().monospace([MonospacePart::Messages]);
     let drawn = drawings(&scene(CHAT, &mono));
     for text in ["hello", "reply", "think", "leave"] {
         assert_eq!(run(&drawn, text).font.family, FontFamily::Mono, "the host sets {text:?} in mono");

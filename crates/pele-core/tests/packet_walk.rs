@@ -49,7 +49,7 @@ fn one_box_each(scene: &Scene, source: &str) {
 
 #[test]
 fn every_element_is_drawn_under_a_key_of_its_own() {
-    let down = LayoutOptions { max_width: Some(320.0), ..LayoutOptions::default() };
+    let down = LayoutOptions::default().max_width(320.0);
     let (mut drawn, mut turned, mut split) = (0, 0, 0);
     for source in walk_sources("packet") {
         let Ok(model) = pele_core::packet_front_json(&source, ParseOptions::default()) else { continue };
@@ -87,7 +87,7 @@ fn every_element_is_drawn_under_a_key_of_its_own() {
 
 #[test]
 fn keys_come_from_field_ranges() {
-    let down = LayoutOptions { max_width: Some(320.0), ..LayoutOptions::default() };
+    let down = LayoutOptions::default().max_width(320.0);
     let fixture = rune_fixture("packet");
     let across = scene(&fixture, &LayoutOptions::default()).expect("the fixture draws");
     let narrow = scene(&fixture, &down).expect("the fixture draws");

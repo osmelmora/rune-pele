@@ -289,7 +289,7 @@ impl RenderTally {
             }
             (PeleRender::Svg { r#type, .. }, Err(error)) => Some(format!("pele renders a {type}, ours fails: {error}")),
             (PeleRender::Error { error, .. }, Ok(_)) => Some(format!("pele rejects it, ours renders: {error}")),
-            (PeleRender::Error { error, .. }, Err(RenderError::NotPorted)) => {
+            (PeleRender::Error { error, .. }, Err(_)) => {
                 Some(format!("pele rejects a {kind} diagram, ours reports it as not ported: {error}"))
             }
         };

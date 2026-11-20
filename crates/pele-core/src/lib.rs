@@ -7,6 +7,8 @@ pub mod common;
 mod diagrams;
 mod fit;
 mod graph;
+#[cfg(doctest)]
+mod grows;
 mod input;
 /// Not part of the API: the gantt chart's date helpers, public for `tests/gantt_dates.rs`.
 #[doc(hidden)]
@@ -68,13 +70,19 @@ pub use scene::{LinkRef, Role, Scene, Size};
 
 /// A diagram rendered to SVG.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Rendered {
+    /// The SVG document, as Pele writes it.
     pub svg: String,
+    /// The drawing's width in pixels, the SVG's `width`.
     pub width: f64,
+    /// The drawing's height in pixels, the SVG's `height`.
     pub height: f64,
 }
 
+/// Why a source drew nothing.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum RenderError {
     /// The source is a diagram type this port does not render yet.
     NotPorted,
@@ -84,10 +92,15 @@ pub enum RenderError {
 
 /// Why a source was rejected. `message` is Pele's wording.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Diagnostic {
+    /// What kind of fault it is.
     pub code: ErrorCode,
+    /// The diagram type the source is, where it was detected.
     pub kind: Option<DiagramKind>,
+    /// The type as Mermaid names it, where it was detected.
     pub mermaid_type: Option<MermaidType>,
+    /// Pele's message.
     pub message: String,
     /// Where in the source a syntax error is.
     pub location: Option<Location>,
@@ -95,6 +108,7 @@ pub struct Diagnostic {
 
 /// A position in the source as the author wrote it.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Location {
     /// Counted from 1.
     pub line: usize,
@@ -108,9 +122,13 @@ pub struct Location {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ErrorCode {
+    /// No diagram type was detected.
     Unsupported,
+    /// The source does not parse.
     Syntax,
+    /// The source parses, and asks for something the type does not allow.
     Semantic,
+    /// The source or the SVG is longer than its limit, or a flowchart has more edges.
     Limit,
 }
 
@@ -133,6 +151,7 @@ impl std::error::Error for RenderError {}
 
 /// Limits the host sets. A source cannot change them. The defaults are Pele's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Limits {
     /// The longest source, in UTF-16 code units.
     pub source_utf16: usize,
@@ -173,14 +192,19 @@ impl HostConfig {
 /// What parsing reads from the host. A render that is given a parsed source has nothing left to
 /// do with these.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ParseOptions {
+    /// Pele's `config`: the Mermaid config the source's own is laid over.
     pub config: HostConfig,
+    /// The limits on the source, the SVG and a flowchart's edges.
     pub limits: Limits,
 }
 
 /// How the host wants a diagram laid out. Colours are absent: changing them cannot change a layout.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct LayoutOptions {
+    /// The fonts labels are measured in.
     pub typography: Typography,
     /// The space around the drawing, in pixels. Unset, as Pele's `padding` may be left out, each
     /// type takes its own default: 8 pixels, or a treemap's `diagramPadding`.
@@ -201,6 +225,7 @@ pub struct LayoutOptions {
     /// running down where that is narrower, whatever the breakpoint. Unset, only the breakpoint
     /// decides, as in Pele, which has no such option.
     pub turn_wider_than: Option<f64>,
+    /// What the diagram may link to and load.
     pub resources: ResourcePolicy,
     /// Pele's `monospace`: the parts of diagrams the host sets in the monospace font.
     pub monospace: Vec<MonospacePart>,
@@ -211,17 +236,21 @@ pub struct LayoutOptions {
 
 /// A part of a diagram the host may set in the monospace font: Pele's `MonospacePart`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MonospacePart {
     /// A class's attributes and methods.
     Members,
     /// An entity's attributes.
     Attributes,
+    /// A treeview's files and folders.
     Files,
+    /// A sequence diagram's messages.
     Messages,
 }
 
 /// What a diagram may link to and load. A source cannot change it.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ResourcePolicy {
     /// Whether a node may be a link.
     pub links: bool,
@@ -271,6 +300,147 @@ impl LayoutOptions {
     /// treemap takes.
     pub(crate) fn padding_or_default(&self) -> f64 {
         self.padding.unwrap_or(8.0)
+    }
+
+    /// The size of plain label text, in pixels: Pele's `fontSize`. 16 unless set.
+    pub fn font_size(mut self, pixels: f64) -> Self {
+        self.typography.normal.size = pixels;
+        self
+    }
+
+    /// The space around the drawing, in pixels: Pele's `padding`. Unset, each type takes its own
+    /// default.
+    pub fn padding(mut self, pixels: f64) -> Self {
+        self.padding = Some(pixels);
+        self
+    }
+
+    /// The width the host has for the diagram, in pixels: Pele's `maxWidth`.
+    pub fn max_width(mut self, pixels: f64) -> Self {
+        self.max_width = Some(pixels);
+        self
+    }
+
+    /// Whether the drawing scales down with its container: Pele's `responsive`. Unset, the
+    /// source's `useMaxWidth` decides.
+    pub fn responsive(mut self, responsive: bool) -> Self {
+        self.responsive = Some(responsive);
+        self
+    }
+
+    /// The prefix of the ids a drawing declares: Pele's `idPrefix`. `pele` unless set.
+    pub fn id_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.id_prefix = Some(prefix.into());
+        self
+    }
+
+    /// Whether a diagram that runs across may be drawn running down when it does not fit
+    /// [`LayoutOptions::max_width`]: Pele's `autoDirection`. On unless set.
+    pub fn auto_direction(mut self, on: bool) -> Self {
+        self.auto_direction = on;
+        self
+    }
+
+    /// The width under which a diagram that runs across may be drawn running down, in pixels:
+    /// Pele's `directionBreakpoint`. 640 unless set.
+    pub fn direction_breakpoint(mut self, pixels: f64) -> Self {
+        self.direction_breakpoint = Some(pixels);
+        self
+    }
+
+    /// A width over which a diagram that runs across, and does not fit
+    /// [`LayoutOptions::max_width`], is drawn running down where that is narrower, whatever the
+    /// breakpoint. Pele has no such option.
+    pub fn turn_wider_than(mut self, pixels: f64) -> Self {
+        self.turn_wider_than = Some(pixels);
+        self
+    }
+
+    /// What the diagram may link to and load. Pele's defaults unless set.
+    pub fn resources(mut self, policy: ResourcePolicy) -> Self {
+        self.resources = policy;
+        self
+    }
+
+    /// The parts of diagrams set in the monospace font: Pele's `monospace`. None unless set.
+    pub fn monospace(mut self, parts: impl IntoIterator<Item = MonospacePart>) -> Self {
+        self.monospace = parts.into_iter().collect();
+        self
+    }
+
+    /// The time a gantt chart treats as now, in milliseconds since 1970: Pele's `now`. A time
+    /// that is not finite, and no time, is the current time.
+    pub fn now(mut self, milliseconds: f64) -> Self {
+        self.now = Some(milliseconds);
+        self
+    }
+}
+
+impl Limits {
+    /// The longest source, in UTF-16 code units: Pele's `limit`. 50,000 unless set.
+    pub fn source_utf16(mut self, units: usize) -> Self {
+        self.source_utf16 = units;
+        self
+    }
+
+    /// The longest SVG, in UTF-16 code units: Pele's `outputLimit`. 4,000,000 unless set.
+    pub fn svg_utf16(mut self, units: usize) -> Self {
+        self.svg_utf16 = units;
+        self
+    }
+
+    /// The most edges a flowchart may have: Pele's `maxEdges`. 5,000 unless set.
+    pub fn max_edges(mut self, edges: usize) -> Self {
+        self.max_edges = edges;
+        self
+    }
+}
+
+impl ParseOptions {
+    /// The Mermaid config the source's own is laid over: Pele's `config`. Empty unless set.
+    pub fn config(mut self, config: HostConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// The limits on the source, the SVG and a flowchart's edges. Pele's unless set.
+    pub fn limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self
+    }
+}
+
+impl ResourcePolicy {
+    /// Whether a node may be a link: Pele's `links`. On unless set.
+    pub fn links(mut self, allowed: bool) -> Self {
+        self.links = allowed;
+        self
+    }
+
+    /// Whether a node may show a picture: Pele's `images`. On unless set.
+    pub fn images(mut self, allowed: bool) -> Self {
+        self.images = allowed;
+        self
+    }
+
+    /// The schemes a link may use besides a relative address: Pele's `linkSchemes`. `http`,
+    /// `https`, `mailto` and `tel` unless set.
+    pub fn link_schemes(mut self, schemes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.link_schemes = schemes.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// The schemes a picture's address may use besides a relative address: Pele's
+    /// `imageSchemes`. `http` and `https` unless set.
+    pub fn image_schemes(mut self, schemes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.image_schemes = schemes.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// The `rel` of a link: Pele's `linkRel`. Empty, a link has none. `noopener` unless set.
+    pub fn link_rel(mut self, rel: impl Into<String>) -> Self {
+        self.link_rel = rel.into();
+        self
     }
 }
 

@@ -165,7 +165,7 @@ fn render(file: &Path, engine: Engine, out: Option<&Path>) -> Result<(), Exit> {
                 let kind = pele(&source)?.diagram_type().unwrap_or("this source").to_owned();
                 return Err(Exit::new(Status::NotPorted, format!("not ported: rune-pele cannot render {kind} yet")));
             }
-            Err(error @ pele_core::RenderError::Diagnostic(_)) => {
+            Err(error) => {
                 return Err(Exit::new(Status::Rejected, format!("rune-pele: {error}")));
             }
         },
@@ -286,7 +286,7 @@ fn parity(run: &Parity) -> Result<(), Exit> {
             write(folder.join(format!("{i}.pele.svg")), &want)?;
             match pele_core::render(source) {
                 Err(pele_core::RenderError::NotPorted) => tally.not_ported += 1,
-                Err(error @ pele_core::RenderError::Diagnostic(_)) => {
+                Err(error) => {
                     eprintln!("{name} {i}: rune-pele rejects a source Pele renders: {error}");
                     tally.different += 1;
                 }

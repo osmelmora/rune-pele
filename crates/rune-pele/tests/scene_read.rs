@@ -124,7 +124,7 @@ fn a_gradient_is_on_the_shape_it_fills_from_one_paint_to_the_other() {
     assert_eq!(plain.len(), 6);
     assert!(plain.iter().all(|link| link.style.gradient.is_none()));
 
-    let graded = links(LayoutOptions { id_prefix: Some("view".to_owned()), ..LayoutOptions::default() });
+    let graded = links(LayoutOptions::default().id_prefix("view"));
     let gas = graded.iter().find(|link| link.key.to_string() == "edge:Gas~Power~link/shape").expect("the link");
     let Geometry::Path(commands) = &gas.geometry else { panic!("a link is a path") };
     let xs = commands.iter().filter_map(|command| match command {

@@ -83,6 +83,7 @@ pub struct Rotation {
 
 /// Where a link leads.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct LinkRef {
     /// An address, or for a link inside the host the name of the note it leads to.
     pub href: String,

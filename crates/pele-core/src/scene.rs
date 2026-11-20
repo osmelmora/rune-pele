@@ -70,10 +70,13 @@ pub struct Size {
 
 /// A theme colour by what it is for. The interpreter decides what colour that is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Role {
+    /// The page behind the diagram.
     Background,
     /// Text and anything else the diagram draws in its own ink.
     Foreground,
+    /// The outline of a node.
     Border,
     /// Text on a light fill.
     OnLight,

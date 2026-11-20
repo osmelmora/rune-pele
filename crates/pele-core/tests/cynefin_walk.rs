@@ -33,7 +33,7 @@ fn keys(scene: &Scene, source: &str) -> BTreeSet<String> {
 
 #[test]
 fn every_drawing_has_a_key_that_stays_put() {
-    let other = LayoutOptions { id_prefix: Some("other".to_owned()), ..LayoutOptions::default() };
+    let other = LayoutOptions::default().id_prefix("other");
     let mut drawn = 0;
     for source in sources() {
         let Some(base) = scene(&source, &LayoutOptions::default()) else { continue };

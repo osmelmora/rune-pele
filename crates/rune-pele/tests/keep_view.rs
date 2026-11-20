@@ -110,11 +110,7 @@ fn options() -> ViewOptions {
 
 /// pele-core's own error for `source` laid out as `options()` lays it out, without the view.
 fn pele_core_error(source: &str) -> Option<RenderError> {
-    let layout = LayoutOptions {
-        max_width: Some(f64::from(WIDTH)),
-        id_prefix: Some("pele".to_owned()),
-        ..LayoutOptions::default()
-    };
+    let layout = LayoutOptions::default().max_width(f64::from(WIDTH)).id_prefix("pele");
     pele_core::parity_scene_with(source, ParseOptions::default(), &layout).err()
 }
 

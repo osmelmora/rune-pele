@@ -34,7 +34,7 @@ fn keys(scene: &Scene, source: &str) -> BTreeSet<String> {
 
 #[test]
 fn every_drawing_has_a_key_of_its_own_at_every_width() {
-    let narrow = LayoutOptions { max_width: Some(320.0), ..LayoutOptions::default() };
+    let narrow = LayoutOptions::default().max_width(320.0);
     let mut drawn = 0;
     for source in sources() {
         for options in [&LayoutOptions::default(), &narrow] {

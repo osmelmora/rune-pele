@@ -77,7 +77,7 @@ fn cells_start_at_their_columns_in_the_fonts_asked_for() {
     assert_eq!(keys.font.size, 12.0, "keys are set at three quarters of the size");
     assert_eq!(run(&drawn, "int").baseline.x, kind.baseline.x, "the rows of one column line up");
 
-    let mono = LayoutOptions { monospace: vec![MonospacePart::Attributes], ..LayoutOptions::default() };
+    let mono = LayoutOptions::default().monospace([MonospacePart::Attributes]);
     let drawn = drawings(&scene(SHOP, &mono));
     for text in ["string", "name", "PK", "int", "age"] {
         assert_eq!(run(&drawn, text).font.family, FontFamily::Mono, "the host sets {text:?} in mono");

@@ -68,7 +68,7 @@ fn code_name(code: ErrorCode) -> &'static str {
 }
 
 fn ours(source: &str) -> Value {
-    let parse = ParseOptions { limits: Limits { svg_utf16: 1, ..Limits::default() }, ..ParseOptions::default() };
+    let parse = ParseOptions::default().limits(Limits::default().svg_utf16(1));
     let drawn = pele_core::parity_scene_with(source, parse, &LayoutOptions::default())
         .and_then(|scene| pele_core::svg::write(&scene));
     match drawn {

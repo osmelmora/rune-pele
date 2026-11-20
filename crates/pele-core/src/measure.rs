@@ -35,6 +35,7 @@ pub struct Font {
 
 /// The text settings a layout is made with. Colours are not among them.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Typography {
     /// The font of plain label text. Its size is Pele's `fontSize` option.
     pub normal: Font,

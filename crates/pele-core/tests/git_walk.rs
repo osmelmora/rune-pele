@@ -86,7 +86,7 @@ fn named_in(model: &Value, branches_shown: bool) -> Vec<Ident> {
 
 #[test]
 fn every_element_is_drawn_under_a_key_of_its_own() {
-    let down = LayoutOptions { max_width: Some(320.0), ..LayoutOptions::default() };
+    let down = LayoutOptions::default().max_width(320.0);
     let (mut drawn, mut hidden, mut unread) = (0, 0, 0);
     for source in walk_sources("git") {
         let Ok(model) = pele_core::git_front_json(&source, ParseOptions::default()) else { continue };

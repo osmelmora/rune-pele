@@ -35,7 +35,7 @@ fn named_in(model: &Value) -> Vec<Ident> {
 
 #[test]
 fn every_element_is_drawn_under_a_key_of_its_own() {
-    let narrow = LayoutOptions { max_width: Some(320.0), ..LayoutOptions::default() };
+    let narrow = LayoutOptions::default().max_width(320.0);
     let (mut drawn, mut ranked_apart, mut unread) = (0, 0, 0);
     for source in walk_sources("sankey") {
         let Ok(model) = pele_core::sankey_front_json(&source, ParseOptions::default()) else { continue };

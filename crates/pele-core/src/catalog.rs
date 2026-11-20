@@ -82,6 +82,7 @@ pub struct MermaidType {
 }
 
 impl MermaidType {
+    /// The name, such as `flowchart-v2`.
     pub fn name(self) -> &'static str {
         self.name
     }
@@ -165,11 +166,13 @@ macro_rules! diagram_catalog {
     }),+ $(,)?) => {
         /// A diagram type, named as Pele names it.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        #[non_exhaustive]
         pub enum DiagramKind {
-            $($kind),+
+            $(#[doc = concat!("Pele's `", $name, "` diagrams.")] $kind),+
         }
 
         impl DiagramKind {
+            /// Every type, in the order Mermaid's detectors try them.
             pub const ALL: &[DiagramKind] = &[$(DiagramKind::$kind),+];
 
             /// Pele's `DiagramType` string, which is also the root element's class suffix.

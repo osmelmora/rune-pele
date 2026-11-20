@@ -33,7 +33,7 @@ fn keys(scene: &Scene, source: &str) -> BTreeSet<String> {
 
 #[test]
 fn every_drawing_has_a_key_of_its_own_at_every_width() {
-    let narrow = LayoutOptions { max_width: Some(320.0), ..LayoutOptions::default() };
+    let narrow = LayoutOptions::default().max_width(320.0);
     let mut drawn = 0;
     for source in sources() {
         for options in [&LayoutOptions::default(), &narrow] {
@@ -48,7 +48,7 @@ fn every_drawing_has_a_key_of_its_own_at_every_width() {
 #[test]
 fn the_effect_and_causes_are_nodes_and_the_categories_groups_either_way() {
     let source = "ishikawa-beta\n  E\n    C\n      x\n        x\n    D\n";
-    let narrow = LayoutOptions { max_width: Some(120.0), ..LayoutOptions::default() };
+    let narrow = LayoutOptions::default().max_width(120.0);
     for options in [&LayoutOptions::default(), &narrow] {
         let scene = scene(source, options).expect("it draws");
         let names = |kind: EntityKind| {

@@ -210,7 +210,7 @@ const DEFAULT_ID_PREFIX: &str = "pele";
 impl ViewOptions {
     /// A view at most `width` points wide. A diagram that can draw itself narrower does.
     pub fn new(width: f32) -> Self {
-        let layout = LayoutOptions { max_width: Some(f64::from(width)), ..Self::natural().layout };
+        let layout = Self::natural().layout.max_width(f64::from(width));
         ViewOptions { layout, ..Self::natural() }
     }
 
@@ -220,7 +220,7 @@ impl ViewOptions {
         // in one page never share a gradient's id; its `mount` always gives one. A view has no
         // ids to share, so it lays out under Pele's own default prefix, which also seeds a
         // cynefin's boundaries as Pele does without one.
-        let layout = LayoutOptions { id_prefix: Some(DEFAULT_ID_PREFIX.to_owned()), ..LayoutOptions::default() };
+        let layout = LayoutOptions::default().id_prefix(DEFAULT_ID_PREFIX);
         ViewOptions {
             layout,
             palette: None,
@@ -818,8 +818,7 @@ impl Diagram {
             let step = fit::step_below(room);
             // A diagram that can run down turns wherever across, at the least zoom, would still
             // be wider than the step, so that it would scroll.
-            let at =
-                LayoutOptions { max_width: Some(step), turn_wider_than: Some(step / least), ..options.layout.clone() };
+            let at = options.layout.clone().max_width(step).turn_wider_than(step / least);
             let narrower = match self.layout(source, &at, options.metrics, scale)? {
                 Ok(layout) => layout,
                 Err(why) => return Ok(Err(why)),
@@ -842,7 +841,7 @@ impl Diagram {
         if let Some(&narrows) = natural.narrows.get() {
             return narrows;
         }
-        let squeezed = LayoutOptions { max_width: Some(1.0), ..options.layout.clone() };
+        let squeezed = options.layout.clone().max_width(1.0);
         let narrows = match self.layout(source, &squeezed, options.metrics, scale) {
             Ok(Ok(probe)) => {
                 probe.scene.size() != natural.scene.size() || !probe.scene.paint().eq(natural.scene.paint())
@@ -990,8 +989,7 @@ impl Diagram {
                     // A parity draw pins an unset `now` to Pele's corpus clock. Metrics are not
                     // the clock: with none given, the view takes the system's, as with its fonts.
                     Metrics::Pele => {
-                        let options =
-                            LayoutOptions { now: options.now.or_else(|| Some(system_now())), ..options.clone() };
+                        let options = options.clone().now(options.now.unwrap_or_else(system_now));
                         pele_core::parity_scene_with(source, ParseOptions::default(), &options)
                             .map(|parity| parity.scene().clone())
                     }

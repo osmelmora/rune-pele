@@ -173,7 +173,8 @@ impl TextMeasurer for HalfEm {
 #[test]
 fn an_id_prefix_changes_no_key() {
     let draw = |prefix: Option<&str>| {
-        let options = LayoutOptions { id_prefix: prefix.map(str::to_owned), ..LayoutOptions::default() };
+        let mut options = LayoutOptions::default();
+        options.id_prefix = prefix.map(str::to_owned);
         let prepared = prepare(PETS, ParseOptions::default()).expect("parses");
         let measure = HalfEm;
         keys(

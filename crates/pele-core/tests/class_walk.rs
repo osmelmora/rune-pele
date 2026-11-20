@@ -75,7 +75,7 @@ fn members_are_set_as_their_marks_say() {
     assert_eq!(plain.font.family, FontFamily::Sans);
     assert_eq!(plain.font.size, 14.0, "members are set at seven eighths of the size");
 
-    let mono = LayoutOptions { monospace: vec![MonospacePart::Members], ..LayoutOptions::default() };
+    let mono = LayoutOptions::default().monospace([MonospacePart::Members]);
     let drawn = drawings(&scene(SHAPES, &mono));
     assert_eq!(
         run(&drawn, "node:Shape/attribute/1/0.0").font.family,
