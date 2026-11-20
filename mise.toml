@@ -5,6 +5,10 @@ node = "26.13.1"
 hk = "2.13.0"
 release-plz = "0.4.3"
 "github:obi1kenobi/cargo-semver-checks" = "0.51.0"
+actionlint = "1.7.12"
+# actionlint checks each workflow's shell steps with ShellCheck when it is on PATH, as it is on
+# GitHub's runners, so the same one is pinned here.
+shellcheck = "0.11.0"
 
 [env]
 TZ = "UTC"
@@ -16,6 +20,10 @@ run = "scripts/setup.sh"
 [tasks.check]
 description = "fmt, clippy, unit tests and the differential tests against Pele"
 run = "scripts/check.sh"
+
+[tasks.actionlint]
+description = "Lint every workflow in .github/workflows, with ShellCheck on their shell steps"
+run = "actionlint"
 
 [tasks.rune-corpus]
 description = "Draw every corpus source of the graph types natively in Rune, beside Pele's SVG through resvg (release)"
