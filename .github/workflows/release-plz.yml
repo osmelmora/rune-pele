@@ -1,11 +1,22 @@
 # On every push to main: `release` tags a version that has no tag yet (and makes its GitHub
 # release); `release-pr` opens or updates the pull request that bumps the version and writes
 # CHANGELOG.md. The tools come from mise.toml, as they do locally.
+#
+# Both jobs act as the repository's release GitHub App when its secrets are set, so that CI runs
+# on the release pull request: GitHub starts no workflow for what GITHUB_TOKEN pushes or opens.
+# The App needs the repository permissions Contents and Pull requests, read and write, and is
+# installed on this repository only. RELEASE_APP_ID holds its client ID or its App ID, either of
+# which GitHub takes, and RELEASE_APP_PRIVATE_KEY a private key it generated. Without them both
+# jobs use GITHUB_TOKEN, as before.
 name: Release-plz
 
 on:
   push:
     branches: [main]
+
+env:
+  # A step's `if` cannot read `secrets`, so this says whether the App's ID is set.
+  RELEASE_APP: ${{ secrets.RELEASE_APP_ID != '' }}
 
 jobs:
   release:
@@ -15,8 +26,15 @@ jobs:
       contents: write
       pull-requests: read
     steps:
+      - &app-token
+        id: app
+        if: env.RELEASE_APP == 'true'
+        uses: actions/create-github-app-token@v3.4.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - &checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -24,7 +42,7 @@ jobs:
       - &linux-libs
         run: sudo apt-get update -q && sudo apt-get install -yq libxkbcommon-dev libwayland-dev
       - &tools
-        uses: jdx/mise-action@v5
+        uses: jdx/mise-action@v5.2.10
         with:
           install_args: rust release-plz github:obi1kenobi/cargo-semver-checks
       # cargo-semver-checks builds rune-pele in a project of its own, which the workspace's
@@ -33,7 +51,7 @@ jobs:
         run: scripts/cargo-home-patches.sh
       - run: release-plz release --git-token "$GITHUB_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
 
   release-pr:
     name: Release pull request
@@ -45,10 +63,11 @@ jobs:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
+      - *app-token
       - *checkout
       - *linux-libs
       - *tools
       - *patches
       - run: release-plz release-pr --git-token "$GITHUB_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
