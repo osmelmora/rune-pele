@@ -318,6 +318,10 @@ fn atan2_matches_math_atan2() {
 /// answers. When the port's answers are made arm64 Node's, this test fails and the source moves
 /// to the worst cases of `venn_parity.rs`.
 #[test]
+#[cfg_attr(
+    not(target_arch = "aarch64"),
+    ignore = "the difference is arm64 Node's fused multiply-adds; on x64 Pele draws this source as the port does"
+)]
 fn the_unsettled_relaxation_differs_only_in_libms_last_bit() {
     let repeat = |count: usize, line: &dyn Fn(usize) -> String| (0..count).map(line).collect::<String>();
     let source = format!(
