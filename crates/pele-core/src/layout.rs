@@ -27,4 +27,5 @@ pub use compound::{
     Axis, CEdge, CNode, Dir, RoutePoint, Size, compound_layout, inherit_crossed_directions, shift_layout,
 };
 pub use lanes::lane_layout;
-pub use layered::{EdgeStyle, LayeredOptions, ease};
+pub(crate) use layered::ease;
+pub use layered::{EdgeStyle, LayeredOptions};

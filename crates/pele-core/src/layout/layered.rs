@@ -925,7 +925,7 @@ pub fn layered(
 }
 
 /// Reverses the edges that close a cycle, found by depth-first search in declaration order.
-pub fn orient(nodes: &[LNode], edges: &mut [LEdge]) {
+pub(crate) fn orient(nodes: &[LNode], edges: &mut [LEdge]) {
     let n = nodes.len();
     let m = edges.len();
     let mut start = vec![0usize; n + 1];
@@ -1247,7 +1247,7 @@ fn free_ends(g: &Graph, efk: &[End], etk: &[End]) -> [Vec<usize>; 2] {
 
 /// How far along the flow the handles of a plain S reach, as a share of the way it travels along
 /// it. The layout uses this to tell how near two curves will pass, and the drawing to draw them.
-pub fn ease(across: f64, along: f64) -> f64 {
+pub(crate) fn ease(across: f64, along: f64) -> f64 {
     let across = if across.abs() == 0.0 || across.is_nan() { 1.0 } else { across.abs() };
     js::max(0.25, js::min(0.5, (4.0 * along.abs()) / across))
 }

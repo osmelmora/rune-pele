@@ -257,7 +257,7 @@ pub fn num(value: f64) -> String {
 }
 
 /// [`num`] appended to `out`, for writers that build one long string.
-pub fn write_num(out: &mut String, value: f64) {
+pub(crate) fn write_num(out: &mut String, value: f64) {
     let n = round(value * 100.0);
     if n == 0.0 {
         out.push('0');

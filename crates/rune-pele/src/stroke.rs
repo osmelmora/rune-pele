@@ -55,7 +55,7 @@ const MITER_LIMIT: f64 = 4.0;
 const VISIBLE: f64 = 0.05;
 
 /// The most dashes one stroke is cut into. A pattern finer than that draws solid.
-pub const MOST_DASHES: f64 = 20_000.0;
+pub(crate) const MOST_DASHES: f64 = 20_000.0;
 
 fn sub(a: Point, b: Point) -> Point {
     [a[0] - b[0], a[1] - b[1]]
@@ -389,14 +389,14 @@ pub fn stroke(lines: &[Polyline], look: &StrokeLook, pixel: f64) -> Strokes {
 
 impl Strokes {
     /// Whether two of the pieces can overlap, so that a translucent colour would show twice.
-    pub fn overlaps(&self) -> bool {
+    pub(crate) fn overlaps(&self) -> bool {
         let segments = |points: usize, closed: bool| if closed { points } else { points - 1 };
         let round: usize = self.round.iter().map(|line| segments(line.points.len(), line.closed)).sum();
         let butt: usize = self.butt.iter().map(|points| segments(points.len(), false)).sum();
         round + butt + self.patches.len() > 1
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.round.is_empty() && self.butt.is_empty() && self.patches.is_empty()
     }
 }

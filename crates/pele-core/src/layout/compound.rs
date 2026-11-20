@@ -23,7 +23,7 @@ pub enum Dir {
 
 impl Dir {
     /// The direction a diagram names, or top to bottom for anything else.
-    pub fn named(name: Option<&str>) -> Dir {
+    pub(crate) fn named(name: Option<&str>) -> Dir {
         match name {
             Some("BT") => Dir::BT,
             Some("LR") => Dir::LR,

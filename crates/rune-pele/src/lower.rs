@@ -562,7 +562,7 @@ impl Drawing {
     }
 
     /// What the drawing asks of Rune without the app's icons.
-    pub fn census(&self) -> Census {
+    pub(crate) fn census(&self) -> Census {
         fn count(items: &[Item], depth: usize, census: &mut Census) {
             for item in items {
                 match item {

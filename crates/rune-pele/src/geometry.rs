@@ -71,7 +71,8 @@ pub(crate) fn unit(from: Point, to: Point) -> Option<Point> {
 
 impl Polyline {
     /// A path of straight lines through `points`, every one of them a corner.
-    pub fn straight(points: &[Point], closed: bool) -> Polyline {
+    #[cfg(test)]
+    pub(crate) fn straight(points: &[Point], closed: bool) -> Polyline {
         let n = points.len();
         let corner = |i: usize| {
             if !closed && (i == 0 || i + 1 == n) {
@@ -133,12 +134,8 @@ impl Affine {
         self.b.atan2(self.a)
     }
 
-    pub fn is_translation(&self) -> bool {
-        (self.a, self.b, self.c, self.d) == (1.0, 0.0, 0.0, 1.0)
-    }
-
     /// Whether the map only moves and scales alike both ways, so that an upright box stays one.
-    pub fn is_upright(&self) -> bool {
+    pub(crate) fn is_upright(&self) -> bool {
         self.b == 0.0 && self.c == 0.0 && self.a == self.d && self.a > 0.0
     }
 }
@@ -232,7 +229,8 @@ impl Outline {
         Outline { edges }
     }
 
-    pub fn edges(&self) -> &[Edge] {
+    #[cfg(test)]
+    pub(crate) fn edges(&self) -> &[Edge] {
         &self.edges
     }
 

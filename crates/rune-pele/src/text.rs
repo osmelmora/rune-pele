@@ -88,7 +88,7 @@ impl Baselines {
     }
 
     /// How many runs these baselines have shaped.
-    pub fn shaped(&self) -> u64 {
+    pub(crate) fn shaped(&self) -> u64 {
         self.shaped
     }
 

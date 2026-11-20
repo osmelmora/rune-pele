@@ -24,11 +24,11 @@ pub fn tick_step(span: f64, count: f64) -> f64 {
     if power < 0.0 { -js::ten_to(-power) / factor } else { factor * js::ten_to(power) }
 }
 
-pub fn tick_index(step: f64, value: f64) -> f64 {
+pub(crate) fn tick_index(step: f64, value: f64) -> f64 {
     if step > 0.0 { value / step } else { value * -step }
 }
 
-pub fn tick_value(step: f64, index: f64) -> f64 {
+pub(crate) fn tick_value(step: f64, index: f64) -> f64 {
     if step > 0.0 { index * step } else { index / -step }
 }
 
