@@ -173,13 +173,16 @@ impl Scene {
     /// whichever of the palette's on-light and on-dark colours contrasts with the series, by
     /// Pele's own rule. Pele's SVG does that only where the source sets the series; here it
     /// holds for every series, so labels stay readable in any palette. Nothing here measures or
-    /// lays out.
+    /// lays out. Not part of the API: public for rune-pele, which paints the Scene.
+    #[doc(hidden)]
     pub fn resolve_paints(&self, palette: &Palette, dark: bool) -> ResolvedPaints {
         self.resolve_paints_with(palette, dark, ThemeSeries::Source)
     }
 
     /// [`Scene::resolve_paints`], with `theme` saying whose colour a series the source's theme
-    /// config sets is drawn in. Text on it contrasts with that colour either way.
+    /// config sets is drawn in. Text on it contrasts with that colour either way. Not part of the
+    /// API: public for rune-pele, which paints the Scene.
+    #[doc(hidden)]
     pub fn resolve_paints_with(&self, palette: &Palette, dark: bool, theme: ThemeSeries) -> ResolvedPaints {
         let mut series = palette.series;
         let themed = self.document.palette.slots().filter(|_| theme == ThemeSeries::Source);

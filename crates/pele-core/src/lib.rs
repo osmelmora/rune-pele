@@ -1,57 +1,70 @@
 //! Rune-free core of rune-pele: Mermaid parsing, layout and scene building, ported from Pele.
 
 mod catalog;
+/// Not part of the API: helpers several types share, public for the workspace's tests.
 #[doc(hidden)]
 pub mod common;
 mod diagrams;
 mod fit;
 mod graph;
 mod input;
-// The gantt chart's date helpers, reached by `tests/gantt_dates.rs`. Hidden: no part of the API.
+/// Not part of the API: the gantt chart's date helpers, public for `tests/gantt_dates.rs`.
 #[doc(hidden)]
 pub use diagrams::gantt::probe as gantt_probe;
+/// Not part of the API: JavaScript's number rules, public for the workspace's tests.
+#[doc(hidden)]
 pub mod js;
-// Renderers inside this crate are the callers. It is public so that `tests/layout_replay.rs` can
-// hold it to Pele, and hidden because it is no part of the API.
+/// Not part of the API: renderers inside this crate are the callers. Public so that
+/// `tests/layout_replay.rs` can hold it to Pele.
 #[doc(hidden)]
 pub mod layout;
-// Public so that `tests/block_layout.rs` can hold it to Pele, and hidden because it is no part of
-// the API.
+/// Not part of the API: public so that `tests/block_layout.rs` can hold it to Pele.
 #[doc(hidden)]
 pub use diagrams::block::layout as block_layout;
-// Public so that `tests/xychart_ticks.rs` can hold it to Pele bit for bit, and hidden because it
-// is no part of the API.
-#[doc(hidden)]
-pub use diagrams::xychart::ticks as xychart_ticks;
-// Public so that `tests/sankey_layout.rs` can hold it to Pele, and hidden because it is no part of
-// the API.
+/// Not part of the API: public so that `tests/sankey_layout.rs` can hold it to Pele.
 #[doc(hidden)]
 pub use diagrams::sankey::layout as sankey_layout;
+/// Not part of the API: public so that `tests/xychart_ticks.rs` can hold it to Pele bit for bit.
+#[doc(hidden)]
+pub use diagrams::xychart::ticks as xychart_ticks;
 mod measure;
+/// Not part of the API: the Scene's walk and colours, public for rune-pele, which draws a Scene
+/// natively, and for the workspace's tests. An app takes [`Scene`], [`Size`], [`LinkRef`] and
+/// [`Role`] from the crate's root.
+#[doc(hidden)]
 pub mod scene;
 pub mod svg;
 
 pub use catalog::{DiagramKind, MermaidType};
+/// Not part of the API: architecture's grid, public for the workspace's tests.
 #[doc(hidden)]
 pub use diagrams::architecture::probe as architecture_probe;
+/// Not part of the API: C4's routes and layout, public for the workspace's tests.
 #[doc(hidden)]
 pub use diagrams::c4::probe as c4_probe;
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub use diagrams::eventmodeling::json::front_json as eventmodeling_front_json;
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub use diagrams::info::front_json as info_front_json;
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub use diagrams::radar::front_json as radar_front_json;
+/// Not part of the API: railroad's front end, public for the workspace's tests.
 #[doc(hidden)]
 pub use diagrams::railroad::probe as railroad_probe;
+/// Not part of the API: treemap's layout and numbers, public for the workspace's tests.
 #[doc(hidden)]
 pub use diagrams::treemap::probe as treemap_probe;
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub use diagrams::treeview::front_json as treeview_front_json;
+/// Not part of the API: venn's geometry and trig, public for the workspace's tests.
 #[doc(hidden)]
 pub use diagrams::venn::probe as venn_probe;
 pub use measure::{Font, FontFamily, FontWeight, Script, TextMeasure, TextMeasurer, TextRef, Typography};
-pub use scene::Scene;
+pub use scene::{LinkRef, Role, Scene, Size};
 
 /// A diagram rendered to SVG.
 #[derive(Debug, Clone, PartialEq)]
@@ -261,7 +274,9 @@ impl LayoutOptions {
     }
 }
 
-/// What drawing reads from the host.
+/// What drawing reads from the host. Not part of the API: public for rune-pele, which lays a
+/// diagram out with the fonts it draws in.
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct NativeInputs<'a> {
     pub measure: &'a dyn TextMeasurer,
@@ -417,6 +432,7 @@ pub fn prepare(source: &str, options: ParseOptions) -> Result<Prepared, RenderEr
 
 /// The flowchart front end's model and flow graph as JSON, in the words of the oracle's
 /// `flow_front` op, for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -432,6 +448,7 @@ pub fn flowchart_front_json(source: &str, options: ParseOptions) -> Result<Strin
 
 /// The class diagram front end's model and class graph as JSON, in the words of the oracle's
 /// `class_front` op, for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn class_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -448,6 +465,7 @@ pub fn class_front_json(source: &str, options: ParseOptions) -> Result<String, R
 /// The state diagram front end's statement tree, db and graph as JSON, in the words of the
 /// oracle's `state_front` op, for the differential test. A source of another type answers only
 /// that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn state_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -464,6 +482,7 @@ pub fn state_front_json(source: &str, options: ParseOptions) -> Result<String, R
 /// `flow_front` op: the model and flow graph, or the error with the flowchart named as its
 /// type. A flowchart answers as `flowchart_front_json` does, and a source of another type
 /// answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn swimlane_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -483,6 +502,7 @@ pub fn swimlane_front_json(source: &str, options: ParseOptions) -> Result<String
 /// The requirement front end's model and the graph it lays out as JSON, in the words of the
 /// oracle's `requirement_front` op, for the differential test. A source of another type
 /// answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn requirement_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -497,6 +517,7 @@ pub fn requirement_front_json(source: &str, options: ParseOptions) -> Result<Str
 
 /// The use case front end's model and graph as JSON, in the words of the oracle's
 /// `usecase_front` op, for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn usecase_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -512,6 +533,7 @@ pub fn usecase_front_json(source: &str, options: ParseOptions) -> Result<String,
 
 /// The ER front end's model and ER graph as JSON, in the words of the oracle's `er_front` op,
 /// for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn er_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -527,6 +549,7 @@ pub fn er_front_json(source: &str, options: ParseOptions) -> Result<String, Rend
 
 /// The sequence front end's model as JSON, in the words of the oracle's `sequence_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn sequence_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -542,6 +565,7 @@ pub fn sequence_front_json(source: &str, options: ParseOptions) -> Result<String
 /// The agentflow front end's model, graph and semantic model as JSON, in the words of the
 /// oracle's `agentflow_front` op, for the differential test. A source of another type answers
 /// only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn agentflow_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -556,6 +580,7 @@ pub fn agentflow_front_json(source: &str, options: ParseOptions) -> Result<Strin
 
 /// The block diagram front end's model as JSON, in the words of the oracle's `block_front` op,
 /// for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn block_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -570,6 +595,7 @@ pub fn block_front_json(source: &str, options: ParseOptions) -> Result<String, R
 
 /// The C4 front end's model as JSON, in the words of the oracle's `c4_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn c4_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -585,6 +611,7 @@ pub fn c4_front_json(source: &str, options: ParseOptions) -> Result<String, Rend
 /// The gantt front end's model and each task's schedule against `now`, in milliseconds since
 /// 1970, as JSON in the words of the oracle's `gantt_front` op, for the differential test. A
 /// source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn gantt_front_json(source: &str, options: ParseOptions, now: f64) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -599,6 +626,7 @@ pub fn gantt_front_json(source: &str, options: ParseOptions, now: f64) -> Result
 
 /// The architecture front end's model as JSON, in the words of the oracle's `architecture_front`
 /// op, for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn architecture_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -613,6 +641,7 @@ pub fn architecture_front_json(source: &str, options: ParseOptions) -> Result<St
 
 /// The cynefin front end's model as JSON, in the words of the oracle's `cynefin_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn cynefin_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -627,6 +656,7 @@ pub fn cynefin_front_json(source: &str, options: ParseOptions) -> Result<String,
 
 /// The wardley front end's model as JSON, in the words of the oracle's `wardley_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn wardley_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -641,6 +671,7 @@ pub fn wardley_front_json(source: &str, options: ParseOptions) -> Result<String,
 
 /// The xychart front end's db as JSON, in the words of the oracle's `xychart_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn xychart_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -655,6 +686,7 @@ pub fn xychart_front_json(source: &str, options: ParseOptions) -> Result<String,
 
 /// The venn front end's model as JSON, in the words of the oracle's `venn_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn venn_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -669,6 +701,7 @@ pub fn venn_front_json(source: &str, options: ParseOptions) -> Result<String, Re
 
 /// The quadrant chart front end's model as JSON, in the words of the oracle's `quadrant_front`
 /// op, for the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn quadrant_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -683,6 +716,7 @@ pub fn quadrant_front_json(source: &str, options: ParseOptions) -> Result<String
 
 /// The git graph front end's model as JSON, in the words of the oracle's `git_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn git_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -697,6 +731,7 @@ pub fn git_front_json(source: &str, options: ParseOptions) -> Result<String, Ren
 
 /// The sankey front end's model as JSON, in the words of the oracle's `sankey_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn sankey_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -711,6 +746,7 @@ pub fn sankey_front_json(source: &str, options: ParseOptions) -> Result<String, 
 
 /// The packet front end's model as JSON, in the words of the oracle's `packet_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn packet_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -725,6 +761,7 @@ pub fn packet_front_json(source: &str, options: ParseOptions) -> Result<String, 
 
 /// The kanban front end's board as JSON, in the words of the oracle's `kanban_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn kanban_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -739,6 +776,7 @@ pub fn kanban_front_json(source: &str, options: ParseOptions) -> Result<String, 
 
 /// The mindmap front end's map as JSON, in the words of the oracle's `mindmap_front` op, for the
 /// differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn mindmap_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -753,6 +791,7 @@ pub fn mindmap_front_json(source: &str, options: ParseOptions) -> Result<String,
 
 /// The Ishikawa front end's outline as JSON, in the words of the oracle's `ishikawa_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn ishikawa_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -767,6 +806,7 @@ pub fn ishikawa_front_json(source: &str, options: ParseOptions) -> Result<String
 
 /// The treemap front end's model as JSON, in the words of the oracle's `treemap_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn treemap_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -781,6 +821,7 @@ pub fn treemap_front_json(source: &str, options: ParseOptions) -> Result<String,
 
 /// The timeline front end's model as JSON, in the words of the oracle's `timeline_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn timeline_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -795,6 +836,7 @@ pub fn timeline_front_json(source: &str, options: ParseOptions) -> Result<String
 
 /// The journey front end's model as JSON, in the words of the oracle's `journey_front` op, for
 /// the differential test. A source of another type answers only that type.
+/// Not part of the API: public for the workspace's differential tests.
 #[doc(hidden)]
 pub fn journey_front_json(source: &str, options: ParseOptions) -> Result<String, RenderError> {
     let front = front(source, &options)?;
@@ -813,7 +855,8 @@ impl Prepared {
     }
 
     /// Draws the parsed source. The model is not changed, so one `Prepared` can be drawn for
-    /// several widths.
+    /// several widths. Not part of the API: public for rune-pele, which draws the Scene natively.
+    #[doc(hidden)]
     pub fn scene(&self, inputs: NativeInputs<'_>) -> Result<Scene, RenderError> {
         let policy = self.found.kind.port().expect("a source is prepared only for a ported kind");
         let section = self.config.get(policy.section).and_then(input::JsValue::as_record);
@@ -840,6 +883,9 @@ pub struct ParityScene {
 }
 
 impl ParityScene {
+    /// The Scene the SVG writer reads. Not part of the API: public for rune-pele, which draws it
+    /// natively to compare with Pele's SVG.
+    #[doc(hidden)]
     pub fn scene(&self) -> &Scene {
         &self.scene
     }

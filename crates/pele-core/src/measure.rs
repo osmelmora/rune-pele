@@ -46,7 +46,9 @@ impl Default for Typography {
     }
 }
 
-/// Text to measure, as the UTF-16 code units Pele counts. A surrogate may stand alone.
+/// Text to measure, as the UTF-16 code units Pele counts. A surrogate may stand alone. Not part
+/// of the API: public for rune-pele, which measures text with Rune.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
 pub struct TextRef<'a> {
     units: &'a [u16],
@@ -57,18 +59,26 @@ impl<'a> TextRef<'a> {
         TextRef { units }
     }
 
+    /// The text's UTF-16 code units.
     pub fn utf16_units(&self) -> &'a [u16] {
         self.units
     }
 }
 
+/// What a [`TextMeasurer`] measured. Not part of the API: public for rune-pele, which measures
+/// text with Rune.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextMeasure {
+    /// The advance of the text, in pixels.
     pub width: f64,
 }
 
-/// How wide text is. Layout asks nothing else of a font.
+/// How wide text is. Layout asks nothing else of a font. Not part of the API: public for
+/// rune-pele, which measures text with Rune.
+#[doc(hidden)]
 pub trait TextMeasurer {
+    /// How wide `text` is in `font`.
     fn measure(&self, text: TextRef<'_>, font: &Font) -> TextMeasure;
 }
 
@@ -126,12 +136,17 @@ impl TextMeasurer for ArialMetrics {
     }
 }
 
-/// Where a run of text sits against its line.
+/// Where a run of text sits against its line. Not part of the API: public for rune-pele, which
+/// draws runs set below or above their line.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Script {
+    /// On the line.
     #[default]
     Normal,
+    /// Below it, as `<sub>`.
     Sub,
+    /// Above it, as `<sup>`.
     Super,
 }
 

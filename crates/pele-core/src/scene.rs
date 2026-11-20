@@ -50,15 +50,21 @@ pub(crate) fn esc(text: &[u16], out: &mut String) {
     }
 }
 
+/// A point in the drawing, in pixels, y down.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
+    /// Rightwards from the drawing's left edge.
     pub x: f64,
+    /// Downwards from the drawing's top edge.
     pub y: f64,
 }
 
+/// A width and height, in pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Size {
+    /// Across.
     pub width: f64,
+    /// Down.
     pub height: f64,
 }
 
@@ -1271,6 +1277,7 @@ pub struct Scene {
 }
 
 impl Scene {
+    /// How large the drawing is, in pixels: the SVG's `width` and `height`.
     pub fn size(&self) -> Size {
         self.document.size
     }
@@ -1291,18 +1298,24 @@ impl Scene {
         &self.document.gradients[id.0 as usize]
     }
 
-    /// Every entity the drawing holds, in the order the diagram first drew each.
+    /// Every entity the drawing holds, in the order the diagram first drew each. Not part of the
+    /// API: public for the workspace's tests.
+    #[doc(hidden)]
     pub fn entities(&self) -> impl Iterator<Item = &EntityKey> {
         self.entities.iter().map(|record| &record.key)
     }
 
-    /// The text shown when the pointer rests on an entity.
+    /// The text shown when the pointer rests on an entity. Not part of the API: public for the
+    /// workspace's tests.
+    #[doc(hidden)]
     pub fn tooltip(&self, entity: &EntityKey) -> Option<String> {
         let record = self.entities.iter().find(|record| record.key == *entity)?;
         record.tooltip_text().map(|text| walk::drawable(&text))
     }
 
-    /// The entities an entity is joined to: an edge's two ends, and a node's edges.
+    /// The entities an entity is joined to: an edge's two ends, and a node's edges. Not part of
+    /// the API: public for the workspace's tests.
+    #[doc(hidden)]
     pub fn related(&self, entity: &EntityKey) -> Vec<&EntityKey> {
         let key = |part: PartId| &self.entity(part).key;
         let mut out = Vec::new();

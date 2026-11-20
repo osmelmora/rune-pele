@@ -682,7 +682,9 @@ struct Pieces {
 }
 
 impl Scene {
-    /// Every drawing in paint order, inside the groups that hold it.
+    /// Every drawing in paint order, inside the groups that hold it. Not part of the API: public
+    /// for rune-pele, which draws the Scene natively.
+    #[doc(hidden)]
     pub fn paint(&self) -> impl Iterator<Item = PaintVisit> + '_ {
         let mut out = Vec::new();
         let mut pieces = Pieces::default();
@@ -709,7 +711,9 @@ impl Scene {
     /// `property:value`: a colour only a page can read, a font family, a line through text. Where
     /// there are any, an interpreter that reads only the walk draws something other than the SVG
     /// shows. A declaration a page drops, as `stroke-width:2p` or `fill:blu`, is not one: the
-    /// walk drops it too.
+    /// walk drops it too. Not part of the API: public for rune-pele, which draws the Scene
+    /// natively.
+    #[doc(hidden)]
     pub fn unread_styles(&self) -> Vec<String> {
         let mut unread = Vec::new();
         for node in &self.arena {
