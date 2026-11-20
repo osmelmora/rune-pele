@@ -742,3 +742,51 @@ The other rows of the Intel entry are unchanged. `js::sin`, `js::cos` and `js::l
 **cargo-semver-checks and rune-pele (measured).** `cargo semver-checks --baseline-rev v0.1.0 -p pele-core -p rune-pele` checks pele-core and prints nothing for rune-pele, and `-p rune-pele` alone stops while resolving: it builds rune-pele in a project of its own, which the workspace's `[patch.crates-io]` does not reach, and Cargo cannot resolve `rune` (`parley_engine` lacks `line-dictionaries`). `main`'s `b857ebc` gives CI the patches through Cargo's home config (`scripts/cargo-home-patches.sh`). With them in a throwaway Cargo home, `-p rune-pele` reports the 10 lints above; rustdoc JSON built in this workspace and in a copy of the `v0.1.0` tree, compared with `cargo semver-checks check-release --baseline-rustdoc … --current-rustdoc …`, lists the same 43 items.
 
 **Checks (measured, on the code of `994b509`).** `pele parity` on a fresh `--out` reads `522 522 0 0 0`. `mise run rune-corpus`'s ten reports, `side-by-side.txt` among them, are byte-identical to `main`'s. `mise run consumer-tag` passes on `v0.1.0` and on a throwaway tag of the branch, `mise run consumer` and `mise run msrv` pass, and the doctor is ok. Every break script passes in full under `mise exec --`.
+
+## 2026-11-20 CI on GitHub Actions
+
+**Why.** Nothing ran the tests in CI: `release-plz.yml` released on pushes to main and `commits.yml` checked commit messages. The repository is to be made public, and contributors need the checks to run on their pull requests.
+
+**What runs** (`oss-ci`). Each job runs one script, which a developer runs the same way.
+- `CI` (`ci.yml`), on pull requests and pushes to main. **Linux x64** every time: `mise run ci-linux` (`scripts/ci-linux.sh`) lints the workflows, runs `scripts/setup.sh` and `scripts/check.sh`, and holds `pele parity` on a fresh folder to `522 522 0 0 0`. **macOS arm64** on pull requests labelled `macos`, weekly on main, by hand, and on pushes to main once the repository is public: `mise run ci-macos` (`scripts/ci-macos.sh`) runs rune-pele's tests and `mise run rune-corpus`, and keeps the corpus reports for 14 days. A newer run cancels an older one of the same pull request, or of main for the same event. Pele's checkout is cached by its pin, Cargo's registry and the dependencies in `target/` by rust-cache, saved from main only.
+- `Prove` (`prove.yml`), weekly and by hand: `mise run prove`.
+- `Release-plz` takes a token from the release GitHub App when `RELEASE_APP_ID` is set, and `GITHUB_TOKEN` while it is not. A step's `if` cannot read `secrets`, so a workflow-wide `RELEASE_APP: ${{ secrets.RELEASE_APP_ID != '' }}` gates the token step, and release-plz gets `${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}`. Measured with act on a copy of the two expressions with the token step stubbed: without the secrets the step is skipped and release-plz gets `GITHUB_TOKEN`; with them it gets the App's token.
+- actionlint 1.7.12 and ShellCheck 0.11.0 are pinned, and `mise run actionlint` lints every workflow. `scripts/break-ci.sh` has two breaks, each caught.
+
+**What each check needs (measured on an M3 Pro, 11 cores).**
+
+| Check | Pele and Node | GPU | Fonts | macOS | Cold | Warm |
+| --- | --- | --- | --- | --- | --- | --- |
+| notices, fmt | no | no | no | no | 2 s | 2 s |
+| clippy, both feature sets | no | no | no | no | 26 s | 1 s |
+| `cargo test` | yes: the differential tests | rune-pele's | Arial's metrics for resvg | no | 83 s build, 870 s run | 870 s |
+| rune-pele without default features | yes | yes | yes | no | 48 s build, 112 s run | 80 s |
+| doc gate | no | no | no | no | 16 s | 1 s |
+| `mise run msrv` | no | no | no | no | 32 s | 1 s |
+| `scripts/consumer.sh` | no | yes | no | no | 45 s | 1 s |
+| `pele parity` | yes | no | no | no | 12 s build, 1 s run | 1 s |
+| `mise run rune-corpus` | yes | yes | yes | no | 88 s build, 42 s run | 42 s |
+| `mise run prove` | no | no | no | no | 199 s, 185 s of it proving | not measured |
+
+On macOS the GPU is Metal and the font is `/System/Library/Fonts/Supplemental/Arial.ttf`. On Linux the GPU is Vulkan, which Mesa's lavapipe provides in software (`mesa-vulkan-drivers`), and the font Liberation Sans (`fonts-liberation`), which `tests/common` already looks for. Rune links xkbcommon and Wayland.
+
+**Linux (measured, Ubuntu 24.04 containers under OrbStack).**
+- x64, under Rosetta: every build and check passes, `pele parity` reads `522 522 0 0 0`, and every test of pele-cli and pele-oracle passes. Eight tests of pele-core fail because Pele answers differently there, none because of a drawing, and are ignored on that platform with the reason:
+  - x64 Node sets the sign bit of a NaN it computes, where arm64 Node and the port do not: `common`'s `cap_width_matches_pele`, `sankey_layout`'s random flows, `xychart_ticks`' value axes, and `oracle`'s `sin` and `cos` of the infinities. JavaScript shows no NaN's bits.
+  - Node on Linux takes glibc's `pow`, which rounds 10^23, 10^126 and 10^210 a bit apart from Apple's, which the port matches: `xychart_ticks`' powers of ten (3 of 806) and tick steps (357 of 38,875). 10^23 lies halfway between two doubles.
+  - `venn_layout`'s unsettled relaxation holds that the port draws one source apart from arm64 Pele. On x64 Pele draws it as the port does, as the test's own doc says.
+- x64, rune-pele: every test that draws fails at Rune's first shader under Rosetta. Rosetta has no AVX, so Mesa turns F16C off, lavapipe then offers no `shaderFloat16`, and wgpu takes `unpack2x16float` away from llvmpipe without it (read from Mesa 25.2.8's `u_cpu_detect.c` and `lp_bld_limits.h`, and Rune's vendored wgpu-hal). GitHub's x64 runners have AVX and F16C (inferred), so lavapipe should draw there.
+- arm64, where Mesa gives lavapipe float16 on any CPU: all 25 rune-pele test binaries pass on lavapipe. `scripts/ci-linux.sh` runs to the end on 2 CPUs in 1,429 s with the test dependencies built: 876 passed, 0 failed, 21 ignored, parity `522 522 0 0 0`.
+- Disk: a runner has 14 GB. After `cargo test`, `target/` held 32 GB with debug info (x64), 18 GB with line tables only and 4.8 GB with none (arm64). With none, the whole Linux job left 7.8 GB, besides the consumer's build, which was not measured apart. CI builds with `CARGO_PROFILE_DEV_DEBUG=0`. A panic still names its file and line, and debug assertions stay on.
+
+**Budget (GitHub's docs, read 2026-11-20).** A private repository on the Free plan gets $12 of compute a month for all its jobs: Linux x64 (2 CPUs, 8 GB) at $0.006 a minute, about 2,000 minutes, and macOS arm64 (3 M1 cores, 7 GB) at $0.062, about 193. Standard runners are free for public repositories. Estimated, not measured: a Linux run takes 35 to 60 minutes on 2 runner CPUs (1,429 s on 2 M3 cores, times 1.5 to 2.5), so three pushes a day, 90 runs, cost 3,150 to 5,400 minutes, more than the allowance; a macOS run about 15 minutes ($0.93). Weekly, macOS costs about 65 minutes ($4) a month, and `Prove` about 60 Linux minutes.
+
+**Findings.**
+- `mise run <task>` installs every tool `mise.toml` pins that is missing, Kani's among them. CI sets `MISE_TASK_RUN_AUTO_INSTALL=false`; `mise exec rust@1.95`, which `mise run msrv` runs, still installs only that Rust.
+- rust-cache 2.9.3 keeps a folder of `target/*/build` whose name, less its last `-` part, is a dependency's: `rune-pele` passes as Rune's. It holds the test binaries, so CI removes it before the cache is saved.
+- `examples/consumer/Cargo.lock` still names `pele-core` and `rune-pele` 0.1.0, so every `mise run check` rewrites it to 0.2.0. release-plz does not bump a lock outside the workspace.
+- mise 2026.11.10 calls `actionlint` deprecated in favour of `jactionlint`, jdx's fork; actionlint 1.7.12, of 2026-03-30, is its latest release.
+
+**Open.**
+- Compare a NaN with any NaN in the differential tests (`common.rs`, `sankey_layout.rs`, `oracle.rs`, `xychart_ticks.rs`), so that the five NaN tests run on x64 again.
+- Only GitHub can show: lavapipe drawing on an x64 runner; Metal and Arial on a macOS runner; glibc's `pow` with FMA there; the job times; the disk left; the release App's token.
