@@ -1,7 +1,8 @@
 # Each job runs one script, which a developer runs the same way: `mise run ci-linux` and
-# `mise run ci-macos`. Linux runs on every pull request and every push to main. A macOS minute
-# costs ten Linux minutes on a private repository, so macOS runs on pushes to main and on pull
-# requests labelled `macos`; adding the label runs CI again.
+# `mise run ci-macos`. Linux runs on every pull request and every push to main. macOS runs on
+# pull requests labelled `macos` (adding the label runs CI again), weekly on main, when started
+# by hand, and on every push to main once the repository is public. While it is private, a
+# macOS minute costs ten Linux minutes, out of the same monthly allowance.
 name: CI
 
 on:
@@ -9,6 +10,9 @@ on:
     types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
+  schedule:
+    - cron: "47 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,8 +26,9 @@ env:
   # installs the ones it uses.
   MISE_TASK_RUN_AUTO_INSTALL: "false"
 
+# A newer run cancels an older one of the same pull request, or of main for the same event.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.event_name) }}
   cancel-in-progress: true
 
 jobs:
@@ -65,7 +70,10 @@ jobs:
 
   macos:
     name: macOS arm64
-    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'macos')
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && !github.event.repository.private) ||
+      contains(github.event.pull_request.labels.*.name, 'macos')
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
