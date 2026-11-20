@@ -476,6 +476,10 @@ break_use doc-missing-without-the-crate-lint "$gate" \
 ' '' \
   crates/pele-core/src/lib.rs '    /// The diagram type the source is.
 ' ''
+break_use doc-missing-on-a-root-re-export "$gate" \
+  crates/rune-pele/src/text.rs '    /// The fonts the app gives Rune in `AppSpec::fonts`, and the families its sans and monospace
+    /// text is set in. Empty `fonts` is Rune'"'"'s own.
+' ''
 break_use pele-core-not-re-exported 'cargo test -q -p rune-pele --test api' \
   crates/rune-pele/src/lib.rs 'pub use pele_core;
 ' ''

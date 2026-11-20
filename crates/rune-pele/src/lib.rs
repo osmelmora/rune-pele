@@ -100,9 +100,6 @@ pub mod lower;
 /// Not part of the API: public for the workspace's tests and examples.
 #[doc(hidden)]
 pub mod stroke;
-/// Not part of the API: public for the workspace's tests and examples. An app takes
-/// [`FontCatalog`] from the crate's root.
-#[doc(hidden)]
 pub mod text;
 
 use std::cell::{OnceCell, RefCell};

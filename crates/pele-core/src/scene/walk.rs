@@ -18,20 +18,29 @@ use std::collections::HashMap;
 
 /// What one entity draws in one role, wherever in paint order that is. A pie section's slice
 /// and its legend row are two parts of one entity.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub struct PartKey {
     pub entity: EntityKey,
     pub facet: Facet,
 }
 
 /// One drawing of a part. A part's text can be several runs, each its own fragment.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub struct FragmentKey {
     pub part: PartKey,
     pub detail: FragmentDetail,
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub enum FragmentDetail {
     /// A shape, which is drawn whole. Of a part that draws several, the first.
     Whole,
@@ -45,7 +54,10 @@ pub enum FragmentDetail {
 }
 
 /// One step of [`Scene::paint`].
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum PaintVisit {
     /// A group opens. Everything up to its `End` is drawn inside it.
     Begin(Group),
@@ -54,7 +66,10 @@ pub enum PaintVisit {
 }
 
 /// A group of drawings that share paint order and what they inherit.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct Group {
     /// The part the group is, where it is one.
     pub part: Option<PartKey>,
@@ -75,7 +90,10 @@ pub struct Group {
 }
 
 /// A turn by `degrees`, clockwise as SVG's are, about `centre`.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct Rotation {
     pub degrees: f64,
     pub centre: Point,
@@ -94,7 +112,10 @@ pub struct LinkRef {
 }
 
 /// One drawing, in the diagram's coordinates once `origin` is added to its geometry.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct Draw {
     pub key: FragmentKey,
     /// Where the geometry's `(0, 0)` lies in the diagram: the translations of its groups.
@@ -103,7 +124,10 @@ pub struct Draw {
     pub style: PaintStyle,
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum Geometry {
     Path(Vec<PathCommand>),
     Rect {
@@ -155,7 +179,10 @@ impl Geometry {
     }
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum ImageFit {
     /// Stretched to the box.
     Stretch,
@@ -164,7 +191,10 @@ pub enum ImageFit {
 }
 
 /// A path command with absolute coordinates.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum PathCommand {
     Move(Point),
     Line(Point),
@@ -189,7 +219,10 @@ pub enum PathCommand {
 }
 
 /// The paint a drawing has after inheritance.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct PaintStyle {
     pub fill: Paint,
     /// How opaque the fill is, apart from its colour's own alpha.
@@ -205,7 +238,10 @@ pub struct PaintStyle {
 /// A fill that runs from one paint to another along a line, in the coordinates of the geometry
 /// it fills. Before `from` the fill is the first paint, and past `to` the second. Where the two
 /// points are one, it is the second throughout, as SVG paints a gradient with no length.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct LinearGradient {
     pub from: Point,
     pub to: Point,
@@ -214,7 +250,10 @@ pub struct LinearGradient {
     pub stops: [Paint; 2],
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct StrokeStyle {
     pub paint: Paint,
     pub width: f64,
@@ -228,7 +267,10 @@ pub struct StrokeStyle {
 /// One run of text, placed as SVG places it: `anchor` says which point of its `advance` sits at
 /// `baseline.x`, and `baseline.y` is its alphabetic baseline. The text is already broken into
 /// lines; an interpreter never wraps it again.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct BaselineRun {
     pub text: String,
     pub baseline: Point,

@@ -67,10 +67,6 @@ pub use diagrams::sankey::layout as sankey_layout;
 #[doc(hidden)]
 pub use diagrams::xychart::ticks as xychart_ticks;
 mod measure;
-/// Not part of the API: the Scene's walk and colours, public for rune-pele, which draws a Scene
-/// natively, and for the workspace's tests. An app takes [`Scene`], [`Size`], [`LinkRef`] and
-/// [`Role`] from the crate's root.
-#[doc(hidden)]
 pub mod scene;
 pub mod svg;
 

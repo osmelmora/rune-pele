@@ -5,6 +5,10 @@
 //! is stored once, with the spelling Pele gives it kept beside the value: a number remembers
 //! its number rule, a path remembers its commands, and each node remembers the order its
 //! attributes were set in. Only this module builds a Scene, and `crate::svg` only reads one.
+//!
+//! An app reads a [`Scene`]'s [`Size`] and its text for assistive technology, and meets
+//! [`LinkRef`] and [`Role`] in rune-pele's events and palettes. The walk that draws a Scene, and
+//! its colours, are public for rune-pele and the workspace's tests, and are no part of the API.
 
 use crate::catalog::DrawContext;
 use crate::input::{JsObject, JsText, JsValue, Units, decimal, decode_entities, is_digit, is_space, is_word};
@@ -51,7 +55,10 @@ pub(crate) fn esc(text: &[u16], out: &mut String) {
 }
 
 /// A point in the drawing, in pixels, y down.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct Point {
     /// Rightwards from the drawing's left edge.
     pub x: f64,
@@ -98,7 +105,10 @@ pub enum Role {
 }
 
 /// One of the eight series colours. A position past the eighth wraps around.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub struct SeriesSlot(u8);
 
 impl SeriesSlot {
@@ -114,7 +124,10 @@ impl SeriesSlot {
 }
 
 /// A colour as an expression, so that a theme change needs no new layout.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub enum Paint {
     None,
     Role(Role),
@@ -133,24 +146,36 @@ pub enum Paint {
 }
 
 /// One of the colours a source writes, by its place among those the Scene holds.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub struct SourceColourId(u32);
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum LineJoin {
     /// SVG's default join, with its miter limit of 4.
     Miter,
     Round,
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum LineCap {
     /// SVG's default: a stroke ends where its path does.
     Butt,
     Round,
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum AnchorKind {
     Start,
     Middle,
@@ -167,7 +192,10 @@ pub(crate) enum TextWeight {
 }
 
 /// Which part of an entity a node draws.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub enum Facet {
     Shape,
     Label,
@@ -1047,14 +1075,20 @@ pub(crate) struct Node {
 
 /// What something in a diagram is, apart from where and how it is drawn. A source edit that
 /// keeps an entity keeps its key.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub struct EntityKey {
     kind: EntityKind,
     name: EntityName,
     duplicate: u32,
 }
 
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub enum EntityKind {
     /// The diagram as a whole, which owns its title and what belongs to no other entity.
     Diagram,
@@ -1069,7 +1103,10 @@ pub enum EntityKind {
 }
 
 /// What tells an entity from the others of its kind.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub enum EntityName {
     /// The name the author gave it, as UTF-16 code units. A surrogate may stand alone.
     Named(Vec<u16>),

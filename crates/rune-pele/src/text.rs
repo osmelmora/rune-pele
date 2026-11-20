@@ -7,6 +7,9 @@
 //!
 //! Layout measures widths with the same shaper at the same device scale, so the advance a label
 //! was laid out with is the advance it is drawn with.
+//!
+//! An app takes [`FontCatalog`] from here or from the crate's root. The rest is public for the
+//! workspace's tests and examples, and is no part of the API.
 
 use std::cell::RefCell;
 
@@ -15,7 +18,9 @@ use rune::text::TextSystem;
 use rune::{El, TextStyle, text};
 
 /// SVG's `text-anchor`: which point of the run's advance sits at `x`.
+/// Not part of the API: public for the workspace's tests and examples.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum Anchor {
     Start,
     Middle,
@@ -33,7 +38,9 @@ impl Anchor {
 }
 
 /// Where an SVG `<text x y text-anchor>` puts its run, in points.
+/// Not part of the API: public for the workspace's tests and examples.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct BaselinePoint {
     pub x: f32,
     pub y: f32,
@@ -41,7 +48,9 @@ pub struct BaselinePoint {
 }
 
 /// One shaped line, in points from the top-left of the box a text element lays out.
+/// Not part of the API: public for the workspace's tests and examples.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct LineMetrics {
     pub baseline: f32,
     pub advance: f32,
@@ -50,6 +59,8 @@ pub struct LineMetrics {
 }
 
 /// Shapes runs with the fonts and families of the window that draws them, at its device scale.
+/// Not part of the API: public for the workspace's tests and examples.
+#[doc(hidden)]
 pub struct Baselines {
     system: TextSystem,
     scale: f32,
@@ -98,6 +109,8 @@ pub struct FontCatalog {
 }
 
 impl FontCatalog {
+    /// The fonts the app gives Rune in `AppSpec::fonts`, and the families its sans and monospace
+    /// text is set in. Empty `fonts` is Rune's own.
     pub fn new(fonts: &'static [&'static [u8]], sans: &str, mono: &str) -> Self {
         FontCatalog { fonts, sans: sans.to_owned(), mono: mono.to_owned() }
     }
@@ -114,6 +127,8 @@ impl FontCatalog {
 }
 
 /// The Rune style a Scene font is drawn in.
+/// Not part of the API: public for the workspace's tests and examples.
+#[doc(hidden)]
 pub fn style(font: &Font) -> TextStyle {
     let weight = match font.weight {
         FontWeight::Normal => 400.0,

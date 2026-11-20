@@ -13,7 +13,10 @@ pub(crate) const PELE_SERIES: [&str; 8] =
     ["#4c78a8", "#f58518", "#54a24b", "#e45756", "#72b7b2", "#eeca3b", "#b279a2", "#9d755d"];
 
 /// A colour in linear-light sRGB, with straight alpha.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[doc(hidden)]
 pub struct Rgba {
     pub linear_srgb: [f64; 3],
     pub alpha: f64,
@@ -82,7 +85,10 @@ fn index(role: Role) -> usize {
 
 /// The colours an interpreter draws a diagram's roles and series in. Only colours: nothing
 /// here can change a layout.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq, Hash)]
+#[doc(hidden)]
 pub struct Palette {
     roles: [Rgba; ROLES.len()],
     series: [Rgba; 8],
@@ -132,7 +138,10 @@ impl Palette {
 }
 
 /// A Scene's paints as colours. See [`Scene::resolve_paints`].
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Debug, PartialEq, Hash)]
+#[doc(hidden)]
 pub struct ResolvedPaints {
     roles: [Rgba; ROLES.len()],
     series: [Rgba; 8],
@@ -159,7 +168,10 @@ impl ResolvedPaints {
 }
 
 /// Whose colour a series is drawn in where the source's theme config sets one.
+/// Not part of the API: public for rune-pele, which draws the Scene natively, and the
+/// workspace's tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[doc(hidden)]
 pub enum ThemeSeries {
     /// The source's, as Pele's SVG declares it over the page's.
     Source,
