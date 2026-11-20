@@ -9,11 +9,11 @@ jobs:
   conventional:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@v5.2.10
         with:
           install_args: hk
       - name: Check each commit's message
