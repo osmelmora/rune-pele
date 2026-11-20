@@ -107,3 +107,4 @@ Runs leave no processes behind. Each oracle call is a short-lived `node` child o
 - `mise run check`. Runs fmt, clippy with `-D warnings`, and every test including the oracle diffs.
 - `scripts/harvest-pie.mjs`. Rewrites `tests/fixtures/pie/harvest.json` from the pie sources in `vendor/pele/tests`, run as `mise exec -- node scripts/harvest-pie.mjs`.
 - `mise run prove`. Runs the Kani proofs. The `prove-js-numerics` skill owns how to read them.
+- `mise run msrv`. Checks pele-core and rune-pele on the Rust their `rust-version` names. `mise run check` runs it.
