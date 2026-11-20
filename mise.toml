@@ -21,6 +21,14 @@ run = "scripts/setup.sh"
 description = "fmt, clippy, unit tests and the differential tests against Pele"
 run = "scripts/check.sh"
 
+[tasks.ci-linux]
+description = "What CI's Linux job runs: the workflows linted, setup, check, and parity reading 522 of 522 identical"
+run = "scripts/ci-linux.sh"
+
+[tasks.ci-macos]
+description = "What CI's macOS job runs: setup, the rune-pele tests, which draw on the GPU, and rune-corpus"
+run = "scripts/ci-macos.sh"
+
 [tasks.actionlint]
 description = "Lint every workflow in .github/workflows, with ShellCheck on their shell steps"
 run = "actionlint"

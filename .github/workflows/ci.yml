@@ -1,0 +1,85 @@
+# Each job runs one script, which a developer runs the same way: `mise run ci-linux` and
+# `mise run ci-macos`. Linux runs on every pull request and every push to main. A macOS minute
+# costs ten Linux minutes on a private repository, so macOS runs on pushes to main and on pull
+# requests labelled `macos`; adding the label runs CI again.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # With full debug info the test binaries fill more disk than a runner has: target/ held 32 GB
+  # on Linux, rune-pele's tests 500 to 600 MB each. Line tables keep a panic's file and line.
+  # Debug assertions stay on, so the same tests run and the same ones are skipped.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # `mise run` installs every tool mise.toml pins that is missing, Kani's among them. Each job
+  # installs the ones it uses.
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - &checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # Rune links xkbcommon and Wayland. lavapipe is a Vulkan GPU in software, for the tests that
+      # draw, and Liberation Sans has Arial's metrics, which they draw Pele's SVG in.
+      - run: >-
+          sudo apt-get update -q &&
+          sudo apt-get install -yq --no-install-recommends
+          libxkbcommon-dev libwayland-dev mesa-vulkan-drivers fonts-liberation
+      - uses: jdx/mise-action@v5.2.10
+        with:
+          install_args: rust node hk actionlint shellcheck
+      - &pele
+        uses: actions/cache@v6.1.0
+        with:
+          path: vendor/pele
+          key: pele-${{ hashFiles('scripts/pele-pin.txt') }}
+      # Cargo's registry, Rune's git checkout and the dependencies built in target/. Saved from
+      # main only, so pull requests restore main's and add no caches of their own.
+      - &cargo
+        uses: Swatinem/rust-cache@v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: scripts/ci-linux.sh
+      # rust-cache keeps each dependency's folder in target/*/build, and takes rune-pele's for
+      # Rune's, a name followed by a part it drops. It holds this workspace's test binaries,
+      # 11 GB on macOS, so it is removed before the cache is saved.
+      - &prune
+        run: rm -rf target/*/build/rune-pele target/*/*/build/rune-pele
+
+  macos:
+    name: macOS arm64
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'macos')
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - *checkout
+      - uses: jdx/mise-action@v5.2.10
+        with:
+          install_args: rust node hk
+      - *pele
+      - *cargo
+      - run: scripts/ci-macos.sh
+      - *prune
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: rune-graph
+          path: out/verify/rune-graph/*.txt
+          retention-days: 14
