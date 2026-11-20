@@ -108,3 +108,5 @@ Runs leave no processes behind. Each oracle call is a short-lived `node` child o
 - `scripts/harvest-pie.mjs`. Rewrites `tests/fixtures/pie/harvest.json` from the pie sources in `vendor/pele/tests`, run as `mise exec -- node scripts/harvest-pie.mjs`.
 - `mise run prove`. Runs the Kani proofs. The `prove-js-numerics` skill owns how to read them.
 - `mise run msrv`. Checks pele-core and rune-pele on the Rust their `rust-version` names. `mise run check` runs it.
+- `mise run ci-linux` and `mise run ci-macos`. Run what CI's Linux and macOS jobs run (`.github/workflows/ci.yml`). The Linux one is `mise run check` with the workflows linted first and `pele parity` held to `522 522 0 0 0` after.
+- `mise run actionlint`. Lints every workflow, with ShellCheck on its shell steps. `scripts/break-ci.sh` (under `mise exec --`) shows that it catches a break.
