@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/osmelmora/rune-pele/compare/v0.1.0...v0.2.0) - 2026-11-20
+
+### Added
+
+- [**breaking**] let rune-pele's enums and counters grow
+- [**breaking**] build pele-core's options with methods and let its types grow
+- put the rune-mermaid fallback behind a default fallback feature
+- re-export Rune as rune_pele::rune and forward its embedded fonts
+
+### Fixed
+
+- name rune-mermaid in a view error only when the build has it
+
+### Other
+
+- re-point four breaks the builder calls and the hidden lowering moved
+- [**breaking**] make private what nothing outside its crate calls
+- hide the Scene's and text's internals item by item, so the doc gate sees what an app sees
+- name pele-core's types through rune-pele and break the API one way at a time
+- name the oldest Rust that builds each crate, 1.95, and check it
+- document every public item and deny a missing doc in the doc gate
+- [**breaking**] keep rune-pele's documented API to what an app calls
+- wrap the fallback's doc comments at the crate's width
+- [**breaking**] keep pele-core's documented API to what an app calls
+
 ## [0.1.0](https://github.com/osmelmora/rune-pele/releases/tag/v0.1.0) - 2026-11-19
 
 The first release. `pele-core` and `rune-pele` share this version.
