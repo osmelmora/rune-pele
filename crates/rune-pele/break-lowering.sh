@@ -443,5 +443,44 @@ break_use fallback-ungated 'cargo test -q --release -p rune-pele --no-default-fe
 break_use without-fallback-test-run-with-it 'cargo test -q --release -p rune-pele --test without_fallback' \
   crates/rune-pele/tests/without_fallback.rs '#![cfg(not(feature = "fallback"))]' ''
 
+# The API an app relies on: each builder sets its option, each type an app may not build or
+# match whole stays so, the doc gate denies a public item with no doc, rune-pele names
+# pele-core's types, and each crate builds on the Rust its rust-version names.
+options='cargo test -q -p pele-core --test options'
+break_use layout-builder-sets-nothing "$options each_builder" \
+  crates/pele-core/src/lib.rs '        self.padding = Some(pixels);' '        let _ = pixels;'
+break_use resource-builder-sets-nothing "$options each_builder" \
+  crates/pele-core/src/lib.rs '        self.link_rel = rel.into();' '        let _ = rel;'
+break_use limits-builder-sets-nothing "$options each_builder" \
+  crates/pele-core/src/lib.rs '        self.max_edges = edges;' '        let _ = edges;'
+break_use turn-builder-sets-nothing "$options turn_wider_than" \
+  crates/pele-core/src/lib.rs '        self.turn_wider_than = Some(pixels);' '        let _ = pixels;'
+break_use layout-options-open-to-literals 'cargo test -q -p pele-core --doc grows' \
+  crates/pele-core/src/lib.rs '#[non_exhaustive]
+pub struct LayoutOptions {' 'pub struct LayoutOptions {'
+break_use render-error-open-to-matches 'cargo test -q -p pele-core --doc grows' \
+  crates/pele-core/src/lib.rs '#[non_exhaustive]
+pub enum RenderError {' 'pub enum RenderError {'
+break_use view-error-open-to-matches 'cargo test -q -p rune-pele --doc grows' \
+  crates/rune-pele/src/lib.rs '#[non_exhaustive]
+pub enum ViewError {' 'pub enum ViewError {'
+break_use view-stats-open-to-literals 'cargo test -q -p rune-pele --doc grows' \
+  crates/rune-pele/src/lib.rs '#[non_exhaustive]
+pub struct ViewStats {' 'pub struct ViewStats {'
+gate='RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc -q --no-deps -p pele-core -p rune-pele'
+break_use doc-missing "$gate" \
+  crates/rune-pele/src/lib.rs '    /// Who drew the last view: rune-pele, rune-mermaid, nobody, or an earlier drawing kept.
+' ''
+break_use doc-missing-without-the-crate-lint "$gate" \
+  crates/pele-core/src/lib.rs '#![warn(missing_docs)]
+' '' \
+  crates/pele-core/src/lib.rs '    /// The diagram type the source is.
+' ''
+break_use pele-core-not-re-exported 'cargo test -q -p rune-pele --test api' \
+  crates/rune-pele/src/lib.rs 'pub use pele_core;
+' ''
+break_use msrv-below-what-builds 'mise run msrv' \
+  crates/pele-core/Cargo.toml 'rust-version = "1.95"' 'rust-version = "1.94"'
+
 cargo build -q --release -p rune-pele --tests 2>/dev/null
 exit $failed
