@@ -5,7 +5,9 @@ publish = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
-rust-version.workspace = true
+# The oldest Rust that builds this crate with its default features, measured with
+# `mise run msrv`: 1.94 cannot read the `if let` guards of Rune and of pele-core.
+rust-version = "1.95"
 
 [features]
 default = ["fallback"]

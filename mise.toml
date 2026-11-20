@@ -40,3 +40,14 @@ run = "scripts/intel-trig.sh"
 [tasks.consumer-tag]
 description = "Build and test a throwaway app on rune-pele's newest release tag, by git, with only the pinned cargo and rustc on PATH"
 run = "scripts/consumer-tag.sh"
+
+[tasks.msrv]
+description = "Check pele-core and rune-pele, with their default features, on the Rust each names as its rust-version"
+run = """
+set -eu
+for crate in pele-core rune-pele; do
+  version=$(sed -n 's/^rust-version = "\\(.*\\)"$/\\1/p' crates/$crate/Cargo.toml)
+  echo "$crate on Rust $version"
+  mise exec "rust@$version" -- cargo check -q -p "$crate" --target-dir target/msrv
+done
+"""

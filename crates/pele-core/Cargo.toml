@@ -4,7 +4,9 @@ description = "Rune-free Mermaid parse, layout and scene core, ported from Pele"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
-rust-version.workspace = true
+# The oldest Rust that builds this crate, measured with `mise run msrv`: 1.94 cannot read its
+# `if let` guards.
+rust-version = "1.95"
 
 [dependencies]
 indexmap = "2"
