@@ -7,6 +7,8 @@ mod ebnf;
 mod ir;
 mod lexer;
 mod peg;
+/// Not part of the API: public for the workspace's tests, through the crate root.
+#[doc(hidden)]
 pub mod probe;
 mod render;
 

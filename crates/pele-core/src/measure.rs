@@ -11,25 +11,34 @@ use crate::input::{JsText, Units, decode_entities, is_space, is_word};
 use crate::js;
 use std::sync::LazyLock;
 
+/// Which of the host's two fonts a run is set in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontFamily {
+    /// The proportional font labels are set in.
     Sans,
+    /// The monospace font, for the parts of diagrams the host sets in it and for code.
     Mono,
 }
 
+/// How heavy a run is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontWeight {
+    /// Regular text.
     Normal,
+    /// Bold text.
     Bold,
 }
 
 /// The font one run of text is measured in.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Font {
+    /// Which of the host's fonts.
     pub family: FontFamily,
     /// In pixels.
     pub size: f64,
+    /// How heavy.
     pub weight: FontWeight,
+    /// Whether it slants.
     pub italic: bool,
 }
 

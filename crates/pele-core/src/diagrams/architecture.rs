@@ -6,6 +6,8 @@ mod db;
 pub(crate) mod json;
 mod layout;
 mod parser;
+/// Not part of the API: public for the workspace's tests, through the crate root.
+#[doc(hidden)]
 pub mod probe;
 mod render;
 

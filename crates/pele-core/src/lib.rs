@@ -1,7 +1,46 @@
 //! Rune-free core of rune-pele: Mermaid parsing, layout and scene building, ported from Pele.
+//!
+//! [`render`] draws Mermaid source as the SVG Pele 1.13.0 writes, byte for byte, with Pele's
+//! default options and its own Arial metrics.
+//!
+//! ```
+//! let rendered = pele_core::render("flowchart LR\n  A[Write] --> B[Draw]\n")?;
+//! assert!(rendered.svg.starts_with("<svg"));
+//! assert!(rendered.width > rendered.height);
+//! # Ok::<(), pele_core::RenderError>(())
+//! ```
+//!
+//! The host's options are Pele's render options: [`ParseOptions`] for what parsing reads and
+//! [`LayoutOptions`] for the layout. [`parity_scene_with`] lays a source out with them, and
+//! [`svg::write`] writes it.
+//!
+//! ```
+//! use pele_core::{LayoutOptions, Limits, ParseOptions};
+//!
+//! let source = "flowchart LR\n  A[Model writes] --> B[Chat streams] --> C[Reader follows]\n";
+//! let parse = ParseOptions::default().limits(Limits::default().max_edges(100));
+//! let layout = LayoutOptions::default().max_width(240.0).padding(4.0);
+//! let rendered = pele_core::svg::write(&pele_core::parity_scene_with(source, parse, &layout)?)?;
+//! assert!(rendered.width <= 240.0, "a flowchart that runs across turns to fit");
+//! # Ok::<(), pele_core::RenderError>(())
+//! ```
+//!
+//! A source Pele rejects is a [`RenderError::Diagnostic`], with Pele's message and, for a syntax
+//! error, where it is.
+//!
+//! ```
+//! use pele_core::{ErrorCode, RenderError};
+//!
+//! let Err(RenderError::Diagnostic(diagnostic)) = pele_core::render("flowchart LR\n  A -->\n") else {
+//!     panic!("a syntax error");
+//! };
+//! assert_eq!(diagnostic.code, ErrorCode::Syntax);
+//! assert_eq!(diagnostic.location.map(|at| at.line), Some(2));
+//! ```
+
+#![warn(missing_docs)]
 
 mod catalog;
-/// Not part of the API: helpers several types share, public for the workspace's tests.
 #[doc(hidden)]
 pub mod common;
 mod diagrams;
@@ -16,8 +55,6 @@ pub use diagrams::gantt::probe as gantt_probe;
 /// Not part of the API: JavaScript's number rules, public for the workspace's tests.
 #[doc(hidden)]
 pub mod js;
-/// Not part of the API: renderers inside this crate are the callers. Public so that
-/// `tests/layout_replay.rs` can hold it to Pele.
 #[doc(hidden)]
 pub mod layout;
 /// Not part of the API: public so that `tests/block_layout.rs` can hold it to Pele.
@@ -1020,6 +1057,7 @@ pub fn journey_front_json(source: &str, options: ParseOptions) -> Result<String,
 }
 
 impl Prepared {
+    /// The diagram type the source is.
     pub fn kind(&self) -> DiagramKind {
         self.found.kind
     }

@@ -1,4 +1,5 @@
-//! Small helpers that several of Pele's diagram types share.
+//! Small helpers that several of Pele's diagram types share. Not part of the API: public for the
+//! workspace's tests.
 //!
 //! Each one is ported before the types that use it, so parallel ports reuse one copy. Helpers
 //! that belong to a module of their own live there, and [`probe`] reaches them for the tests.

@@ -21,6 +21,7 @@ pub struct Pixels {
 }
 
 impl Pixels {
+    /// The pixel at column `x` and row `y`, counted from the top left.
     pub fn at(&self, x: u32, y: u32) -> [u8; 4] {
         let i = ((y * self.width + x) * 4) as usize;
         [self.rgba[i], self.rgba[i + 1], self.rgba[i + 2], self.rgba[i + 3]]
@@ -44,6 +45,7 @@ impl Default for Capturer {
 }
 
 impl Capturer {
+    /// A capturer on the system's GPU, with no window.
     pub fn new() -> Self {
         Capturer { gpu: Gpu::headless() }
     }
@@ -102,10 +104,12 @@ impl<S: 'static> Window<'_, S> {
         self.runtime.set_system_dark(dark);
     }
 
+    /// The app's state, as its handlers left it.
     pub fn state(&self) -> &S {
         &self.runtime.state
     }
 
+    /// Rune's runtime of the window, whose elements say where each keyed element was laid out.
     pub fn runtime(&self) -> &Runtime<S> {
         &self.runtime
     }

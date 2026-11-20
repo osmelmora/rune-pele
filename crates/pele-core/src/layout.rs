@@ -1,5 +1,7 @@
 //! Pele's layout of nodes, groups and edges, which seven diagram types share: flowchart,
-//! agentflow, class, er, requirement, usecase and state.
+//! agentflow, class, er, requirement, usecase and state. Not part of the API: renderers inside
+//! this crate are the callers, and it is public so that `tests/layout_replay.rs` can hold it to
+//! Pele.
 //!
 //! A renderer builds one [`CNode`] per node or group and one [`CEdge`] per edge, calls
 //! [`compound_layout`], and reads back each node's centre and size and each edge's route and

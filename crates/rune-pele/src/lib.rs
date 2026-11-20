@@ -3,15 +3,43 @@
 //! A [`Diagram`] draws Mermaid source as native Rune elements: the Scene pele-core lays out,
 //! measured with Rune's own shaper, lowered to keyed shapes and text in Pele's paint order.
 //!
-//! ```ignore
-//! let chart = Diagram::new("deploy", FontCatalog::rune());
+//! An app keeps one [`Diagram`] per diagram in its state, and its view draws the source fitted
+//! to the width the view has. A press on a link tells the app's handler, which decides where a
+//! link may lead.
+//!
+//! ```
+//! use rune_pele::rune::{Cx, El, Env, Tx, text};
+//! use rune_pele::{Diagram, Event, FontCatalog, Link, RenderStatus, ViewOptions};
+//!
+//! struct App {
+//!     diagram: Diagram,
+//!     source: String,
+//!     followed: Option<Link>,
+//! }
+//!
+//! fn on_event(app: &mut App, event: Event, _: &mut Tx) {
+//!     if let Event::Activate(link) = event {
+//!         app.followed = Some(link);
+//!     }
+//! }
+//!
 //! fn view(app: &App, cx: &mut Cx<App>) -> El {
-//!     app.chart
-//!         .view_with(cx, &app.source, ViewOptions::new(480.0), |app: &mut App, event, tx| match event {
-//!             Event::Activate(link) => app.follow(link, tx),
-//!         })
+//!     app.diagram
+//!         .view_with(cx, &app.source, ViewOptions::fit(), on_event)
 //!         .unwrap_or_else(|error| text(error.to_string()))
 //! }
+//!
+//! let app = App {
+//!     diagram: Diagram::new("deploy", FontCatalog::rune()),
+//!     source: "flowchart LR\n  A[Build] --> B[Deploy]\n".to_owned(),
+//!     followed: None,
+//! };
+//! // `rune::run(AppSpec::new("Deploy", (720.0, 480.0), init, view))` shows it in a window. A test
+//! // draws it headless, as here.
+//! let capturer = rune_pele::capture::Capturer::new();
+//! let mut window = capturer.window(app, view, (480.0, 200.0), Env::new(false, 2.0));
+//! window.capture();
+//! assert_eq!(window.state().diagram.status(), RenderStatus::Pele);
 //! ```
 //!
 //! [`lower::NATIVE`] lists the diagram types drawn this way. Any other type, and any source whose
@@ -35,7 +63,9 @@
 //! gives for the name in it: SVG path data on a view box, as an Iconify icon is, lowered as every
 //! other shape is.
 //!
-//! ```ignore
+//! ```
+//! use rune_pele::{Icon, IconPaint, ViewOptions};
+//!
 //! fn icons(name: &str) -> Option<Icon> {
 //!     let grid = Icon::new([0.0, 0.0, 24.0, 24.0]).ok()?;
 //!     match name {
@@ -44,6 +74,7 @@
 //!     }
 //! }
 //! let options = ViewOptions::fit().icons(icons);
+//! assert!(icons("app:bolt").is_some());
 //! ```
 //!
 //! While a source fails after one that drew, as a source still streaming in does, the view
@@ -51,6 +82,8 @@
 //! [`Diagram::error`] says why. That source is drawn as the view's options and width draw it, as
 //! Pele's `mount` draws its last parsed text again for a new width: from the caches when nothing
 //! changed, at a new zoom lowered again, and at a new step of a fit laid out at that step.
+
+#![warn(missing_docs)]
 
 mod bands;
 pub mod capture;
@@ -150,6 +183,7 @@ impl Palette {
             .with(Role::OnDark, tok::theme(true).text)
     }
 
+    /// This palette with `role` drawn in `colour`.
     pub fn with(self, role: Role, colour: Color) -> Self {
         Palette { core: self.core.with(role, rgba(colour)), theme: ThemeSeries::Palette }
     }
@@ -903,6 +937,7 @@ impl Diagram {
         }
     }
 
+    /// How long the last layout, lowering and paint took.
     pub fn times(&self) -> ViewTimes {
         self.session.borrow().times
     }
@@ -924,6 +959,7 @@ impl Diagram {
         }
     }
 
+    /// Who drew the last view: rune-pele, rune-mermaid, nobody, or an earlier drawing kept.
     pub fn status(&self) -> RenderStatus {
         let session = self.session.borrow();
         match (&session.outcome, &session.drawn) {
@@ -953,6 +989,7 @@ impl Diagram {
         }
     }
 
+    /// How much work the diagram has done since it was made, over all its views.
     pub fn stats(&self) -> ViewStats {
         let session = self.session.borrow();
         let shaped = session.measure.as_ref().map_or(0, |m| m.measure.baselines().shaped());

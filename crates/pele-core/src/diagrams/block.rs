@@ -5,6 +5,8 @@
 mod arrows;
 mod db;
 pub(crate) mod json;
+/// Not part of the API: public for the workspace's tests, through the crate root.
+#[doc(hidden)]
 pub mod layout;
 mod lexer;
 mod parser;
