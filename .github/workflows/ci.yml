@@ -52,8 +52,12 @@ jobs:
           key: pele-${{ hashFiles('scripts/pele-pin.txt') }}
       # Cargo's registry, Rune's git checkout and the dependencies built in target/. Saved from
       # main only, so pull requests restore main's and add no caches of their own.
+      # Its key leaves out the profiles in Cargo.toml, and it does not save over a key it restored
+      # whole, so a change of opt-level kept restoring dependencies built at the old one (measured:
+      # 15 minutes of building on each run). Keying on Cargo.toml saves a new cache on such a change.
       - uses: Swatinem/rust-cache@v2.9.3
         with:
+          key: ${{ hashFiles('Cargo.toml') }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: scripts/ci.sh
       # rust-cache keeps each dependency's folder in target/*/build, and takes rune-pele's for
