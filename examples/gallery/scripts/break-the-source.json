@@ -1,0 +1,6 @@
+{"events": [
+  {"t": 0.2, "type": "tap", "key": "source"},
+  {"t": 0.4, "type": "key", "name": "a", "cmd": true},
+  {"t": 0.6, "type": "type", "text": "flowchart LR\n    A[Typed] --> B[Drawn]\n    B -->"},
+  {"t": 2.8, "type": "mark", "name": "end"}
+]}

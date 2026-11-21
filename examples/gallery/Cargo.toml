@@ -1,0 +1,41 @@
+# rune-pele's gallery: every diagram type drawn natively in Rune's Playground, with zoom and
+# theme controls and a live editor. `mise run gallery` opens it, `mise run gallery-web` builds it
+# for the web. An app in a workspace of its own, as examples/consumer is, that builds into the
+# rune-pele workspace's target directory.
+[package]
+name = "rune-pele-gallery"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# A workspace of its own, as an app's is: the rune-pele workspace's `[patch]` does not reach it.
+[workspace]
+
+# The cdylib is the web build's: Rune's web-build.sh takes the package's one cdylib. The rlib is
+# for the native binary and the tests.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Rune's default features, as an app has them, and `keys-overlay` for `--snap` and `--video` in
+# release builds. Same rev as rune-pele's `rune`.
+rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", features = ["keys-overlay"] }
+rune-pele = { path = "../../crates/rune-pele" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+
+# Rune's own patches, from the rev rune-pele pins. Without them `rune` does not resolve.
+[patch.crates-io]
+winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+
+# The tests lay every fixture out. As in the rune-pele workspace, they build optimised, with debug
+# assertions on, and run about three times faster than unoptimised.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

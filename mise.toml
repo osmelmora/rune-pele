@@ -70,3 +70,16 @@ for crate in pele-core rune-pele; do
   mise exec "rust@$version" -- cargo check -q -p "$crate" --target-dir target/msrv
 done
 """
+
+[tasks.gallery]
+description = "Open the gallery, every diagram type in Rune's Playground with zoom and theme controls and a live editor (release); arguments go to the app, such as --playground NAME --snap out.png"
+run = "cargo run -q --release --manifest-path examples/gallery/Cargo.toml --target-dir target --"
+
+[tasks.gallery-test]
+description = "The gallery formatted, linted and tested natively: every fixture has a story that draws, the editor keeps its drawing, the side column's keys"
+run = """
+set -eu
+cargo fmt --check --manifest-path examples/gallery/Cargo.toml
+cargo clippy -q --all-targets --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
+cargo test -q --manifest-path examples/gallery/Cargo.toml --target-dir target
+"""
