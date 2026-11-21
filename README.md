@@ -144,6 +144,12 @@ assert!(rendered.width > rendered.height);
 
 `pele-core` and `rune-pele` share one version and one tag, `v<version>`, made on GitHub with a GitHub release. [`CHANGELOG.md`](CHANGELOG.md) lists each release's changes, and marks the breaking ones. Before 1.0, a compatible release moves the patch version and a breaking one the minor version: 0.2.0 becomes 0.2.1 or 0.3.0. An app moves to a release by changing its `tag`. A release that moves the Rune pin changes the revision of the four patches too, and an app moves them with it.
 
+## Thanks
+
+Thanks to [kepano](https://github.com/kepano) for [Pele](https://github.com/obsidianmd/pele). This port follows Pele's code, and it can claim byte-for-byte parity only because Pele publishes its source, its documentation corpus and its tests: the tests here run Pele itself on that corpus and compare.
+
+rune-pele is an independent port. It is not affiliated with or endorsed by Pele, kepano or Obsidian.
+
 ## Contributing
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) says how to set up a checkout, run the checks and land a change.
