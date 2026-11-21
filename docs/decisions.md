@@ -807,3 +807,15 @@ On macOS the GPU is Metal and the font is `/System/Library/Fonts/Supplemental/Ar
 
 All 135 programs pass in each. `agentflow_parity` went from 129 s to 5.5 s, `graph_view` from 36.8 s to 2.5 s. `mise run ci` then took 810 s from a clean build and 216 s warm, with `pele parity` reading `522 522 0 0 0`; before, it took 848 s warm with `mise run rune-corpus`, which it no longer runs.
 
+
+**CI (measured, run 44910689014).** With the Rust cache warm, CI took 33 minutes, down from 54 cold and unoptimised and 43 right after this change, whose cache rust-cache did not save until it was keyed on `Cargo.toml`. Of the 31 minutes of `scripts/ci.sh`: fmt, clippy and building the workspace's own crates took 8.3, `cargo test` 12.5, clippy and the test build without default features 5.5, rune-pele's tests without default features 2.5, and the docs, the Rust 1.95 build, the consumer and parity 2. The tests take about three times as long as on the M3 Pro; the runner's 4 cores and lavapipe drawing on the CPU are the likely causes, not measured.
+
+## 2026-11-21 Public repository
+
+**Why.** The port is done enough for others to use: parity reads 522 of 522, and the README and `CONTRIBUTING.md` are written for outsiders.
+
+**Checked before.** `git grep` over the tracked files and the commit log found no keys, tokens or local paths. Every commit is from a GitHub noreply address. All dependencies are public: crates.io and `anomalyco/rune`, under MIT. The fixtures come from Pele's documentation corpus, under MIT, which `NOTICE` carries.
+
+**Settings.** A ruleset on `main` requires CI's `Linux arm64` and the `conventional` commit check, and blocks force pushes and deletion; the repository's admins may bypass it. Private vulnerability reporting is on, and `SECURITY.md` points to it. Actions may no longer approve pull requests. Workflow runs from first-time contributors wait for approval, GitHub's default.
+
+**Budget.** Standard runners are free for public repositories, so the private budget in "2026-11-20 CI on GitHub Actions" no longer limits CI.
