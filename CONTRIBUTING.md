@@ -101,10 +101,12 @@ No procedure is written down beyond this. The revision is in four files, which m
 
 GitHub Actions runs four workflows:
 
-- **CI** (`.github/workflows/ci.yml`) runs the tests on Linux arm64 (`ubuntu-24.04-arm`), on every pull request, every push to `main`, and when started by hand. Its one job runs `mise run ci`: the workflows linted, everything `mise run check` runs, and `pele parity` held to 522 of 522 identical. On Linux the tests that draw use Mesa's lavapipe, a Vulkan GPU in software, and draw Pele's SVG in Liberation Sans, which has Arial's metrics. Eight pele-core tests are skipped on Linux, because Node gives different answers there; each names its reason. A newer push cancels the run it replaces.
+- **CI** (`.github/workflows/ci.yml`) runs the tests on Linux arm64 (`ubuntu-24.04-arm`), on every pull request, every push to `main`, and when started by hand. Its one job runs `mise run ci`: the workflows linted, everything `mise run check` runs, and `pele parity` held to 522 of 522 identical. On Linux the tests that draw use Mesa's lavapipe, a Vulkan GPU in software, and draw Pele's SVG in Liberation Sans, which has Arial's metrics. Eight pele-core tests are skipped on Linux, because Node gives different answers there; each names its reason. A newer push cancels the run it replaces. It takes about 33 minutes with the Rust cache warm.
 - **Commit messages** (`commits.yml`) checks, on pull requests, that each commit follows Conventional Commits.
 - **Prove** (`prove.yml`) runs the Kani proofs, `mise run prove`, weekly and when started by hand.
 - **Release-plz** (`release-plz.yml`) tags new versions and opens the release pull request on pushes to `main`, as the release GitHub App when its secrets are set.
+
+A ruleset on `main` requires CI's `Linux arm64` job and the `conventional` commit check before a pull request merges, and blocks force pushes and deleting the branch.
 
 Each job runs one command, which you run the same way after `mise run setup`: `mise run ci`, `mise run prove`, or `mise run actionlint` for the workflows alone. The hk pre-commit hook lints a workflow you change. On Linux, install `mesa-vulkan-drivers`, `fonts-liberation`, `libxkbcommon-dev` and `libwayland-dev` first (Debian and Ubuntu names).
 

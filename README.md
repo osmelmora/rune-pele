@@ -25,7 +25,7 @@ rune-pele is not on crates.io. An app depends on it from git at a release tag, t
 
 ```toml
 [dependencies]
-rune-pele = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.2.0", features = ["embedded-fonts"] }
+rune-pele = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.2.1", features = ["embedded-fonts"] }
 
 [patch.crates-io]
 winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
@@ -103,7 +103,7 @@ To see any Mermaid file drawn natively, clone this repository, run `mise install
 
 ```toml
 [dependencies]
-pele-core = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.2.0" }
+pele-core = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.2.1" }
 ```
 
 From pele-core's crate docs:
