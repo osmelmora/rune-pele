@@ -1,0 +1,12 @@
+# What code built for wasm32-unknown-unknown must not call: the standard library has no clock or
+# threads there, and these panic at run time while they compile. `mise run web-check` lints
+# pele-core, rune-pele and the gallery for that target with this file as CLIPPY_CONF_DIR, and
+# denies them. Native builds, tests and tools call them freely: no other clippy run reads it.
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "it panics on wasm32-unknown-unknown; read rune::time::Instant" },
+    { path = "std::time::Instant::elapsed", reason = "it panics on wasm32-unknown-unknown; read rune::time::Instant" },
+    { path = "std::time::SystemTime::now", reason = "it panics on wasm32-unknown-unknown; read rune::time::SystemTime, or js_sys::Date::now in pele-core" },
+    { path = "std::time::SystemTime::elapsed", reason = "it panics on wasm32-unknown-unknown; read rune::time::SystemTime" },
+    { path = "std::thread::spawn", reason = "wasm32-unknown-unknown has no threads" },
+    { path = "std::thread::sleep", reason = "it panics on wasm32-unknown-unknown" },
+]

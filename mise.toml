@@ -91,3 +91,20 @@ run = "examples/gallery/web/build.sh"
 [tasks.gallery-serve]
 description = "Serve out/gallery-web on http://localhost:8000; WebGPU works over plain HTTP on localhost"
 run = "python3 -m http.server 8000 --bind 127.0.0.1 -d out/gallery-web"
+
+[tasks.web-check]
+description = "pele-core, rune-pele and the gallery linted for wasm32-unknown-unknown, denying the std calls that panic there, and pele-core's clock test run there in Node"
+run = """
+set -eu
+export CLIPPY_CONF_DIR="$PWD/examples/gallery/web"
+cargo clippy -q --target wasm32-unknown-unknown -p pele-core -p rune-pele -- -D warnings
+cargo fmt --check --manifest-path examples/gallery/Cargo.toml
+cargo clippy -q --target wasm32-unknown-unknown --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
+# The runner takes no --quiet, so the test's own lines are picked from its output, which a failure prints whole.
+log=target/web-check-clock.log
+if ! CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test -p pele-core --target wasm32-unknown-unknown --test web_clock > "$log" 2>&1; then
+  cat "$log"
+  exit 1
+fi
+grep -E '^test ' "$log"
+"""
