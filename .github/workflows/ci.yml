@@ -45,7 +45,7 @@ jobs:
           libxkbcommon-dev libwayland-dev mesa-vulkan-drivers fonts-liberation
       - uses: jdx/mise-action@v5.2.10
         with:
-          install_args: rust node hk actionlint shellcheck
+          install_args: rust node hk actionlint shellcheck github:wasm-bindgen/wasm-bindgen
       - uses: actions/cache@v6.1.0
         with:
           path: vendor/pele
