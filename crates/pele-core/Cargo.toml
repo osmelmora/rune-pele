@@ -14,9 +14,19 @@ libm = "0.2.16"
 ryu-js = "1"
 url = "2"
 
+# The page's clock, for a gantt chart's today when no `now` is given: Pele reads `Date.now()`, and
+# the standard library's `SystemTime::now` panics on wasm32-unknown-unknown, which has no clock.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = "0.3"
+
 [dev-dependencies]
 pele-oracle = { path = "../pele-oracle" }
 serde_json = "1"
+
+# `tests/web_clock.rs` on the web: run in Node by wasm-bindgen-test-runner, reading the page's clock.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
+js-sys = "0.3"
+wasm-bindgen-test = "0.3"
 
 [lints]
 workspace = true

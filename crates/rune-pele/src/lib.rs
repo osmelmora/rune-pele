@@ -105,10 +105,13 @@ pub mod text;
 use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use pele_core::scene::{Rgba, ThemeSeries};
 use pele_core::{DiagramKind, LayoutOptions, NativeInputs, ParseOptions, RenderError, Scene};
+// Rune's clocks are the standard library's natively and the page's in a browser, where the
+// standard library's panic.
+use rune::time::{Instant, SystemTime, UNIX_EPOCH};
 use rune::{Color, Cx, El, Env, Tx, el, memo, tok};
 
 /// The Rune rune-pele is built with, at the revision it pins. A view takes this Rune's `Cx` and
@@ -571,7 +574,7 @@ const KEPT: usize = 4;
 
 /// The system clock in milliseconds since 1970, as pele-core reads it for a `now` left unset.
 fn system_now() -> f64 {
-    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    let since = SystemTime::now().duration_since(UNIX_EPOCH);
     since.map_or(0.0, |since| since.as_millis() as f64)
 }
 
