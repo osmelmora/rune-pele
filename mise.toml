@@ -1,5 +1,6 @@
 [tools]
-rust = { version = "1.100.0", components = "rustfmt,clippy" }
+# wasm32-unknown-unknown builds the gallery for the web and lints the crates for it.
+rust = { version = "1.100.0", components = "rustfmt,clippy", targets = "wasm32-unknown-unknown" }
 node = "26.13.1"
 "cargo:kani-verifier" = "0.68.0"
 hk = "2.13.0"
@@ -9,6 +10,12 @@ actionlint = "1.7.12"
 # actionlint checks each workflow's shell steps with ShellCheck when it is on PATH, as it is on
 # GitHub's runners, so the same one is pinned here.
 shellcheck = "0.11.0"
+# Rune's web-build.sh, and a static server for its output. The script reads Cargo.lock with
+# `tomllib`, which is Python 3.11 or newer.
+python = "3.15.2"
+# Equal to the `wasm-bindgen` in examples/gallery/Cargo.lock, as web-build.sh requires. Its
+# wasm-bindgen-test-runner runs pele-core's web test in Node.
+"github:wasm-bindgen/wasm-bindgen" = "0.2.130"
 
 [env]
 TZ = "UTC"
