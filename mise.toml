@@ -83,3 +83,11 @@ cargo fmt --check --manifest-path examples/gallery/Cargo.toml
 cargo clippy -q --all-targets --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
 cargo test -q --manifest-path examples/gallery/Cargo.toml --target-dir target
 """
+
+[tasks.gallery-web]
+description = "Build the gallery for the web into out/gallery-web with Rune's web-build.sh (release); serve it with `mise run gallery-serve`"
+run = "examples/gallery/web/build.sh"
+
+[tasks.gallery-serve]
+description = "Serve out/gallery-web on http://localhost:8000; WebGPU works over plain HTTP on localhost"
+run = "python3 -m http.server 8000 --bind 127.0.0.1 -d out/gallery-web"
