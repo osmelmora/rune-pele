@@ -99,10 +99,11 @@ No procedure is written down beyond this. The revision is in four files, which m
 
 ## CI
 
-GitHub Actions runs four workflows:
+GitHub Actions runs five workflows:
 
 - **CI** (`.github/workflows/ci.yml`) runs the tests on Linux arm64 (`ubuntu-24.04-arm`), on every pull request, every push to `main`, and when started by hand. Its one job runs `mise run ci`: the workflows linted, everything `mise run check` runs, and `pele parity` held to 522 of 522 identical. On Linux the tests that draw use Mesa's lavapipe, a Vulkan GPU in software, and draw Pele's SVG in Liberation Sans, which has Arial's metrics. Eight pele-core tests are skipped on Linux, because Node gives different answers there; each names its reason. A newer push cancels the run it replaces. It takes about 33 minutes with the Rust cache warm.
 - **Commit messages** (`commits.yml`) checks, on pull requests, that each commit follows Conventional Commits.
+- **Pages** (`pages.yml`) builds the gallery for the web, `mise run gallery-web`, and publishes it on GitHub Pages on every push to `main`. A pull request that changes the crates, the gallery or its fixtures builds it without publishing.
 - **Prove** (`prove.yml`) runs the Kani proofs, `mise run prove`, weekly and when started by hand.
 - **Release-plz** (`release-plz.yml`) tags new versions and opens the release pull request on pushes to `main`, as the release GitHub App when its secrets are set.
 

@@ -37,10 +37,20 @@ const LABEL_GAP: f64 = 8.0;
 
 /// Pele's `clock`: the time given when it is a finite number, otherwise the current time.
 fn clock(now: Option<f64>) -> f64 {
-    now.filter(|now| now.is_finite()).unwrap_or_else(|| {
-        let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
-        since.map_or(0.0, |since| since.as_millis() as f64)
-    })
+    now.filter(|now| now.is_finite()).unwrap_or_else(system_now)
+}
+
+/// The current time in whole milliseconds since 1970, as `Date.now()` gives it.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn system_now() -> f64 {
+    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    since.map_or(0.0, |since| since.as_millis() as f64)
+}
+
+/// The page's `Date.now()`, which Pele reads.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+fn system_now() -> f64 {
+    js_sys::Date::now()
 }
 
 /// The chart's settings from Mermaid's `gantt` config section.

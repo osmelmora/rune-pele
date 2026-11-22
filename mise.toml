@@ -1,5 +1,6 @@
 [tools]
-rust = { version = "1.100.0", components = "rustfmt,clippy" }
+# wasm32-unknown-unknown builds the gallery for the web and lints the crates for it.
+rust = { version = "1.100.0", components = "rustfmt,clippy", targets = "wasm32-unknown-unknown" }
 node = "26.13.1"
 "cargo:kani-verifier" = "0.68.0"
 hk = "2.13.0"
@@ -9,6 +10,12 @@ actionlint = "1.7.12"
 # actionlint checks each workflow's shell steps with ShellCheck when it is on PATH, as it is on
 # GitHub's runners, so the same one is pinned here.
 shellcheck = "0.11.0"
+# Rune's web-build.sh, and a static server for its output. The script reads Cargo.lock with
+# `tomllib`, which is Python 3.11 or newer.
+python = "3.15.2"
+# Equal to the `wasm-bindgen` in examples/gallery/Cargo.lock, as web-build.sh requires. Its
+# wasm-bindgen-test-runner runs pele-core's web test in Node.
+"github:wasm-bindgen/wasm-bindgen" = "0.2.130"
 
 [env]
 TZ = "UTC"
@@ -62,4 +69,42 @@ for crate in pele-core rune-pele; do
   echo "$crate on Rust $version"
   mise exec "rust@$version" -- cargo check -q -p "$crate" --target-dir target/msrv
 done
+"""
+
+[tasks.gallery]
+description = "Open the gallery, every diagram type in Rune's Playground with zoom and theme controls and a live editor (release); arguments go to the app, such as --playground NAME --snap out.png"
+run = "cargo run -q --release --manifest-path examples/gallery/Cargo.toml --target-dir target --"
+
+[tasks.gallery-test]
+description = "The gallery formatted, linted and tested natively: every fixture has a story that draws, the editor keeps its drawing, the side column's keys"
+run = """
+set -eu
+cargo fmt --check --manifest-path examples/gallery/Cargo.toml
+cargo clippy -q --all-targets --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
+cargo test -q --manifest-path examples/gallery/Cargo.toml --target-dir target
+"""
+
+[tasks.gallery-web]
+description = "Build the gallery for the web into out/gallery-web with Rune's web-build.sh (release); serve it with `mise run gallery-serve`"
+run = "examples/gallery/web/build.sh"
+
+[tasks.gallery-serve]
+description = "Serve out/gallery-web on http://localhost:8000; WebGPU works over plain HTTP on localhost"
+run = "python3 -m http.server 8000 --bind 127.0.0.1 -d out/gallery-web"
+
+[tasks.web-check]
+description = "pele-core, rune-pele and the gallery linted for wasm32-unknown-unknown, denying the std calls that panic there, and pele-core's clock test run there in Node"
+run = """
+set -eu
+export CLIPPY_CONF_DIR="$PWD/examples/gallery/web"
+cargo clippy -q --target wasm32-unknown-unknown -p pele-core -p rune-pele -- -D warnings
+cargo fmt --check --manifest-path examples/gallery/Cargo.toml
+cargo clippy -q --target wasm32-unknown-unknown --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
+# The runner takes no --quiet, so the test's own lines are picked from its output, which a failure prints whole.
+log=target/web-check-clock.log
+if ! CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test -p pele-core --target wasm32-unknown-unknown --test web_clock > "$log" 2>&1; then
+  cat "$log"
+  exit 1
+fi
+grep -E '^test ' "$log"
 """

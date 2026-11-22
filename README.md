@@ -12,6 +12,12 @@ rune-pele draws [Mermaid](https://mermaid.js.org) diagrams natively in [Rune](ht
 
 A state diagram from Pele's documentation. Left, drawn natively by rune-pele. Right, Pele's SVG drawn by resvg. The native drawing is laid out with Pele's text metrics, as the pixel tests lay it out. An app's view measures its own fonts.
 
+## Try it
+
+[The gallery](https://osmelmora.github.io/rune-pele/) runs rune-pele in your browser: every diagram type on Rune's Playground, with zoom and light and dark themes, and a live editor where you type Mermaid and watch it draw. While the source you type is broken, the last drawing stays. It needs WebGPU, which current Chrome, Edge and Safari offer. In a checkout, `mise run gallery` opens the same gallery in a window.
+
+![The gallery in a window: on the left, the list of stories grouped as Try it, Graphs, Time and process and Charts, with Architecture chosen; in the middle, an architecture diagram drawn natively in dark at 125%, with a Gateway, a Web server, a Jobs function and a Data group holding a Primary store that copies to Backups; on the right, the Zoom and Theme controls.](docs/images/gallery.png)
+
 ## Status
 
 - **Pele 1.13.0**, at commit `3a2f075`, which `scripts/pele-pin.txt` names.

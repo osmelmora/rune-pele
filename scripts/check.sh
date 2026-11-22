@@ -12,4 +12,6 @@ cargo test -q -p rune-pele --no-default-features
 RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc -q --no-deps -p pele-core -p rune-pele
 # Both crates build on the Rust their rust-version names: under a second warm, about 30 s cold.
 mise run msrv
+# pele-core, rune-pele and the gallery for the web, where std's clocks panic: 5 s warm.
+mise run web-check
 scripts/consumer.sh

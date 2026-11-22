@@ -1,0 +1,70 @@
+# Pages builds the gallery for the web, `mise run gallery-web`, and publishes it on GitHub Pages
+# from every push to main, and when started by hand. A pull request that changes what the web
+# build reads builds it too, without publishing.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - crates/pele-core/**
+      - crates/rune-pele/**
+      - examples/gallery/**
+      - tests/fixtures/rune/**
+      - tests/fixtures/pie-pets.mmd
+      - Cargo.toml
+      - mise.toml
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+
+# One publish at a time, and a publish in progress is not cancelled half way; a newer push to a
+# pull request cancels its older build.
+concurrency:
+  group: pages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build the gallery
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # Rune's web-build.sh reads Cargo.lock with Python's tomllib and runs wasm-bindgen; the
+      # wasm target comes with mise.toml's Rust. Nothing else in mise.toml is needed.
+      - uses: jdx/mise-action@v5.2.10
+        with:
+          install_args: rust python github:wasm-bindgen/wasm-bindgen
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          key: ${{ hashFiles('Cargo.toml', 'examples/gallery/Cargo.lock') }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: mise run gallery-web
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: out/gallery-web
+
+  deploy:
+    name: Publish
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5.0.1
