@@ -1846,7 +1846,7 @@ dependencies = [
 
 [[package]]
 name = "pele-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "pele-core",
  "pele-oracle",
@@ -1855,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "pele-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "indexmap",
  "js-sys",
@@ -1869,7 +1869,7 @@ dependencies = [
 
 [[package]]
 name = "pele-oracle"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -2273,7 +2273,7 @@ source = "git+https://github.com/anomalyco/rune?rev=165f87a4700a5515b03d4de04876
 
 [[package]]
 name = "rune-pele"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "pele-core",
  "pele-oracle",
