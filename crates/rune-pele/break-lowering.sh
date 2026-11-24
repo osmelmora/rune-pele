@@ -354,6 +354,10 @@ break_one dashed-circle-starts-at-the-top lower.rs dashed_boxes_circles_and_elli
   'let (start, across) = if dashed {' \
   'let (start, across) = if !dashed {' \
   dash_corners
+break_one mono-measured-in-inter text.rs runes_own_catalog \
+  'FontCatalog::new(&[], sans, mono)' \
+  'FontCatalog::new(&[], sans, sans)' \
+  baselines
 
 # break_doc <name> <file> <from> <to>: a doc comment rustdoc warns about, which `mise run check`
 # then refuses.

@@ -115,10 +115,16 @@ impl FontCatalog {
         FontCatalog { fonts, sans: sans.to_owned(), mono: mono.to_owned() }
     }
 
-    /// The fonts Rune falls back to when an app registers none: Inter, which Rune embeds with its
-    /// `embedded-fonts` feature.
+    /// The fonts and families a window has when the app gives none in its `AppSpec`: Inter, which
+    /// Rune embeds with its `embedded-fonts` feature, and for monospace the platform's monospaced
+    /// UI face natively and IBM Plex Mono on the web.
     pub fn rune() -> Self {
-        FontCatalog::new(&[], "Inter", "Inter")
+        // Read from `AppSpec::new`, so the families follow Rune's defaults from one Rune to the next.
+        fn nothing(_: &(), _: &mut rune::Cx<()>) -> El {
+            rune::el()
+        }
+        let (sans, mono) = rune::AppSpec::new("", (0.0, 0.0), || (), nothing).families;
+        FontCatalog::new(&[], sans, mono)
     }
 
     pub(crate) fn baselines(&self, scale: f32) -> Baselines {
