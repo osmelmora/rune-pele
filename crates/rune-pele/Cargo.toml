@@ -21,16 +21,16 @@ embedded-fonts = ["rune/embedded-fonts"]
 [dependencies]
 # Rune's default features (Metal backend, D-Bus, Ogg audio, embedded Inter, SVG images) are the
 # app's choice. rune-mermaid depends on Rune the same way.
-rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false }
+rune = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be", default-features = false }
 # Draws, with `fallback`, a source the native view does not. Same rev as `rune`.
-rune-mermaid = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", optional = true }
+rune-mermaid = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be", optional = true }
 pele-core = { path = "../pele-core" }
 
 [dev-dependencies]
 # Headless tests measure and draw text in Inter, which `embedded-fonts` embeds. Without it Rune
 # draws in a system font, whose widths differ from the ones the tests expect.
 # `tooling` keeps the example's `--snap` in release builds too; debug builds always have it.
-rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts", "tooling"] }
+rune = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be", default-features = false, features = ["embedded-fonts", "tooling"] }
 # Rasterises Pele's own SVG beside the native drawing. The version Rune's `svg` feature uses.
 resvg = { version = "0.45", default-features = false, features = ["text"] }
 pele-oracle = { path = "../pele-oracle" }

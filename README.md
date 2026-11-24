@@ -34,17 +34,21 @@ rune-pele is not on crates.io. An app depends on it from git at a release tag, t
 rune-pele = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.2.1", features = ["embedded-fonts"] }
 
 [patch.crates-io]
-winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+naga = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_atspi_common = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
 ```
 
 - **Rune's revision** is the one `crates/rune-pele/Cargo.toml` pins. `Diagram::view` takes that Rune's `Cx` and returns its `El`. An app's `rune` at another revision is a second `rune`, whose types rune-pele's do not take and whose features miss the Rune rune-pele draws with, so bump the two together.
 - **Rune from rune-pele.** rune-pele re-exports its Rune as `rune_pele::rune`, and its `embedded-fonts` feature turns on Rune's. An app that names Rune only as `rune_pele::rune` always has rune-pele's Rune, and needs no `rune` line. `examples/consumer` does this. On `v0.1.0`, which has no re-export, an app names Rune with a line of its own at the same revision:
 
   ```toml
-  rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts"] }
+  rune = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be", default-features = false, features = ["embedded-fonts"] }
   ```
 
   Cargo sets a dependency's features only through the features that dependency declares, and rune-pele declares one for Rune, `embedded-fonts`, the font `FontCatalog::rune()` measures with. An app that wants others of Rune's features, such as its Metal backend, accessibility or SVG images, keeps such a `rune` line, at the same revision: two lines that name one revision are one `rune`, built with the features of both.

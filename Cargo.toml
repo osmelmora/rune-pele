@@ -21,11 +21,15 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# Rune patches these four crates in its own workspace, and a dependency's `[patch]` does not reach
+# Rune patches these eight crates in its own workspace, and a dependency's `[patch]` does not reach
 # the workspace that depends on it (vendor/rune/crates/rune/README.md, "Depending on Rune"). Keep
 # the rev equal to rune-pele's `rune` rev.
 [patch.crates-io]
-winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+naga = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_atspi_common = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }

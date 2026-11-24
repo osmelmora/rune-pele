@@ -79,7 +79,7 @@ fn the_app_pins_and_patches_rune_as_rune_pele_does_and_the_readme_says() {
     let adapter = read("crates/rune-pele/Cargo.toml");
 
     let patched = patches(&workspace);
-    assert_eq!(patched.len(), 4, "Rune's four patches: {patched:?}");
+    assert_eq!(patched.len(), 8, "Rune's eight patches: {patched:?}");
     assert_eq!(patches(&app), patched, "the app patches what the workspace patches");
     assert_eq!(patches(&readme), patched, "the README shows the workspace's patches");
 
