@@ -164,3 +164,49 @@ fn anchors_shift_the_run_by_its_advance() {
     );
     assert!((start - end - want).abs() <= 1.0, "end sits a whole advance left of start: {start} {end} {want}");
 }
+
+struct Shown {
+    diagram: rune_pele::Diagram,
+    source: String,
+}
+
+fn shown_view(s: &Shown, cx: &mut rune::Cx<Shown>) -> El {
+    s.diagram.view(cx, &s.source, rune_pele::ViewOptions::natural()).expect("it draws")
+}
+
+/// `FontCatalog::rune()` measures in the families a window has when the app names none, so each
+/// label, sans or monospace, is laid out as wide as the window draws it. Railroad's terminals and
+/// event modeling's fields are monospace.
+#[test]
+fn runes_own_catalog_measures_each_label_in_the_face_a_default_window_draws_it_in() {
+    use pele_core::scene::{Geometry, PaintVisit};
+    for fixture in ["railroad", "eventmodeling"] {
+        let path = pele_oracle::root().join(format!("tests/fixtures/rune/{fixture}.mmd"));
+        let source = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        let shown = Shown { diagram: rune_pele::Diagram::new("diagram", rune_pele::FontCatalog::rune()), source };
+        let mut rt = rune::Runtime::new(shown, shown_view, (1600.0, 1200.0), rune::Env::new(false, 2.0));
+        rt.frame(0.0);
+        let drawn: std::collections::HashMap<String, f32> =
+            rt.elements().into_iter().filter_map(|element| Some((element.key?, element.rect[2]))).collect();
+        let scene = rt.state.diagram.scene().expect("drawn natively");
+        let mut runs = [0, 0];
+        for visit in scene.paint() {
+            let PaintVisit::Draw(draw) = visit else { continue };
+            let Geometry::Text(run) = &draw.geometry else { continue };
+            if run.text.trim().is_empty() {
+                continue;
+            }
+            let key = draw.key.to_string();
+            let width = drawn.get(&key).unwrap_or_else(|| panic!("{fixture}: {key} is an element"));
+            assert!(
+                (f64::from(*width) - run.advance).abs() < 0.01,
+                "{fixture}: {:?} in {:?} measured {} wide and drawn {width} wide",
+                run.text,
+                run.font.family,
+                run.advance
+            );
+            runs[usize::from(run.font.family == pele_core::FontFamily::Mono)] += 1;
+        }
+        assert!(runs[1] > 0, "{fixture} draws monospace labels: {runs:?} sans and mono");
+    }
+}

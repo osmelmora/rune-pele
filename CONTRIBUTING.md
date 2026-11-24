@@ -95,7 +95,7 @@ A change of the Node in `mise.toml` also goes through the `prove-js-numerics` sk
 
 ## Moving the Rune pin
 
-No procedure is written down beyond this. The revision is in four files, which must name the same one: `crates/rune-pele/Cargo.toml` (`rune`, `rune-mermaid`, and `rune` again in the dev-dependencies), the workspace's `[patch.crates-io]` in `Cargo.toml`, `examples/consumer/Cargo.toml`, and the manifest in `README.md`. `mise run consumer` fails until they agree, and `examples/consumer/Cargo.lock` updates on its next build. The four patches are Rune's own, from its README's "Depending on Rune" at that revision. The commit is `build(rune): …`.
+No procedure is written down beyond this. The revision is in five files, which must name the same one: `crates/rune-pele/Cargo.toml` (`rune`, `rune-mermaid`, and `rune` again in the dev-dependencies), the workspace's `[patch.crates-io]` in `Cargo.toml`, `examples/consumer/Cargo.toml`, `examples/gallery/Cargo.toml`, and the manifest in `README.md`. `mise run consumer` fails until the first four agree, and each `Cargo.lock` updates on its next build. The patches are Rune's own, eight at `761555829`, from its README's "Depending on Rune" at that revision. The commit is `build(rune): …`.
 
 ## CI
 

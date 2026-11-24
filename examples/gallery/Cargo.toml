@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # Rune's default features, as an app has them, and `keys-overlay` for `--snap` and `--video` in
 # release builds. Same rev as rune-pele's `rune`.
-rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", features = ["keys-overlay"] }
+rune = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be", features = ["keys-overlay"] }
 rune-pele = { path = "../../crates/rune-pele" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -27,10 +27,14 @@ wasm-bindgen = "0.2"
 
 # Rune's own patches, from the rev rune-pele pins. Without them `rune` does not resolve.
 [patch.crates-io]
-winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+naga = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_atspi_common = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
 
 # The tests lay every fixture out. As in the rune-pele workspace, they build optimised, with debug
 # assertions on, and run about three times faster than unoptimised.

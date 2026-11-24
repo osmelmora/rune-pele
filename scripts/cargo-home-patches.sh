@@ -8,5 +8,5 @@ cd "$(dirname "$0")/.."
 home=${CARGO_HOME:-$HOME/.cargo}
 mkdir -p "$home"
 awk '/^\[patch\.crates-io\]/{on=1; print; next} /^\[/{on=0} on && NF' Cargo.toml > "$home/config.toml"
-test "$(grep -c '^[a-z_-]* = { git' "$home/config.toml")" = 4
-echo "Rune's four patches written to $home/config.toml"
+test "$(grep -c '^[a-z_-]* = { git' "$home/config.toml")" = 8
+echo "Rune's eight patches written to $home/config.toml"

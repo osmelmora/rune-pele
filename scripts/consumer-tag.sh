@@ -28,7 +28,7 @@ for absent in vendor harness/dist harness/node_modules; do
 done
 echo "the tag's tree has no vendor/ and no oracle (harness/dist, harness/node_modules)"
 
-# The Rune the tag pins, and its four patches, which an app repeats. The app names Rune itself,
+# The Rune the tag pins, and its patches (four to v0.2.2, eight after), which an app repeats. The app names Rune itself,
 # as every tag's README says: `rune_pele::rune` is newer than v0.1.0.
 rune=$(sed -n 's/^rune = { git = "\([^"]*\)", rev = "\([^"]*\)".*/\1 \2/p' "$out/tagged/crates/rune-pele/Cargo.toml" | head -n 1)
 patches=$(sed -n '/^\[patch\.crates-io\]$/,/^\[/{/^\[patch\.crates-io\]$/p;/ = {/p;}' "$out/tagged/Cargo.toml")

@@ -34,21 +34,25 @@ rune-pele is not on crates.io. An app depends on it from git at a release tag, t
 rune-pele = { git = "https://github.com/osmelmora/rune-pele", tag = "v0.2.1", features = ["embedded-fonts"] }
 
 [patch.crates-io]
-winit = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-parley_engine = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
-accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+sctk-adwaita = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+naga = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
+accesskit_atspi_common = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be" }
 ```
 
 - **Rune's revision** is the one `crates/rune-pele/Cargo.toml` pins. `Diagram::view` takes that Rune's `Cx` and returns its `El`. An app's `rune` at another revision is a second `rune`, whose types rune-pele's do not take and whose features miss the Rune rune-pele draws with, so bump the two together.
 - **Rune from rune-pele.** rune-pele re-exports its Rune as `rune_pele::rune`, and its `embedded-fonts` feature turns on Rune's. An app that names Rune only as `rune_pele::rune` always has rune-pele's Rune, and needs no `rune` line. `examples/consumer` does this. On `v0.1.0`, which has no re-export, an app names Rune with a line of its own at the same revision:
 
   ```toml
-  rune = { git = "https://github.com/anomalyco/rune", rev = "165f87a4700a5515b03d4de04876aa2e64a30c21", default-features = false, features = ["embedded-fonts"] }
+  rune = { git = "https://github.com/anomalyco/rune", rev = "761555829efe531efb83ff2a3ba60705262d69be", default-features = false, features = ["embedded-fonts"] }
   ```
 
   Cargo sets a dependency's features only through the features that dependency declares, and rune-pele declares one for Rune, `embedded-fonts`, the font `FontCatalog::rune()` measures with. An app that wants others of Rune's features, such as its Metal backend, accessibility or SVG images, keeps such a `rune` line, at the same revision: two lines that name one revision are one `rune`, built with the features of both.
-- **The four patches** are the `[patch.crates-io]` table of this repository's `Cargo.toml`, which is Rune's own (Rune's `crates/rune/README.md`, "Depending on Rune"). A dependency's `[patch]` does not reach the workspace that depends on it, so the app repeats them, from the same revision. Without `parley_engine`'s, Cargo cannot resolve `rune`: `package rune depends on parley_engine with feature line-dictionaries but parley_engine does not have that feature`. Without winit's, `rune` does not compile on macOS, which calls the input-method functions only Rune's winit has. wgpu-hal's lets Rune pick a Windows GPU without starting every adapter, and accesskit_windows' gives Windows screen readers headings and landmarks.
+- **The eight patches** are the `[patch.crates-io]` table of this repository's `Cargo.toml`, which is Rune's own (Rune's `crates/rune/README.md`, "Depending on Rune"). A dependency's `[patch]` does not reach the workspace that depends on it, so the app repeats them, from the same revision. Without `parley_engine`'s, Cargo cannot resolve `rune`: `package rune depends on parley_engine with feature line-dictionaries but parley_engine does not have that feature`. Without winit's, `rune` does not compile on macOS, which calls the input-method functions only Rune's winit has. wgpu-hal's lets Rune pick a Windows GPU without starting every adapter, and accesskit_windows' gives Windows screen readers headings and landmarks. Rune's winit calls a function only Rune's sctk-adwaita has, so the two go together, or the app does not compile. naga's fixes a shader compile error (gfx-rs/wgpu#7793). accesskit_macos' lets VoiceOver find headings, and accesskit_atspi_common's gives Linux screen readers each list level's own size.
 
 Then draw a diagram. This is `examples/consumer`, an app in a workspace of its own with the manifest above. Its tests draw this view headless and hold its manifest and this section's to the one rune-pele is built with. Its [`src/lib.rs`](examples/consumer/src/lib.rs):
 
@@ -124,7 +128,7 @@ assert!(rendered.width > rendered.height);
 
 ## Options
 
-- **Fonts.** rune-pele turns Rune's default features off, so the app chooses them, with its own `rune` line or with rune-pele's `embedded-fonts`. `FontCatalog::rune()` lays labels out in Inter, which Rune embeds with its `embedded-fonts` feature. Without it, and without fonts of the app's own, text falls back to the system's fonts: on macOS, labels are laid out and drawn in a system sans instead of Inter. An app that gives Rune its own fonts in `AppSpec::fonts` and `AppSpec::families` gives `FontCatalog::new` the same bytes and families, and can leave `embedded-fonts` off.
+- **Fonts.** rune-pele turns Rune's default features off, so the app chooses them, with its own `rune` line or with rune-pele's `embedded-fonts`. `FontCatalog::rune()` lays labels out in the families a Rune window has when the app names none: Inter, which Rune embeds with its `embedded-fonts` feature, and for monospace the system's monospaced face (IBM Plex Mono on the web). Without it, and without fonts of the app's own, text falls back to the system's fonts: on macOS, labels are laid out and drawn in a system sans instead of Inter. An app that gives Rune its own fonts in `AppSpec::fonts` and `AppSpec::families` gives `FontCatalog::new` the same bytes and families, and can leave `embedded-fonts` off.
 - **The fallback.** From `v0.2.0`, rune-pele's `fallback` feature, on by default, has Rune's rune-mermaid draw a source the native view does not. rune-mermaid draws no links or tooltips and ignores the zoom. An app that turns rune-pele's default features off, `default-features = false, features = ["embedded-fonts"]`, builds without rune-mermaid. Such a source is then an error, `ViewError::Geometry`, or `ViewError::NoFallback` for a type pele-core has not ported, as when rune-mermaid cannot draw it, and after a source that drew the view keeps that drawing. Every public item is in both builds, so the app's code compiles either way: `Engine::RuneMermaid` and `RenderStatus::RuneMermaid` are then never reported, and `Diagram::fallback()` is always `None`. `examples/consumer` built for release without it has one crate fewer (187 of 188) and a binary 1,133,040 bytes (3.8%) smaller. Its clean build was no faster in two runs each: 79 s and 84 s with it, 75 s and 95 s without.
 - **While a source fails.** After a source that drew, a source that fails, as one still streaming in does, leaves that drawing shown, as Pele's `mount` does: by default dimmed, with the error over its bottom edge. `ViewOptions::fit().kept_look(KeptLook::Unchanged)` shows it as it was, for an app that shows the error itself or not at all. `diagram.status()` is then `RenderStatus::Kept`, and `diagram.error()` says why. The kept drawing follows the view's width and options as the source would. A source that fails with nothing drawn before it is an error, which the app shows.
 - **Fitting and zoom.** `ViewOptions::fit()` fits the width the view has, and `.smallest_text(points)` sets the least size plain text is drawn at, 11 unless set. `ViewOptions::zoom(z)` draws `z` times the size, after any fit. `.palette(Palette::pele())` draws in Pele's own colours; without a palette the view follows the window's Rune theme, light or dark.
@@ -148,7 +152,7 @@ assert!(rendered.width > rendered.height);
 
 ## Versions and releases
 
-`pele-core` and `rune-pele` share one version and one tag, `v<version>`, made on GitHub with a GitHub release. [`CHANGELOG.md`](CHANGELOG.md) lists each release's changes, and marks the breaking ones. Before 1.0, a compatible release moves the patch version and a breaking one the minor version: 0.2.0 becomes 0.2.1 or 0.3.0. An app moves to a release by changing its `tag`. A release that moves the Rune pin changes the revision of the four patches too, and an app moves them with it.
+`pele-core` and `rune-pele` share one version and one tag, `v<version>`, made on GitHub with a GitHub release. [`CHANGELOG.md`](CHANGELOG.md) lists each release's changes, and marks the breaking ones. Before 1.0, a compatible release moves the patch version and a breaking one the minor version: 0.2.0 becomes 0.2.1 or 0.3.0. An app moves to a release by changing its `tag`. A release that moves the Rune pin changes the revision of the patches too, and an app moves them with it.
 
 ## Thanks
 
