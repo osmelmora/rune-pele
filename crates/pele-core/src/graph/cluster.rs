@@ -92,6 +92,10 @@ pub(crate) fn draw_struck_title(
     look: LabelLook,
     depth: i32,
 ) {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a whole power of two, which every order of multiplying gives exactly"
+    )]
     let percent = 100.0 * (1.0 - 0.5f64.powi(depth));
     let behind = Paint::Mix { tint: Role::SurfaceAlt, percent, base: Role::Background };
     out.layer(LayerSpec::class("pele-cluster-title").part(part, Facet::Title).data_id(), |out| {

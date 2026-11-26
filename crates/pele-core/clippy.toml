@@ -1,0 +1,50 @@
+# The numbers pele-core prints into SVG must be the ones Pele's JavaScript computes, bit for bit
+# (AGENTS.md). These answer otherwise, and each reason names what to call instead: a `js`
+# function, the `Trig` of venn's layout, or the libm function the decision log measured equal to
+# Node. Only pele-core's own targets read this file, since clippy looks for it from the crate's
+# folder up: `mise run check` reads it, and `mise run web-check`, whose CLIPPY_CONF_DIR names
+# examples/gallery/web, does not. Left out: `sqrt`, correctly rounded in both (measured 0 apart);
+# `floor`, `ceil`, `trunc`, `fract`, `abs` and `copysign`, which round nothing; and `clamp`, which
+# parts from Pele's Math.min(Math.max(x, lo), hi) only in the sign of a zero. `Display`,
+# `to_string` and `{:.N}` are trait calls, which clippy cannot pin to f64.
+disallowed-methods = [
+    { path = "f64::round", reason = "it breaks ties away from zero and Math.round toward +∞: call js::round" },
+    { path = "f64::round_ties_even", reason = "it breaks ties to even and Math.round toward +∞: call js::round" },
+    { path = "f64::max", reason = "it answers the other number for a NaN, where Math.max answers NaN, and either zero for ±0: call js::max" },
+    { path = "f64::min", reason = "it answers the other number for a NaN, where Math.min answers NaN, and either zero for ±0: call js::min" },
+    { path = "f64::signum", reason = "it answers ±1 for ±0, where Math.sign keeps the zero: port Math.sign as layout/lanes.rs's `sign` does" },
+    { path = "f64::sin", reason = "it calls the platform's libm, and Math.sin is V8's fdlibm: call js::sin, or the Trig a layout is given" },
+    { path = "f64::cos", reason = "it calls the platform's libm, and Math.cos is V8's fdlibm: call js::cos, or the Trig a layout is given" },
+    { path = "f64::sin_cos", reason = "it calls the platform's libm, and Math.sin and Math.cos are V8's fdlibm: call js::sin and js::cos" },
+    { path = "f64::tan", reason = "it calls the platform's libm, and Math.tan is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::asin", reason = "it calls the platform's libm: call libm::asin, as block does, bit for bit x64 Node (decision log, 2026-11-18)" },
+    { path = "f64::acos", reason = "it calls the platform's libm: call libm::acos or Trig::acos, as venn does, bit for bit x64 Node (decision log, 2026-11-18)" },
+    { path = "f64::atan", reason = "it calls the platform's libm, and Math.atan is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::atan2", reason = "it calls the platform's libm: call libm::atan2 or Trig::atan2, bit for bit x64 Node where y/x is within ±2^60 (decision log, 2026-11-18)" },
+    { path = "f64::sinh", reason = "it calls the platform's libm, and Math.sinh is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::cosh", reason = "it calls the platform's libm, and Math.cosh is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::tanh", reason = "it calls the platform's libm, and Math.tanh is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::asinh", reason = "it calls the platform's libm, and Math.asinh is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::acosh", reason = "it calls the platform's libm, and Math.acosh is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::atanh", reason = "it calls the platform's libm, and Math.atanh is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::exp", reason = "it calls the platform's libm, and Math.exp is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::exp_m1", reason = "it calls the platform's libm, and Math.expm1 is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::exp2", reason = "JavaScript has no exp2, and Pele's 2 ** x is Math.pow: call js::pow" },
+    { path = "f64::ln", reason = "it calls the platform's libm, and Math.log is V8's fdlibm: port js.rs's private fdlibm log out through the prove-js-numerics skill" },
+    { path = "f64::ln_1p", reason = "it calls the platform's libm, and Math.log1p is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::log", reason = "JavaScript has no log to a base: write Pele's own expression, with js::log10 for Math.log10" },
+    { path = "f64::log10", reason = "it calls the platform's libm, and Math.log10 is V8's fdlibm: call js::log10" },
+    { path = "f64::log2", reason = "it calls the platform's libm: call libm::log2, as packet does, equal to Node on x64 and arm64 (decision log, 2026-11-18)" },
+    { path = "f64::cbrt", reason = "it calls the platform's libm, and Math.cbrt is V8's fdlibm, which js.rs has not ported: port it through the prove-js-numerics skill" },
+    { path = "f64::hypot", reason = "it calls the platform's libm, and Math.hypot is V8's scaled Kahan sum: call layout::num::hypot" },
+    { path = "f64::powf", reason = "Math.pow answers NaN where C's pow answers 1: call js::pow, or js::ten_to for a whole power of ten" },
+    { path = "f64::powi", reason = "it multiplies in an order the compiler picks, and its precision is not fixed: call js::pow, or js::ten_to for a whole power of ten" },
+    { path = "f64::mul_add", reason = "it rounds once where Pele's a * b + c rounds twice: write the product and the sum" },
+    { path = "f64::to_degrees", reason = "it multiplies once by 180/π, where Pele's x * 180 / Math.PI rounds twice: write Pele's expression" },
+    { path = "f64::to_radians", reason = "it multiplies once by π/180, where Pele's x * Math.PI / 180 rounds twice: write Pele's expression" },
+    { path = "libm::sin", reason = "the libm crate follows FreeBSD's msun and rounds apart from V8's fdlibm (decision log, 2026-11-18): call js::sin" },
+    { path = "libm::cos", reason = "the libm crate follows FreeBSD's msun and rounds apart from V8's fdlibm (decision log, 2026-11-18): call js::cos" },
+    { path = "libm::log10", reason = "the libm crate rounds apart from V8's log10 on 2% of inputs (decision log, 2026-11-18): call js::log10" },
+    { path = "libm::pow", reason = "C's pow answers 1 for ±1 to ±∞ and for 1 to NaN, where Math.pow answers NaN: call js::pow" },
+    { path = "libm::hypot", reason = "the libm crate rounds apart from V8's scaled Kahan sum: call layout::num::hypot" },
+]

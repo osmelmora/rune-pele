@@ -603,6 +603,10 @@ impl IconGlyph {
     /// fills nothing, and the glyph's own `stroke` and `stroke-width` win over the box's.
     pub fn drawn_in(self, origin: Point, size: Size) -> (Vec<PathCommand>, StrokeStyle) {
         // `preserveAspectRatio`'s default: the whole grid, as large as fits, centred.
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "SVG's preserveAspectRatio, which the browser works out, not Pele's Math.min"
+        )]
         let scale = (size.width / GLYPH_GRID).min(size.height / GLYPH_GRID);
         let left = origin.x + (size.width - GLYPH_GRID * scale) / 2.0;
         let top = origin.y + (size.height - GLYPH_GRID * scale) / 2.0;

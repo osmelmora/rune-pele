@@ -8,6 +8,8 @@
 //! A call travels as `{ fn, in, out }`, in the shape `harness/oracle.ts` gives it under
 //! "compound layout": doubles packed as 16 hex digits each.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::layout::layered::{Groups, Kind, LEdge, LNode, layered};
 use pele_core::layout::num::hypot;
 use pele_core::layout::{

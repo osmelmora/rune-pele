@@ -8,6 +8,8 @@
 //! carry the proof for what the eight corpus sources never draw, and must reach every drawing
 //! path in [`PATHS`].
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::venn_probe::{self, TrigCall};
 use pele_core::{HostConfig, LayoutOptions, ParseOptions, RenderError, Rendered};
 use pele_oracle::PeleRender;

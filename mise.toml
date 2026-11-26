@@ -101,7 +101,9 @@ description = "pele-core, rune-pele and the gallery linted for wasm32-unknown-un
 run = """
 set -eu
 export CLIPPY_CONF_DIR="$PWD/examples/gallery/web"
-cargo clippy -q --target wasm32-unknown-unknown -p pele-core -p rune-pele -- -D warnings
+# That folder's clippy.toml replaces pele-core's own, so the numerics #[expect]s that `mise run check`
+# holds go unfulfilled here.
+cargo clippy -q --target wasm32-unknown-unknown -p pele-core -p rune-pele -- -D warnings -A unfulfilled_lint_expectations
 cargo fmt --check --manifest-path examples/gallery/Cargo.toml
 cargo clippy -q --target wasm32-unknown-unknown --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
 # The runner takes no --quiet, so the test's own lines are picked from its output, which a failure prints whole.

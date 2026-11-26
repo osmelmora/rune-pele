@@ -31,10 +31,18 @@ impl Hash for Rgba {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the view's colours, which the SVG never reads; js::pow would move 34 of the 256 channels by an ulp"
+)]
 fn decode(c: f64) -> f64 {
     if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the view's colours, which the SVG never reads; js::pow would move about 1 value in 10 by an ulp"
+)]
 fn encode(c: f64) -> f64 {
     if c <= 0.0031308 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 }
 }
@@ -53,7 +61,7 @@ impl Rgba {
 
     /// The sRGB-encoded channels and alpha as bytes, as a PNG holds them.
     pub fn to_srgb8(self) -> [u8; 4] {
-        let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let byte = |c: f64| crate::js::round(c.clamp(0.0, 1.0) * 255.0) as u8;
         let [r, g, b] = self.linear_srgb.map(encode);
         [byte(r), byte(g), byte(b), byte(self.alpha)]
     }

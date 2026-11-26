@@ -8,6 +8,8 @@
 //! between the boxes of those layouts and of random grids, nested boxes and rows, each sequence
 //! through one set of lanes as a drawing's relations are.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::c4_probe::{self, GroupProbe, ProbeBox, RouteAnswer, RouteCall};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;

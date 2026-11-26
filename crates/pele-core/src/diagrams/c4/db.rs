@@ -32,6 +32,7 @@ pub(super) fn parse_int(text: &[u16]) -> f64 {
 
 /// Hex digits as the nearest double, as V8 rounds them: the first 32 digits exactly, with any
 /// digit after them that is not zero kept as the lowest bit, so that a tie breaks the right way.
+#[expect(clippy::disallowed_methods, reason = "a whole power of two, which every order of multiplying gives exactly")]
 fn hex_value(digits: &str) -> f64 {
     let digits = digits.trim_start_matches('0');
     let value =

@@ -262,7 +262,7 @@ impl BlockDb {
                 let message = format!("A block diagram can hold at most {} space blocks.", MAX_SPACES as u32);
                 return Err(RenderError::Diagnostic(Diagnostic::new(ErrorCode::Limit, message)));
             }
-            self.spaces += width.max(0.0);
+            self.spaces += crate::js::max(width, 0.0);
             let mut j = 0.0;
             while j < width {
                 let mut copy = BlockNode { children: Vec::new(), ..block.clone() };
