@@ -114,6 +114,7 @@ impl Affine {
     }
 
     /// The map that applies `inner` first and then this one, as a nested SVG group composes.
+    #[must_use]
     pub fn then(&self, inner: &Affine) -> Affine {
         Affine {
             a: self.a * inner.a + self.c * inner.b,
@@ -236,6 +237,7 @@ impl Outline {
 
     /// The outline as a group's transform leaves it. Lines and cubics map to lines and cubics,
     /// which is why arcs are lowered first.
+    #[must_use]
     pub fn transformed(&self, by: &Affine) -> Outline {
         let p = |point: Point| by.apply(point);
         let edges = self

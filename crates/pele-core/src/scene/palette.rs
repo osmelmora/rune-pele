@@ -125,12 +125,14 @@ impl Palette {
         Palette { roles, series: PELE_SERIES.map(Rgba::hex) }
     }
 
+    #[must_use]
     pub fn with(mut self, role: Role, colour: Rgba) -> Self {
         self.roles[index(role)] = colour;
         self
     }
 
     /// Sets the colour of the series at `position`, counted from 0. Positions wrap after eight.
+    #[must_use]
     pub fn with_series(mut self, position: usize, colour: Rgba) -> Self {
         self.series[position % 8] = colour;
         self

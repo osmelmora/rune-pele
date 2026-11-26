@@ -14,6 +14,11 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 # `forbid`, so no `#[allow]` further in can turn it back on.
 unsafe_code = "forbid"
 
+[workspace.lints.clippy]
+# A builder method that returns Self does nothing unless its result is kept, so an app that drops
+# it gets a warning. Only `return_self_not_must_use`: `must_use_candidate` would mark every getter.
+return_self_not_must_use = "warn"
+
 # Test builds. The tests spend their time in the port's own layout code and in resvg and wgpu, and
 # unoptimised they ran 771 s; with these settings, 227 s (measured, M3 Pro). Debug assertions and
 # overflow checks stay on, and the parity tests still match Pele byte for byte. An app that

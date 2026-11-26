@@ -184,11 +184,13 @@ impl Palette {
     }
 
     /// This palette with `role` drawn in `colour`.
+    #[must_use]
     pub fn with(self, role: Role, colour: Color) -> Self {
         Palette { core: self.core.with(role, rgba(colour)), theme: ThemeSeries::Palette }
     }
 
     /// Sets the colour of the series at `position`, counted from 0. Positions wrap after eight.
+    #[must_use]
     pub fn with_series(self, position: usize, colour: Color) -> Self {
         Palette { core: self.core.with_series(position, rgba(colour)), theme: ThemeSeries::Palette }
     }
@@ -293,6 +295,7 @@ impl ViewOptions {
     /// The least size, in points, a fitted view draws plain text at: 11 unless set. It makes
     /// the view's least zoom this over the plain text size, or 1 where that is less, and more
     /// for a narrower layout that sets plain text smaller.
+    #[must_use]
     pub fn smallest_text(mut self, points: f32) -> Self {
         if let Some(fit) = &mut self.fit {
             fit.smallest_text = points;
@@ -303,6 +306,7 @@ impl ViewOptions {
     /// Draws the diagram `zoom` times the size it is laid out at, after any fit: its shapes, its
     /// text and the boxes its links and tooltips are found in. 1 unless set. A zoom lowers the
     /// laid-out diagram again, and lays nothing out.
+    #[must_use]
     pub fn zoom(mut self, zoom: f32) -> Self {
         self.zoom = zoom;
         self
@@ -313,18 +317,21 @@ impl ViewOptions {
     /// its boxes exactly, so this is for comparing a drawing with Pele's, not for showing one.
     /// It changes only how text is measured: a gantt chart's today is still [`ViewOptions::now`]
     /// or the system clock, not the clock Pele's corpus is drawn at.
+    #[must_use]
     pub fn pele_metrics(mut self) -> Self {
         self.metrics = Metrics::Pele;
         self
     }
 
     /// Without one, the view follows the window's dark mode in Rune's theme colours.
+    #[must_use]
     pub fn palette(mut self, palette: Palette) -> Self {
         self.palette = Some(palette);
         self
     }
 
     /// The size of plain label text in points, Pele's `fontSize`. 16 by default.
+    #[must_use]
     pub fn font_size(mut self, size: f32) -> Self {
         self.layout.typography.normal.size = f64::from(size);
         self
@@ -334,6 +341,7 @@ impl ViewOptions {
     /// by what they draw, so it changes no key. It is `pele` unless set. As in Pele, it also
     /// seeds a cynefin's boundaries, and a prefix of other characters than letters, digits, `_`
     /// and `-` draws a sankey's links in one colour each.
+    #[must_use]
     pub fn id_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.layout.id_prefix = Some(prefix.into());
         self
@@ -344,6 +352,7 @@ impl ViewOptions {
     /// the view lays it out again for another reason: the marker does not move with the clock. A
     /// different `now` lays the diagram out again, and the same one does not. A time that is not
     /// finite is the system clock.
+    #[must_use]
     pub fn now(mut self, milliseconds: f64) -> Self {
         // A NaN in the layout's key would equal no layout, so every view would lay out again.
         self.layout.now = milliseconds.is_finite().then_some(milliseconds);
@@ -352,6 +361,7 @@ impl ViewOptions {
 
     /// How the view shows the last drawing that drew while the source fails:
     /// [`KeptLook::DimmedWithError`], as Pele's `mount` does, unless set.
+    #[must_use]
     pub fn kept_look(mut self, look: KeptLook) -> Self {
         self.kept = look;
         self
@@ -375,6 +385,7 @@ impl ViewOptions {
     /// `icons` gives a name the same icon every time. It is a plain function, as a link's handler
     /// is: an app that loads its icons keeps them where the function reads them, such as a
     /// `static` `LazyLock`.
+    #[must_use]
     pub fn icons(mut self, icons: fn(&str) -> Option<Icon>) -> Self {
         self.icons = Some(icons);
         self
