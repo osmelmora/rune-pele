@@ -13,6 +13,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 # No crate has an unsafe block, and none needs one: the port is arithmetic and Rune's safe API.
 # `forbid`, so no `#[allow]` further in can turn it back on.
 unsafe_code = "forbid"
+# An app logs and asserts on what it holds, so every public type implements Debug.
+missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
 # A builder method that returns Self does nothing unless its result is kept, so an app that drops

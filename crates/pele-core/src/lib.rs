@@ -507,12 +507,24 @@ pub struct NativeInputs<'a> {
     pub options: &'a LayoutOptions,
 }
 
+impl std::fmt::Debug for NativeInputs<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeInputs").field("options", self.options).finish_non_exhaustive()
+    }
+}
+
 /// A parsed source with its effective config. Drawing it again needs no parsing.
 pub struct Prepared {
     found: catalog::Detected,
     config: input::JsObject,
     model: catalog::PreparedModel,
     limits: Limits,
+}
+
+impl std::fmt::Debug for Prepared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Prepared").field("kind", &self.found.kind).field("limits", &self.limits).finish_non_exhaustive()
+    }
 }
 
 /// Maps a position in the text a parser reads back to the source the author wrote.
@@ -1105,6 +1117,13 @@ pub struct ParityScene {
     scene: Scene,
     /// The type and Mermaid's alias detection found, which Pele's late limit error names.
     found: catalog::Detected,
+}
+
+impl std::fmt::Debug for ParityScene {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let size = self.scene.size();
+        f.debug_struct("ParityScene").field("kind", &self.found.kind).field("size", &size).finish_non_exhaustive()
+    }
 }
 
 impl ParityScene {

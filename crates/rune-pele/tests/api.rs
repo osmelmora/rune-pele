@@ -43,3 +43,14 @@ fn an_app_reads_the_laid_out_size_through_rune_pele_s_pele_core() {
     let size = scene.expect("drawn natively").size();
     assert!(size.width > size.height && size.height > 0.0, "a flowchart that runs across: {size:?}");
 }
+
+#[test]
+fn an_app_logs_who_drew_its_diagram_and_how_large_without_the_scene() {
+    const SOURCE: &str = "flowchart LR\n  A[Write] --> B[Draw]\n";
+    let (shown, size) =
+        after_view(SOURCE, |diagram| (format!("{diagram:?}"), diagram.scene().map(|scene| scene.size())));
+    assert!(shown.starts_with("Diagram { id: \"diagram\", status: Pele, engine: Some(Pele), error: None,"), "{shown}");
+    assert!(shown.contains(&format!("source_len: Some({})", SOURCE.len())), "the source it drew: {shown}");
+    assert!(shown.contains(&format!("size: {size:?}")), "the size Diagram::scene gives: {shown}");
+    assert!(!shown.contains("Write"), "the Scene stays out: {shown}");
+}

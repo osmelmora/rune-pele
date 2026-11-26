@@ -67,6 +67,12 @@ pub struct Baselines {
     shaped: u64,
 }
 
+impl std::fmt::Debug for Baselines {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Baselines").field("scale", &self.scale).field("shaped", &self.shaped).finish_non_exhaustive()
+    }
+}
+
 impl Baselines {
     /// `fonts` and the families are the ones the app gives Rune; empty `fonts` is Rune's own.
     pub fn new(fonts: &[&'static [u8]], sans: &str, mono: &str, scale: f32) -> Self {

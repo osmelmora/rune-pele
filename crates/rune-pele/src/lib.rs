@@ -688,6 +688,27 @@ pub struct Diagram {
     session: RefCell<Session>,
 }
 
+impl std::fmt::Debug for Diagram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out = f.debug_struct("Diagram");
+        out.field("id", &self.id);
+        // A view holds the session while it draws, and then the id is all there is to read.
+        if let Ok(session) = self.session.try_borrow() {
+            let source = match session.shown() {
+                Some(Drawn::Pele { natural, .. }) => Some(natural.key.source.len()),
+                Some(Drawn::RuneMermaid(drawing)) => Some(drawing.source.len()),
+                None => None,
+            };
+            out.field("status", &self.status())
+                .field("engine", &self.engine())
+                .field("error", &self.error())
+                .field("source_len", &source)
+                .field("size", &self.scene().map(|scene| scene.size()));
+        }
+        out.finish_non_exhaustive()
+    }
+}
+
 impl Diagram {
     /// `id` keys the diagram's element and must be unique in its window. In a fitted view it
     /// keys the frame the fit reads its width from, and the drawing inside it too. `fonts` are
