@@ -1,0 +1,52 @@
+# What every crate in Cargo.lock may be: its licence, where it comes from, and what advisories it
+# may carry. `mise run deny` checks it, and CI's lint job.
+
+[graph]
+# The features an app can turn on, so that a crate only one of them brings in is checked too.
+all-features = true
+
+[advisories]
+# A vulnerability fails, but for the one each entry of `ignore` names and says why. An unmaintained
+# crate fails where this workspace depends on it itself; one deeper in the tree changes only when
+# the crate above it moves.
+unmaintained = "workspace"
+ignore = [
+    # url 2.5.8 overflows the stack in `Url::origin()` on nested `blob:` URLs. pele-core only parses
+    # (input/url.rs) and never calls `origin()`. Cargo.lock moving to url 2.5.9 clears it.
+    { id = "RUSTSEC-2026-0592", reason = "Url::origin() is never called; Url::parse and as_str are not affected" },
+]
+
+[licenses]
+# The licences the lock's crates need, each permissive: any other, and any copyleft licence, fails.
+# A crate that offers a choice, such as MIT OR Apache-2.0, needs only one of them here.
+allow = [
+    "Apache-2.0", # most crates, with MIT
+    "Apache-2.0 WITH LLVM-exception", # ar_archive_writer, which offers no other
+    "BSD-2-Clause", # arrayref
+    "BSD-3-Clause", # tiny-skia and tiny-skia-path, Rune's rasteriser
+    "BSL-1.0", # clipboard-win and error-code, Rune's clipboard on Windows
+    "ISC", # libloading
+    "MIT", # most crates, and this workspace
+    "Unicode-3.0", # the icu crates and their data
+    "Zlib", # foldhash and slotmap
+]
+exceptions = [
+    # Rune's spell checker on Linux and the web, which rune-spell, a dependency of every Rune app,
+    # cannot be built without. MPL-2.0 is copyleft per file: only spellbook's own files stay under
+    # it, and an app may use it unchanged under any licence. No other crate may be MPL-2.0.
+    { crate = "spellbook", allow = ["MPL-2.0"] },
+]
+
+[bans]
+# Rune's tree holds two versions of many crates, such as windows-sys and hashbrown.
+multiple-versions = "warn"
+# No requirement may be `*`. The workspace's own path dependencies name no version.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+# crates.io, and Rune's repository, the one git source its pin and patches name.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/anomalyco/rune"]

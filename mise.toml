@@ -10,6 +10,8 @@ actionlint = "1.7.12"
 # actionlint checks each workflow's shell steps with ShellCheck when it is on PATH, as it is on
 # GitHub's runners, so the same one is pinned here.
 shellcheck = "0.11.0"
+# Checks the licences, sources and advisories of every crate in Cargo.lock against deny.toml.
+cargo-deny = "0.22.1"
 # Rune's web-build.sh, and a static server for its output. The script reads Cargo.lock with
 # `tomllib`, which is Python 3.11 or newer.
 python = "3.15.2"
@@ -27,6 +29,10 @@ run = "scripts/setup.sh"
 [tasks.lint]
 description = "The checks that need no build: the licence copies, rustfmt, the workflows and every tracked shell script"
 run = "scripts/lint.sh"
+
+[tasks.deny]
+description = "Every crate in Cargo.lock held to deny.toml: its licence, its source and its advisories"
+run = "cargo deny check"
 
 [tasks.check]
 description = "The lint task, clippy, unit tests and the differential tests against Pele"
