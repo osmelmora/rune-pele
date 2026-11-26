@@ -21,8 +21,7 @@ break_one() {
     return
   fi
   cp "$file" "$file.unbroken"
-  FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
-  if [ $? -ne 0 ]; then
+  if ! FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"; then
     mv "$file.unbroken" "$file"
     echo "break $name: NOT APPLIED, the text to break is gone from $file"
     failed=1

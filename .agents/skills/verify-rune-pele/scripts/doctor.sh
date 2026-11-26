@@ -31,7 +31,7 @@ dirty=$(git -C vendor/pele status --porcelain)
 echo "doctor: pele $(git -C vendor/pele describe --tags) at $pin"
 
 [ -f harness/dist/oracle.mjs ] || fail "harness/dist/oracle.mjs missing; run \`mise run setup\`"
-stamp="// harness ts sha256 $(cat $(command ls harness/*.ts | LC_ALL=C sort) | shasum -a 256 | cut -d' ' -f1) pele $pin"
+stamp="// harness ts sha256 $(command ls harness/*.ts | LC_ALL=C sort | xargs cat | shasum -a 256 | cut -d' ' -f1) pele $pin"
 [ "$(head -1 harness/dist/oracle.mjs)" = "$stamp" ] || fail "oracle bundle was not built from these harness/*.ts files and pin; run \`mise run setup\`"
 answer=$(printf 'num\t3fc0000000000000\nnum\tbfc0000000000000\n' | mise exec -- "$node_bin" harness/dist/oracle.mjs | tr '\n' ' ')
 [ "$answer" = "0.13 -0.12 " ] || fail "oracle answered num(±0.125) as '$answer', want '0.13 -0.12 '"
