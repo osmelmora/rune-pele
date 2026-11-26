@@ -4,7 +4,7 @@
 # Each break is one exact edit of a source file, undone before the next. With names, only those
 # breaks run. Exits 1 if a break does not apply any more, or if the tests still pass with it.
 set -u
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../.." || exit
 src=crates/rune-pele/src
 logs=out/verify/rune-graph/break
 mkdir -p "$logs"

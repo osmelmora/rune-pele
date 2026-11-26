@@ -5,7 +5,7 @@
 # Each break is one exact edit of a source file, undone before the next. With names, only those
 # breaks run. Exits 1 if a break does not apply any more, or if its test still passes with it.
 set -u
-cd "$(dirname "$0")/../../../.."
+cd "$(dirname "$0")/../../../.." || exit
 logs=out/verify/break-gates
 mkdir -p "$logs"
 failed=0

@@ -2,7 +2,7 @@
 # Read-only: is this checkout worth driving? Prints one line per check and exits 1 on the first failure.
 set -u
 root=$(cd "$(dirname "$0")/../../../.." && pwd)
-cd "$root"
+cd "$root" || exit
 fail() { echo "doctor: FAIL $1"; exit 1; }
 
 # The oracle runs the Node `mise which node` names, never the first `node` on PATH, which can

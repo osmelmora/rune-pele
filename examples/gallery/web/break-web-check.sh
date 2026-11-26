@@ -5,7 +5,7 @@
 # Each break is one exact edit, undone before the next. With names, only those breaks run. Exits 1
 # if a break does not apply any more, or if the check still passes with it.
 set -u
-cd "$(dirname "$0")/../../.."
+cd "$(dirname "$0")/../../.." || exit
 logs=out/verify/break-web-check
 mkdir -p "$logs"
 if ! mise run -q web-check > "$logs/unbroken.log" 2>&1; then

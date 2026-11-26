@@ -7,7 +7,7 @@
 # Each break is one exact edit of js.rs, undone before the next. With names, only those breaks
 # run. Exits 1 if a break does not apply any more, or if its check does not fail with it.
 set -u
-cd "$(dirname "$0")/../../../.."
+cd "$(dirname "$0")/../../../.." || exit
 logs="$PWD/out/verify/break-numerics"
 mkdir -p "$logs"
 file=crates/pele-core/src/js.rs

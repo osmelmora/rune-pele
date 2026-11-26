@@ -5,7 +5,7 @@
 # Each break is one exact edit of a source file, undone before the next. With names, only those
 # breaks run. Exits 1 if a break does not apply any more, or if its test still passes with it.
 set -u
-cd "$(dirname "$0")/../../../.."
+cd "$(dirname "$0")/../../../.." || exit
 logs=out/verify/break-walks
 mkdir -p "$logs"
 if ! cargo build -q -p pele-core --tests > "$logs/unbroken.log" 2>&1; then
