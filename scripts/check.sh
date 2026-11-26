@@ -1,8 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-scripts/notices.sh
-cargo fmt --check
+scripts/lint.sh
 cargo clippy -q --all-targets -- -D warnings
 cargo test -q
 # rune-pele without rune-mermaid, as an app that turns its default features off builds it.

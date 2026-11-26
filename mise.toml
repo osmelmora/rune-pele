@@ -24,12 +24,16 @@ TZ = "UTC"
 description = "Fetch Pele at the pinned commit and build the Node oracle"
 run = "scripts/setup.sh"
 
+[tasks.lint]
+description = "The checks that need no build: the licence copies, rustfmt, the workflows and every tracked shell script"
+run = "scripts/lint.sh"
+
 [tasks.check]
-description = "fmt, clippy, unit tests and the differential tests against Pele"
+description = "The lint task, clippy, unit tests and the differential tests against Pele"
 run = "scripts/check.sh"
 
 [tasks.ci]
-description = "What CI runs: the workflows linted, setup, check, and parity reading 522 of 522 identical"
+description = "What CI's test job runs: setup, check, and parity reading 522 of 522 identical"
 run = "scripts/ci.sh"
 
 [tasks.actionlint]

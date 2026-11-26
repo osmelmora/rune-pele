@@ -6,6 +6,12 @@ import "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Builtin
 steps {
   ["cargo_fmt"] = Builtins.cargo_fmt
   ["actionlint"] = Builtins.actionlint
+  // Check only. The builtin also applies ShellCheck's own diff in fix mode, and that diff quotes a
+  // variable a script splits on purpose: it put `"$selector"` into break-gates.sh, measured.
+  ["shellcheck"] = (Builtins.shellcheck) {
+    check_diff = null
+    check_after_diff = false
+  }
   ["notices"] {
     glob = List("LICENSE", "NOTICE", "crates/*/LICENSE", "crates/*/NOTICE")
     check = "scripts/notices.sh"
