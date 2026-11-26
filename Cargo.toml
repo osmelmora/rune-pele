@@ -10,6 +10,9 @@ rust-version = "1.100"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+# No crate has an unsafe block, and none needs one: the port is arithmetic and Rune's safe API.
+# `forbid`, so no `#[allow]` further in can turn it back on.
+unsafe_code = "forbid"
 
 # Test builds. The tests spend their time in the port's own layout code and in resvg and wgpu, and
 # unoptimised they ran 771 s; with these settings, 227 s (measured, M3 Pro). Debug assertions and
