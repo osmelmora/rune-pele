@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/osmelmora/rune-pele/compare/v0.3.0...v0.3.1) - 2026-11-27
+
+### Added
+
+- implement Debug for every public type
+- mark every builder method #[must_use]
+
+### Fixed
+
+- stop the break scripts and the doctor when their cd fails
+
+### Other
+
+- count a lint break only on its own diagnostic, and break both Debug tests
+- clear ShellCheck's remaining findings in the tracked scripts
+- deny pele-core f64::clamp, which keeps a -0 Math.max makes +0
+- deny pele-core the f64 maths that answers otherwise than V8
+
 ## [0.3.0](https://github.com/osmelmora/rune-pele/compare/v0.2.2...v0.3.0) - 2026-11-24
 
 ### Fixed
