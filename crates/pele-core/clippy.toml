@@ -4,14 +4,14 @@
 # Node. Only pele-core's own targets read this file, since clippy looks for it from the crate's
 # folder up: `mise run check` reads it, and `mise run web-check`, whose CLIPPY_CONF_DIR names
 # examples/gallery/web, does not. Left out: `sqrt`, correctly rounded in both (measured 0 apart);
-# `floor`, `ceil`, `trunc`, `fract`, `abs` and `copysign`, which round nothing; and `clamp`, which
-# parts from Pele's Math.min(Math.max(x, lo), hi) only in the sign of a zero. `Display`,
+# `floor`, `ceil`, `trunc`, `fract`, `abs` and `copysign`, which round nothing. `Display`,
 # `to_string` and `{:.N}` are trait calls, which clippy cannot pin to f64.
 disallowed-methods = [
     { path = "f64::round", reason = "it breaks ties away from zero and Math.round toward +∞: call js::round" },
     { path = "f64::round_ties_even", reason = "it breaks ties to even and Math.round toward +∞: call js::round" },
     { path = "f64::max", reason = "it answers the other number for a NaN, where Math.max answers NaN, and either zero for ±0: call js::max" },
     { path = "f64::min", reason = "it answers the other number for a NaN, where Math.min answers NaN, and either zero for ±0: call js::min" },
+    { path = "f64::clamp", reason = "it keeps a -0 that Math.min(Math.max(x, lo), hi) makes +0, and a division then flips the infinity: call js::min(js::max(x, lo), hi)" },
     { path = "f64::signum", reason = "it answers ±1 for ±0, where Math.sign keeps the zero: port Math.sign as layout/lanes.rs's `sign` does" },
     { path = "f64::sin", reason = "it calls the platform's libm, and Math.sin is V8's fdlibm: call js::sin, or the Trig a layout is given" },
     { path = "f64::cos", reason = "it calls the platform's libm, and Math.cos is V8's fdlibm: call js::cos, or the Trig a layout is given" },
