@@ -17,7 +17,7 @@ if [ -z "$tag" ]; then
 fi
 
 out=$PWD/out/consumer-tag
-rm -rf "$out/app" "$out/tagged" "$out/bin"
+rm -rf "${out:?}/app" "${out:?}/tagged" "${out:?}/bin"
 git -c advice.detachedHead=false clone -q --depth 1 --branch "$tag" "$url" "$out/tagged"
 echo "rune-pele $tag at $(git -C "$out/tagged" rev-parse --short HEAD), from $url"
 for absent in vendor harness/dist harness/node_modules; do
@@ -90,6 +90,7 @@ sysroot=$(rustc --print sysroot)
 ln -s "$sysroot/bin/cargo" "$sysroot/bin/rustc" "$out/bin/"
 path=$out/bin:/usr/bin:/bin:/usr/sbin:/sbin
 echo "PATH=$path"
+# shellcheck disable=SC2016 # $tool is the inner shell's loop variable
 env -i PATH="$path" sh -c 'for tool in node npm mise; do if command -v $tool > /dev/null; then echo "$tool is on PATH"; exit 1; fi; done'
 echo "node, npm and mise are not on PATH; cargo is $(env -i PATH="$path" HOME="$HOME" cargo --version)"
 env -i PATH="$path" HOME="$HOME" ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \

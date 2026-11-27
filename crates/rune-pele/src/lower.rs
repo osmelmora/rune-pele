@@ -169,6 +169,16 @@ pub struct Drawing {
     description: Option<String>,
 }
 
+impl std::fmt::Debug for Drawing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Drawing")
+            .field("size", &self.size)
+            .field("items", &self.items.len())
+            .field("title", &self.title)
+            .finish_non_exhaustive()
+    }
+}
+
 /// How much a drawing asks of Rune.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -260,6 +270,12 @@ pub struct Figure {
     shape: FigureShape,
     /// The boxes the pointer finds the figure in.
     spots: Vec<Frame>,
+}
+
+impl std::fmt::Debug for Figure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Figure").field("frame", &self.frame).finish_non_exhaustive()
+    }
 }
 
 enum FigureShape {
@@ -374,6 +390,12 @@ pub struct TextRun {
     halo: Option<f32>,
     /// A turn about the run's anchor point on its baseline, in radians clockwise.
     turn: Option<Turn>,
+}
+
+impl std::fmt::Debug for TextRun {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextRun").field("content", &self.content).field("frame", &self.frame).finish_non_exhaustive()
+    }
 }
 
 struct TextItem {

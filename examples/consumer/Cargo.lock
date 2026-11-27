@@ -1762,7 +1762,7 @@ dependencies = [
 
 [[package]]
 name = "pele-core"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "indexmap",
  "js-sys",
@@ -2215,7 +2215,7 @@ source = "git+https://github.com/anomalyco/rune?rev=761555829efe531efb83ff2a3ba6
 
 [[package]]
 name = "rune-pele"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "pele-core",
  "rune",

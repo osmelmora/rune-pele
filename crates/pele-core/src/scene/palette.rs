@@ -31,16 +31,25 @@ impl Hash for Rgba {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the view's colours, which the SVG never reads; js::pow would move 34 of the 256 channels by an ulp"
+)]
 fn decode(c: f64) -> f64 {
     if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the view's colours, which the SVG never reads; js::pow would move about 1 value in 10 by an ulp"
+)]
 fn encode(c: f64) -> f64 {
     if c <= 0.0031308 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 }
 }
 
 impl Rgba {
     /// A colour from sRGB-encoded channels and alpha, each from 0 to 1, as CSS writes them.
+    #[expect(clippy::disallowed_methods, reason = "the view's colours, which the SVG never reads")]
     pub fn from_srgb(channels: [f64; 3], alpha: f64) -> Self {
         Rgba { linear_srgb: channels.map(|c| decode(c.clamp(0.0, 1.0))), alpha: alpha.clamp(0.0, 1.0) }
     }
@@ -52,8 +61,9 @@ impl Rgba {
     }
 
     /// The sRGB-encoded channels and alpha as bytes, as a PNG holds them.
+    #[expect(clippy::disallowed_methods, reason = "the view's colours, which the SVG never reads")]
     pub fn to_srgb8(self) -> [u8; 4] {
-        let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let byte = |c: f64| crate::js::round(c.clamp(0.0, 1.0) * 255.0) as u8;
         let [r, g, b] = self.linear_srgb.map(encode);
         [byte(r), byte(g), byte(b), byte(self.alpha)]
     }
@@ -117,12 +127,14 @@ impl Palette {
         Palette { roles, series: PELE_SERIES.map(Rgba::hex) }
     }
 
+    #[must_use]
     pub fn with(mut self, role: Role, colour: Rgba) -> Self {
         self.roles[index(role)] = colour;
         self
     }
 
     /// Sets the colour of the series at `position`, counted from 0. Positions wrap after eight.
+    #[must_use]
     pub fn with_series(mut self, position: usize, colour: Rgba) -> Self {
         self.series[position % 8] = colour;
         self
@@ -227,6 +239,7 @@ impl Scene {
 
 /// CSS's `color-mix(in srgb, a share, b)`: the two colours' sRGB channels, each weighted by its
 /// alpha, then by its share.
+#[expect(clippy::disallowed_methods, reason = "the view's colours, which the SVG never reads")]
 fn mix(a: Rgba, b: Rgba, share: f64) -> Rgba {
     let share = share.clamp(0.0, 1.0);
     let alpha = a.alpha * share + b.alpha * (1.0 - share);

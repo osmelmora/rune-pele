@@ -65,6 +65,7 @@ pub fn ten_to(n: f64) -> f64 {
 /// cannot change the output, such as a threshold comparison. Where ECMAScript and C part, it
 /// answers as ECMAScript does: NaN for any base to a NaN power and for ±1 to ±∞, where C's
 /// `pow` answers 1.
+#[expect(clippy::disallowed_methods, reason = "the one call of libm::pow, after the cases where C and ECMAScript part")]
 pub fn pow(base: f64, exponent: f64) -> f64 {
     if exponent.is_nan() || (base.abs() == 1.0 && exponent.is_infinite()) {
         return f64::NAN;

@@ -1,5 +1,7 @@
 //! Differential tests: every answer must equal Pele 1.13.0 running in the pinned Node.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::js;
 
 fn oracle(requests: &[String]) -> Vec<String> {

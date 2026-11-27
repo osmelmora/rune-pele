@@ -6,6 +6,8 @@
 //! left behind. The other test asks the oracle's `block_layout_run` op directly, for trees no
 //! source makes.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::block_layout::{Cell, cell, layout};
 use serde_json::{Value, json};
 use std::collections::HashSet;

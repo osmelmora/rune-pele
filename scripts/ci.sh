@@ -1,12 +1,11 @@
 #!/bin/sh
-# CI's test job (.github/workflows/ci.yml), on Linux arm64, run locally as `mise run ci`: the
-# workflows linted, everything `mise run check` runs, and `pele parity` on a fresh folder, which
-# must read all 522 corpus sources identical. On Linux the rune-pele tests draw on a Vulkan GPU,
-# which Mesa's lavapipe is in software, and Pele's SVG in Liberation Sans, which has Arial's
-# metrics: Debian and Ubuntu name them mesa-vulkan-drivers and fonts-liberation.
+# CI's test job (.github/workflows/ci.yml), on Linux arm64, run locally as `mise run ci`: setup,
+# everything `mise run check` runs, the workflows and scripts linted among it, and `pele parity` on
+# a fresh folder, which must read all 522 corpus sources identical. On Linux the rune-pele tests
+# draw on a Vulkan GPU, which Mesa's lavapipe is in software, and Pele's SVG in Liberation Sans,
+# which has Arial's metrics: Debian and Ubuntu name them mesa-vulkan-drivers and fonts-liberation.
 set -eu
 cd "$(dirname "$0")/.."
-actionlint
 scripts/setup.sh
 scripts/check.sh
 out=out/ci

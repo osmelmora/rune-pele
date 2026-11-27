@@ -10,6 +10,8 @@ actionlint = "1.7.12"
 # actionlint checks each workflow's shell steps with ShellCheck when it is on PATH, as it is on
 # GitHub's runners, so the same one is pinned here.
 shellcheck = "0.11.0"
+# Checks the licences, sources and advisories of every crate in Cargo.lock against deny.toml.
+cargo-deny = "0.22.1"
 # Rune's web-build.sh, and a static server for its output. The script reads Cargo.lock with
 # `tomllib`, which is Python 3.11 or newer.
 python = "3.15.2"
@@ -24,12 +26,20 @@ TZ = "UTC"
 description = "Fetch Pele at the pinned commit and build the Node oracle"
 run = "scripts/setup.sh"
 
+[tasks.lint]
+description = "The checks that need no build: the licence copies, rustfmt, the workflows and every tracked shell script"
+run = "scripts/lint.sh"
+
+[tasks.deny]
+description = "Every crate in Cargo.lock held to deny.toml: its licence, its source and its advisories"
+run = "cargo deny check"
+
 [tasks.check]
-description = "fmt, clippy, unit tests and the differential tests against Pele"
+description = "The lint task, clippy, unit tests and the differential tests against Pele"
 run = "scripts/check.sh"
 
 [tasks.ci]
-description = "What CI runs: the workflows linted, setup, check, and parity reading 522 of 522 identical"
+description = "What CI's test job runs: setup, check, and parity reading 522 of 522 identical"
 run = "scripts/ci.sh"
 
 [tasks.actionlint]
@@ -97,7 +107,9 @@ description = "pele-core, rune-pele and the gallery linted for wasm32-unknown-un
 run = """
 set -eu
 export CLIPPY_CONF_DIR="$PWD/examples/gallery/web"
-cargo clippy -q --target wasm32-unknown-unknown -p pele-core -p rune-pele -- -D warnings
+# That folder's clippy.toml replaces pele-core's own, so the numerics #[expect]s that `mise run check`
+# holds go unfulfilled here.
+cargo clippy -q --target wasm32-unknown-unknown -p pele-core -p rune-pele -- -D warnings -A unfulfilled_lint_expectations
 cargo fmt --check --manifest-path examples/gallery/Cargo.toml
 cargo clippy -q --target wasm32-unknown-unknown --manifest-path examples/gallery/Cargo.toml --target-dir target -- -D warnings
 # The runner takes no --quiet, so the test's own lines are picked from its output, which a failure prints whole.

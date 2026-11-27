@@ -3,6 +3,8 @@
 //! the oracle's `treemap_layout` op; and Pele's value format, byte for byte, through
 //! `treemap_format`.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 #[path = "differential/harness.rs"]
 mod harness;
 

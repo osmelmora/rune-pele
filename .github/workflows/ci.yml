@@ -1,6 +1,7 @@
-# CI runs the tests on Linux arm64, in one job that runs one script, `mise run ci`, which a
-# developer runs the same way. Locally the tests run on macOS. It runs on every pull request and
-# every push to main, and when started by hand.
+# CI runs in two jobs, each one command a developer runs the same way: the checks that need no
+# build, `mise run lint` and `mise run deny`, and the tests on Linux arm64, `mise run ci`. Locally
+# the tests run on macOS. It runs on every pull request and every push to main, and when started
+# by hand. A change to documentation only skips both.
 name: CI
 
 on:
@@ -27,8 +28,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Changes
+    # Whether the pull request or push changes anything but documentation, by
+    # `scripts/code-changed.sh`; started by hand, everything counts. A job its `if` skips reports
+    # success, so the required `Linux arm64` passes on a change to documentation alone, where a
+    # workflow left out by `paths` would keep the pull request waiting for it.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: scripts/code-changed.sh "$BASE" >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: Lint
+    needs: changes
+    # Skipped only on a `false`: if `changes` fails, both jobs run.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    # The licence copies, rustfmt, the workflows, the shell scripts and Cargo.lock's crates, none of
+    # which builds anything, so they report long before the tests do. cargo-deny reads the lock
+    # through cargo metadata, which fetches the crates: 15 s with nothing cached, measured on macOS.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.10
+        with:
+          install_args: rust actionlint shellcheck cargo-deny
+      - run: mise run lint
+      - run: mise run deny
+
   linux:
     name: Linux arm64
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     # arm64 Linux, where the whole job was measured passing, drawing tests included; Pele's maths
     # there matches the arm64 Node every measurement in this repository was made with.
     runs-on: ubuntu-24.04-arm

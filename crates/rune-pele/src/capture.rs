@@ -20,6 +20,12 @@ pub struct Pixels {
     pub rgba: Vec<u8>,
 }
 
+impl std::fmt::Debug for Pixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pixels").field("width", &self.width).field("height", &self.height).finish_non_exhaustive()
+    }
+}
+
 impl Pixels {
     /// The pixel at column `x` and row `y`, counted from the top left.
     pub fn at(&self, x: u32, y: u32) -> [u8; 4] {
@@ -36,6 +42,12 @@ impl Pixels {
 /// A headless GPU, kept across captures because making one costs far more than a frame.
 pub struct Capturer {
     gpu: Gpu,
+}
+
+impl std::fmt::Debug for Capturer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Capturer").finish_non_exhaustive()
+    }
 }
 
 impl Default for Capturer {
@@ -91,6 +103,12 @@ pub struct Window<'a, S: 'static> {
     target: Offscreen,
     /// In device pixels.
     size: (u32, u32),
+}
+
+impl<S: 'static> std::fmt::Debug for Window<'_, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Window").field("size", &self.size).finish_non_exhaustive()
+    }
 }
 
 impl<S: 'static> Window<'_, S> {

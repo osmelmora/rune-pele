@@ -1,6 +1,8 @@
 //! The Scene's paint walk read the way an interpreter reads it: paint order, inherited style,
 //! keys and the numbers the SVG spells.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::scene::{
     AnchorKind, EntityKind, Facet, FragmentDetail, Geometry, LineJoin, Paint, PaintVisit, Palette, PathCommand, Point,
     Rgba, Role, SeriesSlot, ThemeSeries,

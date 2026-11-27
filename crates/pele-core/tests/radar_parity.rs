@@ -8,6 +8,8 @@
 //! has three sources, so the harvest, the mutations and the random charts carry the proof. The
 //! random charts must reach every drawing path in [`PATHS`].
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 #[path = "radar/random.rs"]
 mod random;
 #[path = "standalone/parity.rs"]

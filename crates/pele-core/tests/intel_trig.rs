@@ -3,6 +3,8 @@
 //! fixtures. Both are ignored: `mise run intel-trig` runs them beside an x86-64 Node of the pinned
 //! version, and they write their tables to `out/verify/intel-trig/`.
 
+#![expect(clippy::disallowed_methods, reason = "the test's own arithmetic, which no SVG reads")]
+
 use pele_core::{js, layout::num::hypot};
 use pele_oracle::PeleRender;
 use std::fmt::Write as _;

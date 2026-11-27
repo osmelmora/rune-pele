@@ -7,7 +7,7 @@
 # Each break is one exact edit of js.rs, undone before the next. With names, only those breaks
 # run. Exits 1 if a break does not apply any more, or if its check does not fail with it.
 set -u
-cd "$(dirname "$0")/../../../.."
+cd "$(dirname "$0")/../../../.." || exit
 logs="$PWD/out/verify/break-numerics"
 mkdir -p "$logs"
 file=crates/pele-core/src/js.rs
@@ -42,8 +42,7 @@ break_one() {
     return
   fi
   cp "$file" "$file.unbroken"
-  FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
-  if [ $? -ne 0 ]; then
+  if ! FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"; then
     restore
     echo "break $name: NOT APPLIED, the text to break is gone from $file"
     failed=1

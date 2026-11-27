@@ -87,6 +87,7 @@ fn sort(list: &mut [usize], compare: impl Fn(usize, usize) -> Ordering) {
 }
 
 /// The values the links carry, as a model or a test gives them.
+#[derive(Debug)]
 pub struct Flows<'a> {
     pub nodes: usize,
     pub links: &'a [(usize, usize, f64)],

@@ -4,7 +4,7 @@
 # Each break is one exact edit of a source file, undone before the next. With names, only those
 # breaks run. Exits 1 if a break does not apply any more, or if the tests still pass with it.
 set -u
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../.." || exit
 src=crates/rune-pele/src
 logs=out/verify/rune-graph/break
 mkdir -p "$logs"
@@ -32,8 +32,7 @@ break_one() {
   name=$1 file=$src/$2 filter=$3 from=$4 to=$5 binary=${6:-lowering}
   chosen "$name" || return
   cp "$file" "$file.unbroken"
-  FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
-  if [ $? -ne 0 ]; then
+  if ! FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"; then
     restore "$file"
     echo "break $name: NOT APPLIED, the line to break is gone from $file"
     failed=1
@@ -365,8 +364,7 @@ break_doc() {
   name=$1 file=$src/$2
   chosen "$name" || return
   cp "$file" "$file.unbroken"
-  FROM=$3 TO=$4 perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
-  if [ $? -ne 0 ]; then
+  if ! FROM=$3 TO=$4 perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"; then
     restore "$file"
     echo "break $name: NOT APPLIED, the line to break is gone from $file"
     failed=1
@@ -382,6 +380,7 @@ break_doc() {
   restore "$file"
 }
 
+# shellcheck disable=SC2016 # the backticks are a rustdoc link in the text the break writes
 break_doc doc-private-link lower.rs \
   'neither is cut into the upright bands a gradient is drawn in.' \
   'neither is cut into the [`MOST_BANDS`] bands a gradient is drawn in.'
@@ -390,6 +389,11 @@ break_one rune-not-re-exported lib.rs an_app_on_rune_pele_s_rune \
   'pub use rune;' \
   '' \
   rune_reexport
+break_one debug-source-length-dropped lib.rs an_app_logs_who_drew \
+  '                .field("source_len", &source)
+' \
+  '' \
+  api
 
 # break_use <name> <test command> <file> <from> <to> [<file> <from> <to>]...: how an app builds
 # with rune-pele, broken by exact edits of files named from the workspace root, undone together.
@@ -478,6 +482,7 @@ break_use doc-missing-without-the-crate-lint "$gate" \
 ' '' \
   crates/pele-core/src/lib.rs '    /// The diagram type the source is.
 ' ''
+# shellcheck disable=SC2016 # the backticks are code in the doc comment the break deletes
 break_use doc-missing-on-a-root-re-export "$gate" \
   crates/rune-pele/src/text.rs '    /// The fonts the app gives Rune in `AppSpec::fonts`, and the families its sans and monospace
     /// text is set in. Empty `fonts` is Rune'"'"'s own.

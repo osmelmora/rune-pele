@@ -5,7 +5,7 @@
 # Each break is one exact edit of a source file, undone before the next. With names, only those
 # breaks run. Exits 1 if a break does not apply any more, or if its test still passes with it.
 set -u
-cd "$(dirname "$0")/../../../.."
+cd "$(dirname "$0")/../../../.." || exit
 logs=out/verify/break-gates
 mkdir -p "$logs"
 failed=0
@@ -25,19 +25,18 @@ break_one() {
     return
   fi
   cp "$file" "$file.unbroken"
-  FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"
-  if [ $? -ne 0 ]; then
+  if ! FROM=$from TO=$to perl -0pi -e 'BEGIN { $n = 0 } $n += s/\Q$ENV{FROM}\E/$ENV{TO}/; END { exit($n == 1 ? 0 : 3) }' "$file"; then
     restore "$file"
     echo "break $name: NOT APPLIED, the text to break is gone from $file"
     failed=1
     return
   fi
   if [ "$target" = bin ]; then
-    selector="--bin pele"
+    set -- --bin pele
   else
-    selector="--test $target"
+    set -- --test "$target"
   fi
-  if cargo test -q -p "$package" $selector "$filter" > "$logs/$name.log" 2>&1; then
+  if cargo test -q -p "$package" "$@" "$filter" > "$logs/$name.log" 2>&1; then
     echo "break $name: tests still PASS with it; $filter does not catch it"
     failed=1
   else

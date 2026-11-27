@@ -305,7 +305,7 @@ fn draw(model: &JourneyModel, cx: &DrawContext<'_>) -> Result<Scene, RenderError
             let look = LabelLook::default().font_size(Number::raw(small));
             out.label(part, Facet::Label, &labels[i], Point { x: cx, y: cards_y + PAD_Y + text_h / 2.0 }, look);
             let people: Vec<&JsText> = task.people.iter().filter(|name| !name.is_empty()).collect();
-            let spread = (people.len() as f64 - 1.0).max(1.0);
+            let spread = js::max(people.len() as f64 - 1.0, 1.0);
             let step = js::min(DOT_STEP, (card_w - 2.0 * PAD_X - 2.0 * DOT) / spread);
             for (k, &name) in people.iter().enumerate() {
                 let at = cx + (k as f64 - (people.len() as f64 - 1.0) / 2.0) * step;
