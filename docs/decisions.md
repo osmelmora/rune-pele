@@ -893,6 +893,8 @@ All 135 programs pass in each. `agentflow_parity` went from 129 s to 5.5 s, `gra
 
 **For apps** (measured). cargo-semver-checks 0.51.0 against `v0.3.0`, with the eight patches in a throwaway Cargo home as release-plz has them, finds nothing breaking: pele-core and rune-pele each pass 202 checks and skip 58. As a patch release, each fails one check, `inherent_method_must_use_added`, which asks for a new minor version. To cargo-semver-checks, 0.3.0 to 0.3.1 is that minor change, and it passes. The new `Debug` impls are named by no check. An app that drops a builder's result now gets a warning, an error under `-D warnings`.
 
-**Open.**
-- Whether MPL-2.0 is acceptable for `spellbook`, and for the gallery's eight audio crates, if the gallery is to be checked too.
-- Whether CI's `Lint` should become a required check.
+**Decided** (the user, 2026-11-27).
+- MPL-2.0 stays allowed for `spellbook` alone. Every Rune app builds it, and an app may use its files unchanged under any licence.
+- CI's `Lint` stays a check the ruleset doesn't require. It took 32 s on its first run (measured, PR #8), and the test job runs all its checks except cargo-deny.
+
+**Open.** Whether MPL-2.0 is acceptable for the gallery's eight audio crates, if the gallery's lock is to be checked too.
