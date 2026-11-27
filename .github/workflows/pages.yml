@@ -1,11 +1,16 @@
 # Pages builds the gallery for the web, `mise run gallery-web`, and publishes it on GitHub Pages
-# from every push to main, and when started by hand. A pull request that changes what the web
-# build reads builds it too, without publishing.
+# from every push to main that changes more than documentation, and when started by hand. A pull
+# request that changes what the web build reads builds it too, without publishing.
 name: Pages
 
 on:
   push:
     branches: [main]
+    # The gallery reads no Markdown file and nothing in docs/. Pages is not a required check, so a
+    # filtered push leaves nothing waiting.
+    paths-ignore:
+      - "**.md"
+      - docs/**
   pull_request:
     paths:
       - crates/pele-core/**

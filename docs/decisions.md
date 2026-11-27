@@ -898,3 +898,14 @@ All 135 programs pass in each. `agentflow_parity` went from 129 s to 5.5 s, `gra
 - CI's `Lint` stays a check the ruleset doesn't require. It took 32 s on its first run (measured, PR #8), and the test job runs all its checks except cargo-deny.
 
 **Open.** Whether MPL-2.0 is acceptable for the gallery's eight audio crates, if the gallery's lock is to be checked too.
+
+## 2026-11-27 A change to documentation runs no code check
+
+The user asked that a change to documentation not run the checks for code. PR #8's commit `776890b` changed `docs/decisions.md` alone and started `Linux arm64` again, which had taken 27 minutes on the commit before.
+
+- **What counts as documentation.** Every Markdown file and everything in `docs/`, but `README.md`: `examples/consumer`'s test reads the README's patches and Rune rev, so a README change runs everything. `scripts/code-changed.sh` decides, from `git diff --name-only --no-renames` against the merge base, so a source moved into `docs/` still counts as code.
+- **Skipped by `if`, not by `paths`.** The ruleset requires `Linux arm64`. GitHub reports a job its `if` skips as a success, and leaves a check pending, blocking the merge, when `paths` skips its whole workflow (its docs, "Troubleshooting required status checks"). So CI starts on every change, and a first job, `Changes`, says whether `Lint` and `Linux arm64` run. They skip only on its `false`: started by hand, with no base git has, or if `Changes` fails, both run.
+- **Pages.** A push to `main` that changes documentation alone no longer rebuilds the gallery, by `paths-ignore`; Pages is not required. Its pull request filter already listed what the web build reads.
+- **Unchanged.** `conventional` checks a documentation commit's message as any other. Release-plz still runs on every push to `main`, which may move the release pull request's changelog.
+
+**Evidence** (measured). Run on this repository's commits, the script says `false` for `776890b`, which changed `docs/decisions.md` alone, and for an empty diff; `true` for `f4b137d`, which changed `CONTRIBUTING.md` and `README.md`, for `18af22a`, whose docs commit also moved `examples/consumer/Cargo.lock`, for all of PR #8, and with no base or the zero commit a new branch's push names. actionlint and ShellCheck pass. The skip itself is measured only once a documentation-only pull request runs on GitHub.
