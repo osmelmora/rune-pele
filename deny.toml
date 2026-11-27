@@ -6,15 +6,9 @@
 all-features = true
 
 [advisories]
-# A vulnerability fails, but for the one each entry of `ignore` names and says why. An unmaintained
-# crate fails where this workspace depends on it itself; one deeper in the tree changes only when
-# the crate above it moves.
+# A vulnerability fails. An unmaintained crate fails where this workspace depends on it itself; one
+# deeper in the tree changes only when the crate above it moves.
 unmaintained = "workspace"
-ignore = [
-    # url 2.5.8 overflows the stack in `Url::origin()` on nested `blob:` URLs. pele-core only parses
-    # (input/url.rs) and never calls `origin()`. Cargo.lock moving to url 2.5.9 clears it.
-    { id = "RUSTSEC-2026-0592", reason = "Url::origin() is never called; Url::parse and as_str are not affected" },
-]
 
 [licenses]
 # The licences the lock's crates need, each permissive: any other, and any copyleft licence, fails.
