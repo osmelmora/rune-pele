@@ -389,6 +389,11 @@ break_one rune-not-re-exported lib.rs an_app_on_rune_pele_s_rune \
   'pub use rune;' \
   '' \
   rune_reexport
+break_one debug-source-length-dropped lib.rs an_app_logs_who_drew \
+  '                .field("source_len", &source)
+' \
+  '' \
+  api
 
 # break_use <name> <test command> <file> <from> <to> [<file> <from> <to>]...: how an app builds
 # with rune-pele, broken by exact edits of files named from the workspace root, undone together.
